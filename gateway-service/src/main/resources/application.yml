@@ -1,0 +1,83 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/api/v1/auth/**
+
+        - id: user-service
+          uri: http://user-service:8082
+          predicates:
+            - Path=/api/v1/users/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: journal-service
+          uri: http://journal-service:8083
+          predicates:
+            - Path=/api/v1/journals/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: ai-service
+          uri: http://ai-service:8084
+          predicates:
+            - Path=/api/v1/ai/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: search-service
+          uri: http://search-service:8085
+          predicates:
+            - Path=/api/v1/search/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: recommendation-service
+          uri: http://recommendation-service:8086
+          predicates:
+            - Path=/api/v1/recommendations/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: notification-service
+          uri: http://notification-service:8087
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: analytics-service
+          uri: http://analytics-service:8088
+          predicates:
+            - Path=/api/v1/analytics/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+        - id: file-service
+          uri: http://file-service:8089
+          predicates:
+            - Path=/api/v1/files/**
+          filters:
+            - name: JwtAuthenticationFilter
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://discovery-server:8761/eureka/
+
+jwt:
+  secret: defaultSecretKeyForTestingJwtTokenValidation1234567890
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

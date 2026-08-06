@@ -1,0 +1,193 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "AI Journaling Microservices Platform API",
+		"description": "Complete Postman API Collection for Gateway, Auth, User, Journal, AI, Search, Recommendation, Notification, Analytics, and File Services.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth Service",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"John Doe\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/auth/register",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"johndoe\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/auth/login",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Journal Service",
+			"item": [
+				{
+					"name": "Create Journal Entry",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"},
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Achieved Q3 Milestones and Afternoon Park Walk\",\n  \"content\": \"Today was an extraordinarily productive day. I completed all Q3 software architecture deliverables early and took a peaceful 30-minute walk in Central Park. Feeling super happy and refreshed!\",\n  \"mood\": \"Happy\",\n  \"location\": \"Central Park\",\n  \"weather\": \"Sunny 24°C\",\n  \"tags\": [\"career\", \"health\", \"happiness\"]\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/journals",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "journals"]
+						}
+					}
+				},
+				{
+					"name": "Get User Journals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/v1/journals?page=0&size=10",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "journals"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "10"}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "AI Service",
+			"item": [
+				{
+					"name": "Summarize Journal Entry",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"},
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Today I completed my major software architecture project and spent quality time outdoors. Felt a wave of joy and calm.\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/ai/summarize",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "ai", "summarize"]
+						}
+					}
+				},
+				{
+					"name": "Detect Mood",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"},
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Feeling a bit overwhelmed with tight deadlines and upcoming exams.\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/ai/mood",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "ai", "mood"]
+						}
+					}
+				},
+				{
+					"name": "Chat with Journal (RAG)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{"key": "Content-Type", "value": "application/json"},
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"What were my biggest achievements this month?\"\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8080/api/v1/ai/chat",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "ai", "chat"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Search Service",
+			"item": [
+				{
+					"name": "Natural Language Semantic Search",
+					"request": {
+						"method": "GET",
+						"header": [
+							{"key": "Authorization", "value": "Bearer {{access_token}}"}
+						],
+						"url": {
+							"raw": "http://localhost:8080/api/v1/search/semantic?query=Show entries where I was happy",
+							"protocol": "http",
+							"host": ["localhost"],
+							"port": "8080",
+							"path": ["api", "v1", "search", "semantic"],
+							"query": [
+								{"key": "query", "value": "Show entries where I was happy"}
+							]
+						}
+					}
+				}
+			]
+		}
+	]
+}

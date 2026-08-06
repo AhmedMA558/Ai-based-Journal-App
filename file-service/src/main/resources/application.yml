@@ -1,0 +1,25 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: file-service
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+storage:
+  local:
+    dir: ./uploads
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://discovery-server:8761/eureka/}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus

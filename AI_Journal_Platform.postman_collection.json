@@ -1,0 +1,771 @@
+{
+	"info": {
+		"_postman_id": "c8d9e0f1-2345-6789-abcd-ef0123456789",
+		"name": "AI Journal Platform - Full API Suite",
+		"description": "Complete Postman Collection for AI Journal Platform Microservices:\n- Gateway Service (:8080)\n- Auth Service (:8081)\n- User Service (:8082)\n- Journal Service (:8083)\n- Python Flask AI Service (:8084 / :5000)\n- Elasticsearch Search Service (:8085 / :9200)\n- Recommendation Service (:8086)\n- Notification Service (:8087)\n- Analytics Service (:8088)\n- File Service (:8089)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "journalId",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "1. Authentication Service",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set(\"token\", jsonData.data.accessToken);",
+									"    if (jsonData.data.userId) pm.collectionVariables.set(\"userId\", jsonData.data.userId);",
+									"    console.log(\"Auto-saved Access Token & User ID\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"johndoe_full\",\n  \"email\": \"johndoe@example.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"John Doe\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login User (Auto-saves Token & User ID)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set(\"token\", jsonData.data.accessToken);",
+									"    if (jsonData.data.userId) pm.collectionVariables.set(\"userId\", jsonData.data.userId);",
+									"    console.log(\"Saved Access Token:\", jsonData.data.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"johndoe_full\",\n  \"password\": \"Password123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Access Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"<YOUR_REFRESH_TOKEN_HERE>\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/auth/refresh-token",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"auth",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Journal Service",
+			"item": [
+				{
+					"name": "Create Journal Entry",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.id) {",
+									"    pm.collectionVariables.set(\"journalId\", jsonData.data.id);",
+									"    console.log(\"Auto-saved Created Journal ID:\", jsonData.data.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Python Flask AI & Elasticsearch Integration\",\n  \"content\": \"Today I successfully completed integrating Python Flask AI microservice, Elasticsearch 8.x, and Docker RabbitMQ. Feeling super happy, accomplished, and excited!\",\n  \"mood\": \"Happy\",\n  \"tags\": [\"python\", \"ai\", \"elasticsearch\"]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/journals",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"journals"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Journals",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/journals",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"journals"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Journal By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"journals",
+								"{{journalId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Journal Entry",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Updated Journal Title\",\n  \"content\": \"Updated journal entry content with new reflections.\",\n  \"mood\": \"Excited\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"journals",
+								"{{journalId}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Journal Entry",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"journals",
+								"{{journalId}}"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Python Flask AI Service",
+			"item": [
+				{
+					"name": "AI Mood Detection (With Emojis 😊)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Feeling super happy, accomplished, and excited about launching our Python Flask AI microservice!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/mood",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"mood"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "AI Summarize Entry",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Today I successfully completed integrating Python Flask AI microservice, Elasticsearch 8.x, and Docker RabbitMQ.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/summarize",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"summarize"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "AI Chat with Journal",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"query\": \"What achievements did I accomplish today?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/chat",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"chat"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "AI Generate Tags",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"content\": \"Reflecting on software architecture and distributed system design.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/tags",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"tags"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "AI Personalized Recommendations",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"mood\": \"HAPPY\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/ai/recommendations",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"ai",
+								"recommendations"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Direct Python Flask Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:5000/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "5000",
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Elasticsearch Search Service",
+			"item": [
+				{
+					"name": "Full-Text Search",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "X-User-Id",
+								"value": "{{userId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/search?query=python",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search"
+							],
+							"query": [
+								{
+									"key": "query",
+									"value": "python"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Semantic Search",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "X-User-Id",
+								"value": "{{userId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/search/semantic?query=happy",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"search",
+								"semantic"
+							],
+							"query": [
+								{
+									"key": "query",
+									"value": "happy"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Direct Elasticsearch Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:9200",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "9200"
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. User Service",
+			"item": [
+				{
+					"name": "Get Profile Me",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"fullName\": \"John Doe Updated\",\n  \"bio\": \"Senior Engineer exploring AI microservices\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"me"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "6. Analytics Service",
+			"item": [
+				{
+					"name": "Get Mood Analytics Trends",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/analytics/mood-trends",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"analytics",
+								"mood-trends"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get User Analytics Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/analytics/summary",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"analytics",
+								"summary"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "7. Recommendation Service",
+			"item": [
+				{
+					"name": "Get Daily Recommendations",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/recommendations/daily",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"recommendations",
+								"daily"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "8. Notification Service",
+			"item": [
+				{
+					"name": "Get User Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/v1/notifications",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"notifications"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

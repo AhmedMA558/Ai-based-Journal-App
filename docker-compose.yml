@@ -1,0 +1,174 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: journal-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: elasticsearch:8.13.0
+    container_name: journal-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: journal-redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: journal-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  mailhog:
+    image: mailhog/mailhog
+    container_name: journal-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  python-ai-service:
+    build: ./python-ai-service
+    container_name: python-ai-service
+    ports:
+      - "5000:5000"
+
+  discovery-server:
+    build: ./discovery-server
+    container_name: discovery-server
+    ports:
+      - "8761:8761"
+
+  config-server:
+    build: ./config-server
+    container_name: config-server
+    ports:
+      - "8888:8888"
+    depends_on:
+      - discovery-server
+
+  gateway-service:
+    build: ./gateway-service
+    container_name: gateway-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - discovery-server
+      - config-server
+      - redis
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  journal-service:
+    build: ./journal-service
+    container_name: journal-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/journal_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+
+  ai-service:
+    build: ./ai-service
+    container_name: ai-service
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/ai_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      AI_PROVIDER: flask
+      FLASK_AI_URL: http://python-ai-service:5000
+    depends_on:
+      mysql:
+        condition: service_healthy
+      python-ai-service:
+        condition: service_started
+
+  search-service:
+    build: ./search-service
+    container_name: search-service
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_RABBITMQ_HOST: rabbitmq
+    depends_on:
+      - elasticsearch
+      - rabbitmq
+
+  recommendation-service:
+    build: ./recommendation-service
+    container_name: recommendation-service
+    ports:
+      - "8086:8086"
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service
+    ports:
+      - "8087:8087"
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service
+    ports:
+      - "8088:8088"
+
+  file-service:
+    build: ./file-service
+    container_name: file-service
+    ports:
+      - "8089:8089"
+
+volumes:
+  mysql_data:
