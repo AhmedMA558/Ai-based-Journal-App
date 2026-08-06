@@ -1,102 +1,126 @@
-# AI Journaling Microservices Platform
+# 🧠 AI-Powered Journaling Microservices Platform
 
-An enterprise-grade, production-ready, AI-powered journaling platform built with **Java 21**, **Spring Boot 3.3.2**, **Spring Cloud (Eureka & Gateway)**, **Spring AI**, **MySQL 8**, **Redis**, **RabbitMQ**, and **Docker**.
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.2-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-3.1-black.svg)](https://flask.palletsprojects.com/)
+[![Elasticsearch](https://img.shields.io/badge/Elasticsearch-8.13-yellow.svg)](https://www.elastic.co/)
+[![RabbitMQ](https://img.shields.io/badge/RabbitMQ-3.12-orange.svg)](https://www.rabbitmq.com/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0-blue.svg)](https://www.mysql.com/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-240957.svg)](https://www.docker.com/)
 
----
-
-## Key Features
-
-- **Microservice Architecture**: 13 independently deployable microservices cleanly decoupled via Spring Cloud Gateway & Netflix Eureka.
-- **Pluggable AI Strategy**: Switch seamlessly between **OpenAI**, **Anthropic Claude**, **Google Gemini**, **Local Ollama**, and **Mock AI** via `application.yml`.
-- **Rich Journal Features**: Rich Text/Markdown, Autosave, Drafts, Pinned, Favorites, Archive, Soft & Permanent Delete, AES-256 Content Encryption, Version History, Attachments, Location & Weather tags.
-- **15 AI Intelligence Capabilities**:
-  1. Journal Summaries (Short, Detailed, Bullet)
-  2. Mood Detection with Confidence Scores
-  3. Emotion Timeline Analytics (Weekly, Monthly, Yearly)
-  4. Context-Aware AI Recommendations
-  5. AI-Generated Hashtags
-  6. Natural Language Smart Search
-  7. AI Chat with Journal (RAG / AI Memory)
-  8. Habit Detection
-  9. Goal Extraction & Progress Tracking
-  10. Sentiment Analysis
-  11. Writing & Grammar Improvement Suggestions
-  12. AI Daily Reflection & Prompt Generator
-  13. User Insights & Streak Tracking
-  14. Personal Recommendation Engine
-  15. Multi-Channel Notification Pipeline
-- **Security**: JWT Access & Sliding Refresh Token Rotation, Password Encryption (BCrypt), RBAC, Security Filters.
-- **Data Integrity**: Flyway DB Migrations, Optimistic Locking, Soft Delete filters, Audit fields.
-- **DevOps & Monitoring**: Complete Docker Compose setup, Prometheus & Grafana metrics, OpenAPI/Swagger docs, Postman & Bruno collections, GitHub Actions CI pipeline.
+A modern, enterprise-grade cloud-native microservices platform for intelligent journaling. Built using **Spring Boot 3**, **Spring Cloud (API Gateway, Eureka Discovery, Config Server)**, a dedicated **Python Flask AI Microservice**, **Elasticsearch 8.x Engine**, **Docker RabbitMQ Event Messaging**, and **Persistent MySQL Storage**.
 
 ---
 
-## Architecture Diagram
+## 🌟 Key Features
 
+- **🚀 Cloud-Native Microservice Architecture**: 14 modular services orchestrated with Netflix Eureka, Spring Cloud Gateway, and Config Server.
+- **🐍 Python Flask AI Microservice**: Machine learning endpoints for real-time sentiment analysis, summarization, keyword tagging, and journal recommendations.
+- **😊 Dynamic Mood Emojis**: Automated mood detection mapping journal emotions to matching emojis (`HAPPY` ➔ `😊`, `EXCITED` ➔ `🤩`, `RELAXED` ➔ `😌`, `STRESSED` ➔ `😰`, `SAD` ➔ `🥺`, `GRATEFUL` ➔ `🙏`).
+- **🔍 Real-Time Elasticsearch 8.x**: Asynchronous event-driven indexing via RabbitMQ for full-text and semantic journal search.
+- **🔐 JWT Authentication & Security**: Secure token-based access with Spring Security and API Gateway filtering.
+- **🐳 Docker Compose Deployment**: One-command orchestrator spinning up all 17 microservices & infrastructure containers.
+
+---
+
+## 🏗️ Architecture Overview
+
+```mermaid
+graph TD
+    Client[Postman / Web App] --> Gateway[Spring Cloud Gateway :8080]
+    Gateway --> Auth[Auth Service :8081]
+    Gateway --> User[User Service :8082]
+    Gateway --> Journal[Journal Service :8083]
+    Gateway --> AI[AI Service :8084]
+    Gateway --> Search[Search Service :8085]
+    
+    Journal -->|Events| RMQ[RabbitMQ Event Bus :5672]
+    RMQ --> Search
+    Search --> ES[(Elasticsearch 8.13 :9200)]
+    
+    AI -->|REST| FlaskAI[Python Flask AI Microservice :5000]
+    
+    Auth --> MySQL[(MySQL Storage :3307)]
+    User --> MySQL
+    Journal --> MySQL
+    AI --> MySQL
 ```
-                                      +-------------------------+
-                                      |   Spring Cloud Gateway  | (Port 8080)
-                                      +------------+------------+
-                                                   |
-         +--------------------+--------------------+--------------------+--------------------+
-         |                    |                    |                    |                    |
-  +------v-------+     +------v-------+     +------v-------+     +------v-------+     +------v-------+
-  | Auth Service |     | User Service |     | Journal Svc  |     |  AI Service  |     | Search Svc   |
-  |  (Port 8081) |     |  (Port 8082) |     |  (Port 8083) |     |  (Port 8084) |     |  (Port 8085) |
-  +--------------+     +--------------+     +--------------+     +--------------+     +--------------+
-```
 
 ---
 
-## Quick Start (Docker Compose)
+## 🛠️ Microservice Directory
 
-### 1. Clone & Build
+| Service | Technology | Port | Description |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | Spring Cloud Gateway | `8080` | Unified routing, rate-limiting & JWT verification |
+| **Discovery Server** | Netflix Eureka | `8761` | Service registration and discovery |
+| **Config Server** | Spring Cloud Config | `8888` | Centralized external configuration manager |
+| **Auth Service** | Spring Boot, Spring Security | `8081` | Registration, JWT generation & authentication |
+| **User Service** | Spring Boot, JPA | `8082` | User profile & preference management |
+| **Journal Service** | Spring Boot, RabbitMQ | `8083` | CRUD operations for journals & event publishing |
+| **AI Service** | Spring Boot, RestTemplate | `8084` | AI strategy delegator connecting to Python Flask |
+| **Python AI Service** | Python 3.11, Flask | `5000` | Machine learning sentiment, mood & summarization |
+| **Search Service** | Spring Data Elasticsearch | `8085` | Asynchronous Elasticsearch 8.x indexing & search |
+| **Elasticsearch** | Elasticsearch 8.13 | `9200` | High-performance search & analytics engine |
+| **RabbitMQ** | RabbitMQ 3 Management | `5672` / `15672` | Inter-service asynchronous message broker |
+| **MySQL Database** | MySQL 8.0 | `3307` | Relational data persistence with host volume |
+
+---
+
+## 🚀 Quick Start Guide
+
+### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed & running
+- [Java 21 JDK](https://adoptium.net/) & [Maven 3.9+](https://maven.apache.org/)
+
+### 1. Build All Services
 ```bash
-git clone https://github.com/your-org/ai-journal-platform.git
-cd ai-journal-platform
-mvn clean install -DskipTests
+mvn clean package -DskipTests
 ```
 
-### 2. Launch Infrastructure & Microservices
+### 2. Launch Platform via Docker Compose
 ```bash
 docker-compose up --build -d
 ```
 
-### 3. Service URLs & Documentation
+### 3. Verify Health & Discovery
 - **API Gateway**: `http://localhost:8080`
-- **Eureka Service Discovery**: `http://localhost:8761`
-- **Auth Service Swagger**: `http://localhost:8081/swagger-ui.html`
-- **Journal Service Swagger**: `http://localhost:8083/swagger-ui.html`
-- **AI Service Swagger**: `http://localhost:8084/swagger-ui.html`
-- **RabbitMQ Management**: `http://localhost:15672` (guest/guest)
-- **Mailhog Dashboard**: `http://localhost:8025`
+- **Eureka Dashboard**: `http://localhost:8761`
+- **Python Flask AI**: `http://localhost:5000/health`
+- **Elasticsearch Engine**: `http://localhost:9200`
+- **RabbitMQ Dashboard**: `http://localhost:15672` *(guest / guest)*
 
 ---
 
-## Microservices Breakdown
+## 📮 API Endpoints & Postman
 
-| Service Name | Port | Description |
-| :--- | :--- | :--- |
-| `config-server` | 8888 | Spring Cloud Config Server |
-| `discovery-server` | 8761 | Netflix Eureka Service Registration |
-| `gateway-service` | 8080 | API Gateway, Rate Limiter & JWT Routing |
-| `auth-service` | 8081 | JWT Access/Refresh tokens, OAuth2, RBAC |
-| `user-service` | 8082 | User Profiles, Dark Mode & Timezone Settings, GDPR |
-| `journal-service` | 8083 | Journal CRUD, Drafts, Versioning, Encryption, Tags |
-| `ai-service` | 8084 | Spring AI Strategy (OpenAI, Claude, Gemini, Ollama, Mock) |
-| `search-service` | 8085 | Natural Language Semantic Search & Full-Text Search |
-| `recommendation-service` | 8086 | Context-aware Prompts, Books, Meditation, Music |
-| `notification-service` | 8087 | RabbitMQ Event Consumer, Daily Reminders & Email |
-| `analytics-service` | 8088 | Streaks, Emotional Timelines, Writing Insights |
-| `file-service` | 8089 | Local & S3 Storage Abstraction for Attachments |
+Import the included Postman Collection file: [`AI_Journal_Platform.postman_collection.json`](./AI_Journal_Platform.postman_collection.json).
 
----
+### Sample AI Mood Detection
+```http
+POST http://localhost:8080/api/v1/ai/mood
+Authorization: Bearer <YOUR_JWT_TOKEN>
+Content-Type: application/json
 
-## Testing & Quality Assurance
-
-### Run Unit & Integration Tests
-```bash
-mvn test
+{
+  "content": "Feeling super happy, accomplished, and excited about launching our Python Flask AI microservice!"
+}
 ```
 
-Postman collection is available at `docs/ai-journal-platform.postman_collection.json`.
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "primaryMood": "HAPPY",
+    "confidenceScore": 0.94,
+    "emoji": "😊",
+    "provider": "flask"
+  }
+}
+```
+
+---
+
+## 📄 License
+Distributed under the MIT License. See `LICENSE` for details.
