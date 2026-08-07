@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Save, X, Smile, Tag, FileText, Mic, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Save, X, Smile, Tag, FileText, Mic, AlertCircle, CheckCircle2, Wand2, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MoodWheel from './MoodWheel';
 import { journalService } from '../services/journalService';
@@ -16,16 +16,17 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   const [isListening, setIsListening] = useState(false);
   const [detectingMood, setDetectingMood] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
+  const [aiWriting, setAiWriting] = useState(false);
   const [summary, setSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [aiDetectedMood, setAiDetectedMood] = useState(initialData?.mood || '');
   const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Normalize mood string to standard keys (HAPPY, EXCITED, RELAXED, STRESSED, SAD, GRATEFUL)
+  // Standardize mood keys
   const normalizeMood = (rawMood) => {
     if (!rawMood) return 'HAPPY';
     const m = rawMood.toUpperCase();
+    if (m.includes('ANGRY') || m.includes('MAD') || m.includes('RAGE')) return 'ANGRY';
     if (m.includes('EXCITE')) return 'EXCITED';
     if (m.includes('HAPP') || m.includes('JOY')) return 'HAPPY';
     if (m.includes('RELAX') || m.includes('CALM')) return 'RELAXED';
@@ -35,22 +36,55 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     return 'HAPPY';
   };
 
-  // Helper map for emojis
   const getEmojiForMood = (mKey) => {
-    const map = {
-      HAPPY: '😊',
-      EXCITED: '🤩',
-      RELAXED: '😌',
-      STRESSED: '😰',
-      SAD: '🥺',
-      GRATEFUL: '🙏'
-    };
+    const map = { HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠' };
     return map[mKey] || '😊';
   };
 
-  // Automated Real-Time AI Mood Detection as User Types (Debounced)
+  // Instant Keystroke Mood Evaluator (0ms Latency)
+  const evaluateInstantMood = (text) => {
+    const txt = (text || '').toLowerCase();
+    if (!txt.trim()) return { mood: 'HAPPY', emoji: '😊' };
+
+    if (txt.includes('angry') || txt.includes('mad') || txt.includes('rage') || txt.includes('furious') || txt.includes('hate') || txt.includes('annoyed') || txt.includes('irritated') || txt.includes('outraged')) {
+      return { mood: 'ANGRY', emoji: '😠' };
+    }
+    if (txt.includes('stress') || txt.includes('overwhelm') || txt.includes('frustat') || txt.includes('frustrat') || txt.includes('tired') || txt.includes('exhaust') || txt.includes('anxio') || txt.includes('busy') || txt.includes('workload')) {
+      return { mood: 'STRESSED', emoji: '😰' };
+    }
+    if (txt.includes('sad') || txt.includes('lonely') || txt.includes('hurt') || txt.includes('ruin') || txt.includes('bad') || txt.includes('cry') || txt.includes('depress') || txt.includes('upset') || txt.includes('worst')) {
+      return { mood: 'SAD', emoji: '🥺' };
+    }
+    if (txt.includes('thank') || txt.includes('grate') || txt.includes('bless') || txt.includes('apprec')) {
+      return { mood: 'GRATEFUL', emoji: '🙏' };
+    }
+    if (txt.includes('relax') || txt.includes('calm') || txt.includes('peace') || txt.includes('cozy') || txt.includes('tea') || txt.includes('lake') || txt.includes('spa')) {
+      return { mood: 'RELAXED', emoji: '😌' };
+    }
+    if (txt.includes('excit') || txt.includes('hype') || txt.includes('thrill') || txt.includes('win') || txt.includes('launch') || txt.includes('trip') || txt.includes('concert')) {
+      return { mood: 'EXCITED', emoji: '🤩' };
+    }
+    return { mood: 'HAPPY', emoji: '😊' };
+  };
+
+  const handleContentChange = (e) => {
+    const val = e.target.value;
+    setContent(val);
+
+    if (!isManualOverride && val.trim().length >= 2) {
+      const instant = evaluateInstantMood(val);
+      setMood(instant.mood);
+      setEmoji(instant.emoji);
+    }
+  };
+
+  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const charCount = content.length;
+  const readingTime = Math.max(1, Math.ceil(wordCount / 200));
+
+  // Asynchronous Python AI Sync (250ms Debounce)
   useEffect(() => {
-    if (!content.trim() || content.trim().length < 8 || isManualOverride) return;
+    if (!content.trim() || content.trim().length < 3 || isManualOverride) return;
 
     const timer = setTimeout(async () => {
       setDetectingMood(true);
@@ -62,25 +96,21 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           
           setMood(detectedKey);
           setEmoji(detectedEmoji);
-          setAiDetectedMood(detectedKey);
-
-          if (showToast) showToast(`AI Detected Mood: ${detectedKey} ${detectedEmoji}`, 'info');
 
           if (detectedKey === 'HAPPY' || detectedKey === 'EXCITED') {
-            confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+            confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
           }
         }
       } catch (err) {
-        console.error('Auto mood detection error:', err);
+        // Asynchronous AI error fallback
       } finally {
         setDetectingMood(false);
       }
-    }, 700);
+    }, 250);
 
     return () => clearTimeout(timer);
   }, [content, isManualOverride]);
 
-  // Audio Voice Dictation
   const toggleSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -109,20 +139,77 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         setContent(prev => prev + ' ' + transcript);
       };
 
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
       recognition.start();
     }
   };
 
-  // Explicit AI Re-Detect Button Handler
+  const handleAIRephrase = async () => {
+    if (!content.trim()) return;
+    setAiWriting(true);
+    try {
+      const res = await aiService.rephrase(content);
+      const newText = res?.data?.rephrased || res?.data?.response || res?.data;
+      if (newText && typeof newText === 'string') {
+        setContent(newText);
+        if (showToast) showToast('AI Rephrased Content!', 'success');
+      }
+    } catch (err) {
+      // Rephrase error fallback
+    } finally {
+      setAiWriting(false);
+    }
+  };
+
+  const handleAIFixGrammar = async () => {
+    if (!content.trim()) return;
+    setAiWriting(true);
+    try {
+      const res = await aiService.fixGrammar(content);
+      const newText = res?.data?.corrected || res?.data?.response || res?.data;
+      if (newText && typeof newText === 'string') {
+        setContent(newText);
+        if (showToast) showToast('AI Corrected Grammar & Spelling!', 'success');
+      }
+    } catch (err) {
+      // Fix grammar error fallback
+    } finally {
+      setAiWriting(false);
+    }
+  };
+
+  const handleAIContinueWriting = async () => {
+    if (!content.trim()) return;
+    setAiWriting(true);
+    try {
+      const res = await aiService.chat(`Continue writing the next two sentences for this journal reflection: "${content}"`);
+      const newText = res?.data?.response || res?.data;
+      if (newText && typeof newText === 'string') {
+        setContent(prev => prev.trim() + ' ' + newText);
+        if (showToast) showToast('AI Continued Writing!', 'success');
+      }
+    } catch (err) {
+      // Continue writing fallback
+    } finally {
+      setAiWriting(false);
+    }
+  };
+
+  const handleSelectTemplate = (templateType) => {
+    if (templateType === 'daily') {
+      setTitle('Daily Reflection & Wins');
+      setContent('1. Today\'s Top Accomplishment:\n2. What made me feel grateful:\n3. Key takeaways for tomorrow:');
+    } else if (templateType === 'gratitude') {
+      setTitle('Gratitude & Positive Focus');
+      setContent('1. Three things I appreciate today:\n2. Someone who helped me recently:\n3. A pleasant surprise that happened:');
+    } else if (templateType === 'weekly') {
+      setTitle('Weekly Review & Milestones');
+      setContent('• Highlights of the week:\n• Challenges overcome:\n• Priority goals for next week:');
+    }
+    if (showToast) showToast('Journal Template Applied!', 'info');
+  };
+
   const handleDetectMood = async () => {
     if (!content.trim()) return;
     setDetectingMood(true);
@@ -134,7 +221,6 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
         setMood(detectedKey);
         setEmoji(detectedEmoji);
-        setAiDetectedMood(detectedKey);
         setIsManualOverride(false);
 
         if (showToast) showToast(`AI Detected Mood: ${detectedKey} ${detectedEmoji}`, 'success');
@@ -144,13 +230,12 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         }
       }
     } catch (err) {
-      console.error('Mood detection failed:', err);
+      // Mood detection fallback
     } finally {
       setDetectingMood(false);
     }
   };
 
-  // AI Summarization
   const handleSummarize = async () => {
     if (!content.trim()) return;
     setSummarizing(true);
@@ -161,13 +246,12 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Summary Generated!', 'info');
       }
     } catch (err) {
-      console.error('Summarize failed:', err);
+      // Summarize fallback
     } finally {
       setSummarizing(false);
     }
   };
 
-  // AI Tag Generator
   const handleGenerateTags = async () => {
     if (!content.trim()) return;
     try {
@@ -178,7 +262,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Auto-Tags Added!', 'success');
       }
     } catch (err) {
-      console.error('Tag generator failed:', err);
+      // Generate tags fallback
     }
   };
 
@@ -206,30 +290,28 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
     setSaving(true);
     try {
-      // Ensure AI mood analysis is triggered if not done yet
       let finalMood = mood;
-      if (!isManualOverride && content.trim().length >= 5) {
+      if (!isManualOverride && content.trim().length >= 3) {
         try {
           const aiRes = await aiService.detectMood(content);
           if (aiRes?.data?.primaryMood) {
             finalMood = normalizeMood(aiRes.data.primaryMood);
           }
         } catch (err) {
-          // Fallback to active state
+          // Fallback to active mood
         }
       }
 
       const payload = { title, content, mood: finalMood, tags };
       if (initialData && initialData.id) {
         await journalService.updateJournal(initialData.id, payload);
-        if (showToast) showToast('Journal updated successfully!', 'success');
+        if (showToast) showToast(`Journal updated with AI Mood ${finalMood} ${getEmojiForMood(finalMood)}!`, 'success');
       } else {
         await journalService.createJournal(payload);
-        if (showToast) showToast('New journal entry saved to MySQL!', 'success');
+        if (showToast) showToast(`New journal entry saved with AI Mood ${finalMood} ${getEmojiForMood(finalMood)}!`, 'success');
       }
       onSaveSuccess();
     } catch (err) {
-      console.error('Save failed:', err);
       setMessage(err?.message || 'Failed to save journal entry.');
     } finally {
       setSaving(false);
@@ -237,18 +319,32 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '950px', margin: '0 auto' }}>
-      <div className="glass-panel glass-panel-neon animate-fade-in" style={{ padding: '2.5rem' }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
+    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
+      <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem' }}>
+        {/* Header Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>
               {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Automated AI mood detection from entry content + manual override</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time instant mood detection, voice dictation & AI writing suite</p>
           </div>
           <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
             <X size={20} />
+          </button>
+        </div>
+
+        {/* Quick Templates Bar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+          <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Templates:</span>
+          <button type="button" onClick={() => handleSelectTemplate('daily')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+            Daily Reflection
+          </button>
+          <button type="button" onClick={() => handleSelectTemplate('gratitude')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+            Gratitude Log
+          </button>
+          <button type="button" onClick={() => handleSelectTemplate('weekly')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+            Weekly Review
           </button>
         </div>
 
@@ -259,7 +355,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           </div>
         )}
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Title Input */}
           <div>
             <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Journal Title</label>
@@ -267,7 +363,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               type="text"
               required
               className="glass-input"
-              placeholder="e.g. Completing Microservices Architecture & AI Integration"
+              placeholder="e.g. Completing SaaS UI Redesign & AI Microservice"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               style={{ fontSize: '1.15rem', fontWeight: '700' }}
@@ -278,22 +374,40 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
               <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600' }}>Journal Content</label>
-              {detectingMood && (
-                <span style={{ fontSize: '0.75rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Sparkles size={14} className="animate-spin" />
-                  <span>AI Detecting Mood...</span>
-                </span>
-              )}
+
+              {/* Metrics Badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.75rem', color: '#94a3b8' }}>
+                <span>{wordCount} Words</span>
+                <span>{charCount} Characters</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}><Clock size={12} /> {readingTime} Min Read</span>
+              </div>
             </div>
+
             <textarea
               required
               rows={9}
               className="glass-input"
-              placeholder="Write your thoughts, feelings, or daily experience (AI will analyze your text and automatically select your mood)..."
+              placeholder="Write your thoughts, feelings, or daily experience (AI will analyze your text instantly as you type)..."
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={handleContentChange}
               style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
             />
+          </div>
+
+          {/* AI Writing Assistant Toolbar */}
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', background: 'rgba(255,255,255,0.03)', padding: '0.85rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '700', width: '100%', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem' }}>
+              <Wand2 size={14} /> AI Writing Assistant Suite
+            </span>
+            <button type="button" onClick={handleAIRephrase} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+              {aiWriting ? 'Rephrasing...' : 'Rephrase Text'}
+            </button>
+            <button type="button" onClick={handleAIFixGrammar} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+              {aiWriting ? 'Fixing...' : 'Fix Grammar'}
+            </button>
+            <button type="button" onClick={handleAIContinueWriting} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+              {aiWriting ? 'Writing...' : 'Continue Writing'}
+            </button>
           </div>
 
           {/* AI Automated Mood Selection Grid */}
@@ -302,18 +416,18 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Sparkles size={18} color="#818cf8" />
                 <span style={{ fontSize: '0.9rem', color: '#ffffff', fontWeight: '700' }}>
-                  AI Detected Mood: <strong style={{ color: '#4ade80' }}>{mood} {emoji}</strong>
+                  AI Detected Mood: <strong style={{ color: mood === 'ANGRY' ? '#ef4444' : '#4ade80' }}>{mood} {emoji}</strong>
                 </span>
               </div>
 
               {isManualOverride ? (
                 <span style={{ fontSize: '0.75rem', color: '#fde047', background: 'rgba(253,224,71,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600' }}>
-                  Manual Selection Active
+                  Manual Override
                 </span>
               ) : (
                 <span style={{ fontSize: '0.75rem', color: '#4ade80', background: 'rgba(74,222,128,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                   <CheckCircle2 size={12} />
-                  <span>AI Auto-Detected</span>
+                  <span>Real-Time AI Active</span>
                 </span>
               )}
             </div>
@@ -328,7 +442,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             />
           </div>
 
-          {/* AI Toolbar Buttons + Voice Dictation */}
+          {/* Voice Dictation & AI Controls */}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -344,68 +458,35 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.6rem',
-                transition: 'all 0.2s'
+                gap: '0.6rem'
               }}
             >
-              {isListening ? (
-                <>
-                  <div className="voice-wave">
-                    <span className="voice-bar"></span>
-                    <span className="voice-bar"></span>
-                    <span className="voice-bar"></span>
-                    <span className="voice-bar"></span>
-                  </div>
-                  <span>Listening...</span>
-                </>
-              ) : (
-                <>
-                  <Mic size={18} color="#ec4899" />
-                  <span>Voice Dictation</span>
-                </>
-              )}
+              <Mic size={18} color="#ec4899" />
+              <span>{isListening ? 'Listening...' : 'Voice Dictation'}</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleDetectMood}
-              disabled={detectingMood || !content.trim()}
-              className="btn-secondary"
-              style={{ fontSize: '0.85rem' }}
-            >
+            <button type="button" onClick={handleDetectMood} disabled={detectingMood || !content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
               <Smile size={18} color="#4ade80" />
-              <span>{detectingMood ? 'Analyzing Mood...' : 'Re-Analyze AI Mood'}</span>
+              <span>Re-Analyze Mood</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleSummarize}
-              disabled={summarizing || !content.trim()}
-              className="btn-secondary"
-              style={{ fontSize: '0.85rem' }}
-            >
+            <button type="button" onClick={handleSummarize} disabled={summarizing || !content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
               <FileText size={18} color="#38bdf8" />
-              <span>{summarizing ? 'Summarizing...' : 'AI Auto-Summarize'}</span>
+              <span>Summarize</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleGenerateTags}
-              disabled={!content.trim()}
-              className="btn-secondary"
-              style={{ fontSize: '0.85rem' }}
-            >
+            <button type="button" onClick={handleGenerateTags} disabled={!content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
               <Tag size={18} color="#c084fc" />
-              <span>AI Auto-Tags</span>
+              <span>Auto-Tags</span>
             </button>
           </div>
 
-          {/* AI Summary Card Preview */}
+          {/* AI Summary Preview */}
           {summary && (
             <div style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '1.25rem', borderRadius: '16px' }}>
               <div style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '700', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Sparkles size={16} />
-                <span>AI Short Summary Preview</span>
+                <span>AI Summary</span>
               </div>
               <p style={{ fontSize: '0.95rem', color: '#f8fafc', lineHeight: '1.5' }}>{summary}</p>
             </div>
@@ -437,7 +518,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '0.85rem 1.5rem' }}>Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary" style={{ padding: '0.85rem 2rem' }}>
               <Save size={20} />
-              <span>{saving ? 'Saving to MySQL...' : 'Save Journal Entry'}</span>
+              <span>{saving ? 'Saving...' : 'Save Journal Entry'}</span>
             </button>
           </div>
         </form>

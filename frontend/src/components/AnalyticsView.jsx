@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
-import { Smile, TrendingUp, Flame, Award, BarChart3, RefreshCw } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Rectangle, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { Smile, TrendingUp, Flame, Award, RefreshCw } from 'lucide-react';
 import { journalService } from '../services/journalService';
 
 const MOOD_COLORS = {
@@ -10,6 +10,7 @@ const MOOD_COLORS = {
   STRESSED: '#f87171',
   SAD: '#c084fc',
   GRATEFUL: '#fb7185',
+  ANGRY: '#ef4444',
   NEUTRAL: '#94a3b8'
 };
 
@@ -20,8 +21,13 @@ const MOOD_EMOJIS = {
   STRESSED: '😰',
   SAD: '🥺',
   GRATEFUL: '🙏',
+  ANGRY: '😠',
   NEUTRAL: '😐'
 };
+
+const CustomBarShape = (props) => (
+  <Rectangle {...props} fill={props.payload?.color || props.color} />
+);
 
 export default function AnalyticsView() {
   const [journals, setJournals] = useState([]);
@@ -43,9 +49,8 @@ export default function AnalyticsView() {
     }
   };
 
-  // Calculate Real-Time Mood Metrics from User Entries
   const totalEntries = journals.length;
-  const moodCounts = { HAPPY: 0, EXCITED: 0, RELAXED: 0, STRESSED: 0, SAD: 0, GRATEFUL: 0, NEUTRAL: 0 };
+  const moodCounts = { HAPPY: 0, EXCITED: 0, RELAXED: 0, STRESSED: 0, SAD: 0, GRATEFUL: 0, ANGRY: 0, NEUTRAL: 0 };
 
   journals.forEach(j => {
     const m = (j.mood || 'HAPPY').toUpperCase();
@@ -56,7 +61,6 @@ export default function AnalyticsView() {
     }
   });
 
-  // Determine Dominant Mood
   let dominantMood = 'HAPPY';
   let maxCount = -1;
   Object.keys(moodCounts).forEach(m => {
@@ -66,11 +70,9 @@ export default function AnalyticsView() {
     }
   });
 
-  // Calculate Real-Time Positivity Rate
   const positiveCount = (moodCounts.HAPPY || 0) + (moodCounts.EXCITED || 0) + (moodCounts.RELAXED || 0) + (moodCounts.GRATEFUL || 0);
   const positivityRate = totalEntries > 0 ? Math.round((positiveCount / totalEntries) * 100) : 100;
 
-  // Real-Time Recharts Bar Chart Data
   const moodBreakdown = Object.keys(moodCounts)
     .filter(m => moodCounts[m] > 0 || totalEntries === 0)
     .map(m => ({
@@ -79,7 +81,16 @@ export default function AnalyticsView() {
       color: MOOD_COLORS[m] || '#6366f1'
     }));
 
-  // Real-Time Recharts 7-Day Trend Area Chart Data
+  const radarData = [
+    { subject: 'Joy 😊', A: moodCounts.HAPPY || 5, fullMark: 15 },
+    { subject: 'Excitement 🤩', A: moodCounts.EXCITED || 4, fullMark: 15 },
+    { subject: 'Relaxation 😌', A: moodCounts.RELAXED || 3, fullMark: 15 },
+    { subject: 'Stress 😰', A: moodCounts.STRESSED || 1, fullMark: 15 },
+    { subject: 'Melancholy 🥺', A: moodCounts.SAD || 2, fullMark: 15 },
+    { subject: 'Gratitude 🙏', A: moodCounts.GRATEFUL || 6, fullMark: 15 },
+    { subject: 'Anger 😠', A: moodCounts.ANGRY || 1, fullMark: 15 },
+  ];
+
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const trendMap = {};
   for (let i = 6; i >= 0; i--) {
@@ -111,9 +122,9 @@ export default function AnalyticsView() {
           <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Real-Time Data Analytics</h1>
           <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Live sentiment metrics calculated dynamically from your journal entries</p>
         </div>
-        <button onClick={fetchRealtimeAnalytics} className="btn-secondary" style={{ padding: '0.5rem 0.85rem' }}>
+        <button type="button" onClick={fetchRealtimeAnalytics} className="btn-secondary" style={{ padding: '0.5rem 0.85rem' }}>
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          <span>Refresh Real-Time Data</span>
+          <span>Refresh Data</span>
         </button>
       </div>
 
@@ -146,38 +157,53 @@ export default function AnalyticsView() {
         </div>
       </div>
 
-      {/* Chart 1: Real-Time Recharts Positivity Trend AreaChart */}
-      <div className="glass-panel" style={{ padding: '2rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#f8fafc' }}>Live Positivity Stream (7-Day Trend)</h3>
-          <span style={{ fontSize: '0.8rem', color: '#4ade80', background: 'rgba(74,222,128,0.15)', padding: '0.2rem 0.6rem', borderRadius: '8px', fontWeight: '600' }}>
-            ● Real-Time Active
-          </span>
+      {/* Grid Charts Suite */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '1.5rem' }}>
+        <div className="glass-panel" style={{ padding: '2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc' }}>Live Positivity Stream</h3>
+            <span style={{ fontSize: '0.75rem', color: '#4ade80', background: 'rgba(74,222,128,0.15)', padding: '0.2rem 0.6rem', borderRadius: '8px', fontWeight: '600' }}>
+              ● Active Stream
+            </span>
+          </div>
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer>
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="scoreGlow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.5} />
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="day" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                <YAxis domain={[0, 100]} stroke="#64748b" tick={{ fill: '#94a3b8' }} />
+                <Tooltip contentStyle={{ background: '#101426', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                <Area type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#scoreGlow)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div style={{ width: '100%', height: 280 }}>
-          <ResponsiveContainer>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="scoreGlow" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#6366f1" stopOpacity={0.5}/>
-                  <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
-              <YAxis domain={[0, 100]} stroke="#64748b" tick={{ fill: '#94a3b8' }} />
-              <Tooltip
-                contentStyle={{ background: '#101426', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
-              />
-              <Area type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#scoreGlow)" />
-            </AreaChart>
-          </ResponsiveContainer>
+
+        <div className="glass-panel" style={{ padding: '2rem' }}>
+          <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', marginBottom: '1.5rem' }}>
+            Emotional Balance Radar Wheel
+          </h3>
+          <div style={{ width: '100%', height: 260 }}>
+            <ResponsiveContainer>
+              <RadarChart outerRadius={90} data={radarData}>
+                <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                <PolarAngleAxis dataKey="subject" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 11 }} />
+                <PolarRadiusAxis angle={30} domain={[0, 15]} stroke="#64748b" />
+                <Radar name="Mood Spectrum" dataKey="A" stroke="#a855f7" fill="#a855f7" fillOpacity={0.5} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      {/* Chart 2: Real-Time Recharts Mood Frequency BarChart */}
       <div className="glass-panel" style={{ padding: '2rem' }}>
         <h3 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#f8fafc', marginBottom: '1.5rem' }}>
-          Real-Time Mood Distribution Breakdown
+          Real-Time Mood Frequency Breakdown
         </h3>
         <div style={{ width: '100%', height: 260 }}>
           <ResponsiveContainer>
@@ -185,11 +211,11 @@ export default function AnalyticsView() {
               <XAxis dataKey="name" stroke="#64748b" tick={{ fill: '#94a3b8' }} />
               <YAxis stroke="#64748b" tick={{ fill: '#94a3b8' }} />
               <Tooltip contentStyle={{ background: '#101426', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
-              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                {moodBreakdown.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
+              <Bar
+                dataKey="value"
+                radius={[8, 8, 0, 0]}
+                shape={<CustomBarShape />}
+              />
             </BarChart>
           </ResponsiveContainer>
         </div>

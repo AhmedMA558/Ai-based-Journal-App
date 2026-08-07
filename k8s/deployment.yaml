@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: journal-platform-frontend
+  labels:
+    app: journal-platform-frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: journal-platform-frontend
+  template:
+    metadata:
+      labels:
+        app: journal-platform-frontend
+    spec:
+      containers:
+      - name: frontend
+        image: ahmedma558/ai-journal-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 15
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: journal-platform-frontend-svc
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: journal-platform-frontend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: python-ai-service
+  labels:
+    app: python-ai-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: python-ai-service
+  template:
+    metadata:
+      labels:
+        app: python-ai-service
+    spec:
+      containers:
+      - name: ai-service
+        image: ahmedma558/ai-journal-python-ai:latest
+        ports:
+        - containerPort: 5000
+        env:
+        - name: PORT
+          value: "5000"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: python-ai-service-svc
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5000
+    targetPort: 5000
+  selector:
+    app: python-ai-service

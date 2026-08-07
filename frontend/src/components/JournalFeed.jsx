@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Plus, Trash2, Edit3, Tag, Search, RefreshCw, Calendar, Download, FileText } from 'lucide-react';
+import { BookOpen, Plus, Download, Edit3, Trash2, Tag, Calendar, LayoutGrid, List, Sparkles, Filter } from 'lucide-react';
 import { journalService } from '../services/journalService';
 
 export default function JournalFeed({ onNewJournal, onEditJournal, showToast }) {
   const [journals, setJournals] = useState([]);
+  const [filteredJournals, setFilteredJournals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [selectedMoodFilter, setSelectedMoodFilter] = useState('ALL');
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
 
   useEffect(() => {
     fetchJournals();
@@ -15,13 +16,23 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }) 
   const fetchJournals = async () => {
     setLoading(true);
     try {
-      const res = await journalService.getAllJournals();
-      const list = res?.data || res || [];
-      setJournals(Array.isArray(list) ? list : []);
+      const list = await journalService.getAllJournals();
+      const arr = Array.isArray(list) ? list : [];
+      setJournals(arr);
+      setFilteredJournals(arr);
     } catch (err) {
-      console.error('Error fetching journals:', err);
+      console.error('Failed to load journals:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFilterMood = (mood) => {
+    setSelectedMoodFilter(mood);
+    if (mood === 'ALL') {
+      setFilteredJournals(journals);
+    } else {
+      setFilteredJournals(journals.filter(j => (j.mood || '').toUpperCase() === mood));
     }
   };
 
@@ -30,135 +41,56 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }) 
     if (!window.confirm('Are you sure you want to delete this journal entry?')) return;
     try {
       await journalService.deleteJournal(id);
-      setJournals(journals.filter(j => j.id !== id));
+      const updated = journals.filter(j => j.id !== id);
+      setJournals(updated);
+      setFilteredJournals(updated);
       if (showToast) showToast('Journal entry deleted.', 'info');
     } catch (err) {
       console.error('Delete failed:', err);
     }
   };
 
-  // Export all journals as JSON
-  const handleExportJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(journals, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `journals_backup_${new Date().toISOString().slice(0, 10)}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    if (showToast) showToast('Exported all journals to JSON backup file!', 'success');
+  const exportToMarkdown = () => {
+    const mdContent = journals.map(j => `# ${j.title}\n**Date**: ${j.createdAt || 'N/A'}\n**Mood**: ${j.mood || 'HAPPY'}\n\n${j.content}\n\n---\n`).join('\n');
+    const blob = new Blob([mdContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journals_export_${Date.now()}.md`;
+    a.click();
+    if (showToast) showToast('Exported entries to Markdown (.md)', 'success');
   };
 
-  // Export single journal as Markdown
-  const handleExportMarkdown = (e, journal) => {
-    e.stopPropagation();
-    const mdContent = `# ${journal.title}\n\n**Date**: ${journal.createdAt || 'Recent'}\n**Mood**: ${journal.mood || 'Neutral'}\n**Tags**: ${(journal.tags || []).join(', ')}\n\n---\n\n${journal.content}`;
-    const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(mdContent);
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `${(journal.title || 'journal').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    if (showToast) showToast(`Exported "${journal.title}" to Markdown!`, 'success');
+  const exportToJSON = () => {
+    const jsonStr = JSON.stringify(journals, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journals_export_${Date.now()}.json`;
+    a.click();
+    if (showToast) showToast('Exported entries to JSON (.json)', 'success');
   };
 
-  const filteredJournals = journals.filter(j => {
-    const matchesSearch = (j.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (j.content || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesMood = selectedMoodFilter === 'ALL' || (j.mood || '').toUpperCase() === selectedMoodFilter;
-    return matchesSearch && matchesMood;
-  });
+  const exportToCSV = () => {
+    const headers = ['ID', 'Title', 'Content', 'Mood', 'Date'];
+    const rows = journals.map(j => [
+      j.id,
+      `"${(j.title || '').replace(/"/g, '""')}"`,
+      `"${(j.content || '').replace(/"/g, '""')}"`,
+      j.mood || 'HAPPY',
+      j.createdAt || ''
+    ]);
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `journals_export_${Date.now()}.csv`;
+    a.click();
+    if (showToast) showToast('Exported entries to CSV (.csv)', 'success');
+  };
 
-  return (
-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-      {/* Header Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Journal Library</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Browse, filter, and export all your saved journal entries</p>
-        </div>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button onClick={handleExportJSON} className="btn-secondary">
-            <Download size={16} color="#38bdf8" />
-            <span>Export JSON</span>
-          </button>
-          <button onClick={onNewJournal} className="btn-primary">
-            <Plus size={18} />
-            <span>New Journal Entry</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="glass-panel" style={{ padding: '1rem 1.25rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: 1, minWidth: '240px', position: 'relative' }}>
-          <input
-            type="text"
-            className="glass-input"
-            placeholder="Filter local journals..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ paddingLeft: '2.5rem' }}
-          />
-          <Search size={18} color="#64748b" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)' }} />
-        </div>
-
-        {/* Mood Filter Pill Tabs */}
-        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.2rem' }}>
-          {['ALL', 'HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD'].map((mood) => (
-            <button
-              key={mood}
-              onClick={() => setSelectedMoodFilter(mood)}
-              style={{
-                background: selectedMoodFilter === mood ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255,255,255,0.05)',
-                border: selectedMoodFilter === mood ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
-                color: selectedMoodFilter === mood ? '#818cf8' : '#94a3b8',
-                padding: '0.4rem 0.85rem',
-                borderRadius: '10px',
-                fontSize: '0.8rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              {mood}
-            </button>
-          ))}
-        </div>
-
-        <button onClick={fetchJournals} className="btn-secondary" style={{ padding: '0.5rem 0.85rem', fontSize: '0.85rem' }}>
-          <RefreshCw size={14} />
-        </button>
-      </div>
-
-      {/* Journal Grid */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#94a3b8' }}>Loading journals from MySQL...</div>
-      ) : filteredJournals.length === 0 ? (
-        <div className="glass-panel" style={{ padding: '4rem', textAlign: 'center' }}>
-          <BookOpen size={48} color="#64748b" style={{ marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>No Matching Journal Entries</h3>
-          <p style={{ color: '#94a3b8' }}>Try adjusting your search filters or write a new entry.</p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
-          {filteredJournals.map((j) => (
-            <JournalFeedCard
-              key={j.id}
-              journal={j}
-              onEdit={() => onEditJournal(j)}
-              onDelete={(e) => handleDelete(e, j.id)}
-              onExportMd={(e) => handleExportMarkdown(e, j)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function JournalFeedCard({ journal, onEdit, onDelete, onExportMd }) {
   const getMoodEmoji = (mood) => {
     const m = (mood || '').toUpperCase();
     if (m === 'HAPPY') return '😊';
@@ -167,77 +99,160 @@ function JournalFeedCard({ journal, onEdit, onDelete, onExportMd }) {
     if (m === 'STRESSED') return '😰';
     if (m === 'SAD') return '🥺';
     if (m === 'GRATEFUL') return '🙏';
+    if (m === 'ANGRY') return '😠';
     return '😐';
   };
 
   return (
-    <div
-      className="glass-panel"
-      style={{
-        padding: '1.75rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        position: 'relative'
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{
-          fontSize: '0.75rem',
-          padding: '0.25rem 0.75rem',
-          borderRadius: '12px',
-          background: 'rgba(99, 102, 241, 0.15)',
-          color: '#818cf8',
-          fontWeight: '600',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.4rem'
+    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+      {/* Feed Header Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>My Journal Library</h1>
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Browse, filter, edit, delete, and export your AI-analyzed entries</p>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          {/* View Mode Toggle */}
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', padding: '0.2rem', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <button onClick={() => setViewMode('grid')} style={{ padding: '0.4rem', border: 'none', background: viewMode === 'grid' ? 'rgba(99,102,241,0.25)' : 'transparent', color: viewMode === 'grid' ? '#818cf8' : '#94a3b8', borderRadius: '8px', cursor: 'pointer' }}>
+              <LayoutGrid size={16} />
+            </button>
+            <button onClick={() => setViewMode('list')} style={{ padding: '0.4rem', border: 'none', background: viewMode === 'list' ? 'rgba(99,102,241,0.25)' : 'transparent', color: viewMode === 'list' ? '#818cf8' : '#94a3b8', borderRadius: '8px', cursor: 'pointer' }}>
+              <List size={16} />
+            </button>
+          </div>
+
+          {/* Multi-Format Exporter */}
+          <button onClick={exportToMarkdown} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <Download size={16} /> Export MD
+          </button>
+          <button onClick={exportToJSON} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <Download size={16} /> Export JSON
+          </button>
+          <button onClick={exportToCSV} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <Download size={16} /> Export CSV
+          </button>
+
+          <button onClick={onNewJournal} className="btn-primary">
+            <Plus size={18} /> New Entry
+          </button>
+        </div>
+      </div>
+
+      {/* Mood Filter Pill Bar with ANGRY support */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+        <Filter size={16} color="#64748b" />
+        {['ALL', 'HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD', 'GRATEFUL', 'ANGRY'].map(m => (
+          <button
+            key={m}
+            onClick={() => handleFilterMood(m)}
+            style={{
+              background: selectedMoodFilter === m ? 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.15))' : 'rgba(255,255,255,0.04)',
+              border: selectedMoodFilter === m ? '1px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
+              color: selectedMoodFilter === m ? '#ffffff' : '#94a3b8',
+              padding: '0.4rem 0.85rem',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: selectedMoodFilter === m ? '600' : '500',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {m === 'ALL' ? 'All Entries' : `${m} ${getMoodEmoji(m)}`}
+          </button>
+        ))}
+      </div>
+
+      {/* Journal Cards Feed */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          {[1, 2, 3].map(n => (
+            <div key={n} className="glass-panel skeleton-pulse" style={{ height: '220px', borderRadius: '20px' }}></div>
+          ))}
+        </div>
+      ) : filteredJournals.length === 0 ? (
+        <div className="glass-panel" style={{ padding: '4rem 2rem', textAlign: 'center' }}>
+          <BookOpen size={48} color="#64748b" style={{ marginBottom: '1rem' }} />
+          <h3 style={{ fontSize: '1.2rem', marginBottom: '0.4rem' }}>No Journal Entries Found</h3>
+          <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>Try clearing filters or create a new journal entry.</p>
+          <button onClick={onNewJournal} className="btn-primary">
+            <Plus size={18} /> Write Journal
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: viewMode === 'grid' ? 'grid' : 'flex',
+          flexDirection: viewMode === 'list' ? 'column' : 'none',
+          gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(340px, 1fr))' : 'none',
+          gap: '1.5rem'
         }}>
-          <span>{getMoodEmoji(journal.mood)}</span>
-          <span>{journal.mood || 'Neutral'}</span>
-        </span>
+          {filteredJournals.map(journal => (
+            <div
+              key={journal.id}
+              className="glass-panel"
+              style={{
+                padding: '1.5rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.85rem',
+                position: 'relative'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{
+                  fontSize: '0.75rem',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '12px',
+                  background: (journal.mood || '').toUpperCase() === 'ANGRY' ? 'rgba(239,68,68,0.2)' : 'rgba(99, 102, 241, 0.15)',
+                  color: (journal.mood || '').toUpperCase() === 'ANGRY' ? '#ef4444' : '#818cf8',
+                  fontWeight: '600',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem'
+                }}>
+                  <span>{getMoodEmoji(journal.mood)}</span>
+                  <span>{journal.mood || 'HAPPY'}</span>
+                </span>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <button onClick={onExportMd} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Export as Markdown">
-            <FileText size={14} color="#a855f7" />
-          </button>
-          <button onClick={onEdit} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Edit">
-            <Edit3 size={14} color="#38bdf8" />
-          </button>
-          <button onClick={onDelete} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Delete">
-            <Trash2 size={14} color="#f87171" />
-          </button>
-        </div>
-      </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <button onClick={() => onEditJournal(journal)} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Edit Entry">
+                    <Edit3 size={14} color="#38bdf8" />
+                  </button>
+                  <button onClick={(e) => handleDelete(e, journal.id)} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Delete Entry">
+                    <Trash2 size={14} color="#f87171" />
+                  </button>
+                </div>
+              </div>
 
-      <div>
-        <h3 style={{ fontSize: '1.2rem', fontWeight: '700', color: '#f8fafc', marginBottom: '0.4rem', lineHeight: '1.3' }}>
-          {journal.title}
-        </h3>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: '#64748b' }}>
-          <Calendar size={12} />
-          <span>{journal.createdAt ? new Date(journal.createdAt).toLocaleString() : 'Recent'}</span>
-        </div>
-      </div>
+              <div onClick={() => onEditJournal(journal)} style={{ cursor: 'pointer' }}>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', lineHeight: '1.3', marginBottom: '0.4rem' }}>
+                  {journal.title}
+                </h3>
 
-      <p style={{
-        fontSize: '0.92rem',
-        color: '#cbd5e1',
-        lineHeight: '1.6',
-        display: '-webkit-box',
-        WebkitLineClamp: 4,
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden'
-      }}>
-        {journal.content}
-      </p>
+                <p style={{
+                  fontSize: '0.9rem',
+                  color: '#94a3b8',
+                  lineHeight: '1.5',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden'
+                }}>
+                  {journal.content}
+                </p>
+              </div>
 
-      {journal.tags && journal.tags.length > 0 && (
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: 'auto', paddingTop: '0.5rem' }}>
-          {journal.tags.map((tag, idx) => (
-            <span key={idx} style={{ fontSize: '0.75rem', color: '#c084fc', background: 'rgba(168,85,247,0.12)', padding: '0.2rem 0.5rem', borderRadius: '6px' }}>
-              #{tag}
-            </span>
+              {journal.tags && journal.tags.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: 'auto' }}>
+                  {journal.tags.map((tag, idx) => (
+                    <span key={idx} style={{ fontSize: '0.7rem', color: '#a855f7', background: 'rgba(168,85,247,0.1)', padding: '0.15rem 0.4rem', borderRadius: '6px' }}>
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

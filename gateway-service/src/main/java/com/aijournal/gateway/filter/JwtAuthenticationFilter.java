@@ -5,11 +5,10 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -23,6 +22,8 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
     @Value("${jwt.secret:defaultSecretKeyForTestingJwtTokenValidation1234567890}")
     private String jwtSecret;
+
+    private static final String HEADER_USER_ID = "X-User-Id";
 
     private static final List<String> EXCLUDED_PATHS = List.of(
             "/api/v1/auth/login",
@@ -48,52 +49,11 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 return chain.filter(exchange);
             }
 
-            // Allow requests with X-User-Id fallback header in development mode
-            if (request.getHeaders().containsKey("X-User-Id") && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
+            if (hasDirectUserIdHeader(request)) {
                 return chain.filter(exchange);
             }
 
-            if (!request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION)) {
-                // If X-User-Id exists, continue with default fallback user
-                ServerHttpRequest modifiedRequest = request.mutate()
-                        .header("X-User-Id", "1")
-                        .build();
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-            }
-
-            String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-                ServerHttpRequest modifiedRequest = request.mutate()
-                        .header("X-User-Id", "1")
-                        .build();
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-            }
-
-            String token = authHeader.substring(7);
-
-            try {
-                SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-                Claims claims = Jwts.parser()
-                        .verifyWith(key)
-                        .build()
-                        .parseSignedClaims(token)
-                        .getPayload();
-
-                String userId = claims.get("userId") != null ? String.valueOf(claims.get("userId")) : "1";
-                ServerHttpRequest modifiedRequest = request.mutate()
-                        .header("X-User-Id", userId)
-                        .header("X-User-Email", claims.getSubject() != null ? claims.getSubject() : "user@example.com")
-                        .build();
-
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-
-            } catch (Exception e) {
-                // Fallback to active user ID if token validation fails in dev mode
-                ServerHttpRequest modifiedRequest = request.mutate()
-                        .header("X-User-Id", "1")
-                        .build();
-                return chain.filter(exchange.mutate().request(modifiedRequest).build());
-            }
+            return authenticateAndFilter(exchange, chain);
         };
     }
 
@@ -101,12 +61,56 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
         return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
     }
 
-    private Mono<Void> onError(ServerWebExchange exchange, String err, HttpStatus httpStatus) {
-        ServerHttpResponse response = exchange.getResponse();
-        response.setStatusCode(httpStatus);
-        return response.setComplete();
+    private boolean hasDirectUserIdHeader(ServerHttpRequest request) {
+        return request.getHeaders().containsKey(HEADER_USER_ID)
+                && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION);
     }
 
+    private Mono<Void> authenticateAndFilter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest request = exchange.getRequest();
+        String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return proceedWithFallback(exchange, chain);
+        }
+
+        try {
+            Claims claims = parseToken(authHeader.substring(7));
+            return proceedWithClaims(exchange, chain, claims);
+        } catch (Exception e) {
+            return proceedWithFallback(exchange, chain);
+        }
+    }
+
+    private Claims parseToken(String token) {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private Mono<Void> proceedWithClaims(ServerWebExchange exchange, GatewayFilterChain chain, Claims claims) {
+        String userId = claims.get("userId") != null ? String.valueOf(claims.get("userId")) : "1";
+        String email = claims.getSubject() != null ? claims.getSubject() : "user@example.com";
+
+        ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+                .header(HEADER_USER_ID, userId)
+                .header("X-User-Email", email)
+                .build();
+        return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    }
+
+    private Mono<Void> proceedWithFallback(ServerWebExchange exchange, GatewayFilterChain chain) {
+        ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
+                .header(HEADER_USER_ID, "1")
+                .build();
+        return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    }
+
+    @SuppressWarnings("java:S2094")
     public static class Config {
+        // Configuration properties can be added here if gateway filter behavior needs to be configured via application.yml
     }
 }

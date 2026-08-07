@@ -2,15 +2,21 @@ package com.aijournal.ai.strategy.impl;
 
 import com.aijournal.ai.strategy.AiProviderStrategy;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 @Component("flaskAiStrategy")
 public class FlaskAiStrategy implements AiProviderStrategy {
+
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE = new ParameterizedTypeReference<>() {
+    };
+    private static final String CONTENT_KEY = "content";
 
     @Value("${ai.flask.url:http://python-ai-service:5000}")
     private String flaskBaseUrl;
@@ -28,19 +34,20 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             String url = flaskBaseUrl + "/api/v1/ai/summarize";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("content", content), headers);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map data = (Map) response.getBody().get("data");
-                if (data != null) {
-                    List<String> bullets = (List<String>) data.get("bulletPoints");
-                    String bulletStr = bullets != null ? String.join("\n", bullets) : "• Logged entry.";
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty()) {
+                    List<String> bullets = castToListOfString(data.get("bulletPoints"));
+                    String bulletStr = !bullets.isEmpty() ? String.join("\n", bullets) : "• Logged entry.";
                     return new SummaryResult(
                             (String) data.get("shortSummary"),
                             (String) data.get("detailedSummary"),
-                            bulletStr
-                    );
+                            bulletStr);
                 }
             }
         } catch (Exception e) {
@@ -55,14 +62,18 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             String url = flaskBaseUrl + "/api/v1/ai/mood";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("content", content), headers);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map data = (Map) response.getBody().get("data");
-                if (data != null) {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty()) {
                     String mood = (String) data.get("primaryMood");
-                    Double score = data.get("confidenceScore") != null ? ((Number) data.get("confidenceScore")).doubleValue() : 0.85;
+                    Double score = data.get("confidenceScore") != null
+                            ? ((Number) data.get("confidenceScore")).doubleValue()
+                            : 0.85;
                     String emoji = (String) data.get("emoji");
                     return new MoodResult(mood, score, emoji);
                 }
@@ -79,13 +90,19 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             String url = flaskBaseUrl + "/api/v1/ai/recommendations";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("mood", mood != null ? mood : "NEUTRAL"), headers);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("mood", mood != null ? mood : "NEUTRAL"),
+                    headers);
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map data = (Map) response.getBody().get("data");
-                if (data != null && data.get("recommendations") != null) {
-                    return (List<String>) data.get("recommendations");
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("recommendations") != null) {
+                    List<String> recommendations = castToListOfString(data.get("recommendations"));
+                    if (!recommendations.isEmpty()) {
+                        return recommendations;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -100,13 +117,18 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             String url = flaskBaseUrl + "/api/v1/ai/tags";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("content", content), headers);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map data = (Map) response.getBody().get("data");
-                if (data != null && data.get("tags") != null) {
-                    return (List<String>) data.get("tags");
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("tags") != null) {
+                    List<String> tags = castToListOfString(data.get("tags"));
+                    if (!tags.isEmpty()) {
+                        return tags;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -123,10 +145,12 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("query", query), headers);
 
-            ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
-            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
-                Map data = (Map) response.getBody().get("data");
-                if (data != null && data.get("response") != null) {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("response") != null) {
                     return (String) data.get("response");
                 }
             }
@@ -161,7 +185,22 @@ public class FlaskAiStrategy implements AiProviderStrategy {
         return new ReflectionResult(
                 List.of("What went well today?"),
                 List.of("How can you build on this progress tomorrow?"),
-                List.of("Celebrate your wins!")
-        );
+                List.of("Celebrate your wins!"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castToMap(Object obj) {
+        if (obj instanceof Map) {
+            return (Map<String, Object>) obj;
+        }
+        return Collections.emptyMap();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> castToListOfString(Object obj) {
+        if (obj instanceof List) {
+            return (List<String>) obj;
+        }
+        return Collections.emptyList();
     }
 }

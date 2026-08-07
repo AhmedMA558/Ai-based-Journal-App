@@ -11,6 +11,16 @@ export const aiService = {
     return await api.post('/api/v1/ai/summarize', { content });
   },
 
+  // Rephrase Text
+  rephrase: async (content) => {
+    return await api.post('/api/v1/ai/rephrase', { content });
+  },
+
+  // Fix Grammar & Spelling
+  fixGrammar: async (content) => {
+    return await api.post('/api/v1/ai/grammar', { content });
+  },
+
   // Chat with Journal AI
   chat: async (query) => {
     return await api.post('/api/v1/ai/chat', { query });

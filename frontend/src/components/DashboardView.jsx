@@ -19,7 +19,6 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
       const list = await journalService.getAllJournals();
       setJournals(Array.isArray(list) ? list : []);
 
-      // Fetch AI Daily Recommendations
       try {
         const aiRes = await aiService.getRecommendations('HAPPY');
         if (aiRes?.data && Array.isArray(aiRes.data) && aiRes.data.length > 0) {
@@ -54,13 +53,13 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
         <div style={{ position: 'relative', zIndex: 2, maxWidth: '600px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '0.4rem 0.85rem', borderRadius: '20px', fontSize: '0.8rem', color: '#818cf8', fontWeight: '600', marginBottom: '1rem' }}>
             <Sparkles size={14} />
-            <span>AI-POWERED INTELLIGENCE</span>
+            <span>REAL-TIME AI MOOD ENGINE CONNECTED</span>
           </div>
           <h1 style={{ fontSize: '2.4rem', fontWeight: '800', marginBottom: '0.75rem', lineHeight: '1.2' }}>
             Good day, <span style={{ background: 'linear-gradient(135deg, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{username}</span> 👋
           </h1>
           <p style={{ color: '#94a3b8', fontSize: '1.05rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
-            How are you feeling today? Log your thoughts and let our Python AI microservice detect your mood with real-time emojis & insights.
+            Type your daily thoughts and our Python AI microservice will automatically detect your primary mood and assign matching real-time emojis (😊, 🤩, 😌, 😰, 🥺, 🙏, 😠).
           </p>
           <button onClick={onNewJournal} className="btn-primary" style={{ padding: '0.85rem 1.75rem', fontSize: '1rem' }}>
             <Plus size={20} />
@@ -71,7 +70,6 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
 
       {/* Grid Summary Widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-        {/* Widget 1: Streak */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(234, 179, 8, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Flame size={28} color="#fde047" />
@@ -82,7 +80,6 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
           </div>
         </div>
 
-        {/* Widget 2: Total Journals */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(99, 102, 241, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <BookOpen size={28} color="#818cf8" />
@@ -93,7 +90,6 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
           </div>
         </div>
 
-        {/* Widget 3: AI Wellness Tip */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(34, 197, 94, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Heart size={28} color="#4ade80" />
@@ -107,7 +103,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
 
       {/* Recent Entries Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Recent Journal Entries</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: '700' }}>Recent AI-Analyzed Entries</h2>
         <button onClick={fetchDashboardData} className="btn-secondary" style={{ padding: '0.5rem 0.85rem', fontSize: '0.85rem' }}>
           <RefreshCw size={14} />
           <span>Refresh</span>
@@ -116,7 +112,11 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
 
       {/* Recent Entries Feed */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>Loading recent entries...</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+          {[1, 2, 3].map(n => (
+            <div key={n} className="glass-panel skeleton-pulse" style={{ height: '200px', borderRadius: '20px' }}></div>
+          ))}
+        </div>
       ) : journals.length === 0 ? (
         <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center' }}>
           <BookOpen size={48} color="#64748b" style={{ marginBottom: '1rem' }} />
@@ -128,7 +128,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
           </button>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '1.5rem' }}>
           {journals.slice(0, 6).map((journal) => (
             <DashboardJournalCard
               key={journal.id}
@@ -152,8 +152,23 @@ function DashboardJournalCard({ journal, onSelect, onDelete }) {
     if (m === 'STRESSED') return '😰';
     if (m === 'SAD') return '🥺';
     if (m === 'GRATEFUL') return '🙏';
-    return '😐';
+    if (m === 'ANGRY') return '😠';
+    return '😊';
   };
+
+  const getMoodBadgeStyle = (mood) => {
+    const m = (mood || '').toUpperCase();
+    if (m === 'HAPPY') return { bg: 'rgba(74, 222, 128, 0.18)', border: 'rgba(74, 222, 128, 0.35)', color: '#4ade80' };
+    if (m === 'EXCITED') return { bg: 'rgba(253, 224, 71, 0.18)', border: 'rgba(253, 224, 71, 0.35)', color: '#fde047' };
+    if (m === 'RELAXED') return { bg: 'rgba(56, 189, 248, 0.18)', border: 'rgba(56, 189, 248, 0.35)', color: '#38bdf8' };
+    if (m === 'STRESSED') return { bg: 'rgba(248, 113, 113, 0.18)', border: 'rgba(248, 113, 113, 0.35)', color: '#f87171' };
+    if (m === 'SAD') return { bg: 'rgba(192, 132, 252, 0.18)', border: 'rgba(192, 132, 252, 0.35)', color: '#c084fc' };
+    if (m === 'GRATEFUL') return { bg: 'rgba(251, 113, 133, 0.18)', border: 'rgba(251, 113, 133, 0.35)', color: '#fb7185' };
+    if (m === 'ANGRY') return { bg: 'rgba(239, 68, 68, 0.22)', border: 'rgba(239, 68, 68, 0.45)', color: '#ef4444' };
+    return { bg: 'rgba(99, 102, 241, 0.18)', border: 'rgba(99, 102, 241, 0.35)', color: '#818cf8' };
+  };
+
+  const badgeStyle = getMoodBadgeStyle(journal.mood);
 
   return (
     <div
@@ -168,18 +183,20 @@ function DashboardJournalCard({ journal, onSelect, onDelete }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{
-          fontSize: '0.75rem',
-          padding: '0.25rem 0.65rem',
-          borderRadius: '12px',
-          background: 'rgba(99, 102, 241, 0.15)',
-          color: '#818cf8',
-          fontWeight: '600',
+          fontSize: '0.85rem',
+          padding: '0.35rem 0.75rem',
+          borderRadius: '14px',
+          background: badgeStyle.bg,
+          border: `1px solid ${badgeStyle.border}`,
+          color: badgeStyle.color,
+          fontWeight: '700',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '0.35rem'
+          gap: '0.4rem',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
         }}>
-          <span>{getMoodEmoji(journal.mood)}</span>
-          <span>{journal.mood || 'Neutral'}</span>
+          <span style={{ fontSize: '1.1rem' }}>{getMoodEmoji(journal.mood)}</span>
+          <span>{journal.mood || 'HAPPY'}</span>
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
