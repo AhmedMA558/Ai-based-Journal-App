@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sparkles, Save, X, Smile, Tag, FileText, Mic, MicOff, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MoodWheel from './MoodWheel';
@@ -19,6 +19,29 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   const [summary, setSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [isManualMood, setIsManualMood] = useState(false);
+
+  // Automated Real-Time AI Mood Detection on Typing (Debounced)
+  useEffect(() => {
+    if (!content.trim() || content.trim().length < 8 || isManualMood) return;
+
+    const timer = setTimeout(async () => {
+      setDetectingMood(true);
+      try {
+        const res = await aiService.detectMood(content);
+        if (res?.data) {
+          if (res.data.primaryMood) setMood(res.data.primaryMood.toUpperCase());
+          if (res.data.emoji) setEmoji(res.data.emoji);
+        }
+      } catch (err) {
+        console.error('Auto mood detection error:', err);
+      } finally {
+        setDetectingMood(false);
+      }
+    }, 750);
+
+    return () => clearTimeout(timer);
+  }, [content, isManualMood]);
 
   // Audio Voice Dictation (Web Speech API)
   const toggleSpeechRecognition = () => {
@@ -62,7 +85,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     }
   };
 
-  // Real-time AI Mood Detection with Emojis
+  // Manual Trigger for Real-time AI Mood Detection with Emojis
   const handleDetectMood = async () => {
     if (!content.trim()) return;
     setDetectingMood(true);
@@ -167,7 +190,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             <h1 style={{ fontSize: '2rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time Python Flask AI analysis & voice dictation</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Automated AI mood detection as you write + manual customization</p>
           </div>
           <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
             <X size={20} />
@@ -196,14 +219,28 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             />
           </div>
 
-          {/* Interactive Mood Selector Wheel */}
-          <MoodWheel
-            selectedMood={mood}
-            onSelectMood={(m, emo) => {
-              setMood(m);
-              setEmoji(emo);
-            }}
-          />
+          {/* Automated AI Mood Badge & Interactive Selector Wheel */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600' }}>
+                Mood & Emoji ({isManualMood ? 'Manual Customization' : 'Automated AI Detection'})
+              </span>
+              {detectingMood && (
+                <span style={{ fontSize: '0.75rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Sparkles size={14} className="animate-spin" />
+                  <span>AI Analyzing Text...</span>
+                </span>
+              )}
+            </div>
+            <MoodWheel
+              selectedMood={mood}
+              onSelectMood={(m, emo) => {
+                setMood(m);
+                setEmoji(emo);
+                setIsManualMood(true);
+              }}
+            />
+          </div>
 
           {/* AI Toolbar Buttons + Voice Dictation */}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -251,7 +288,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               style={{ fontSize: '0.85rem' }}
             >
               <Smile size={18} color="#4ade80" />
-              <span>{detectingMood ? 'Analyzing Mood...' : 'AI Detect Mood & Emoji'}</span>
+              <span>{detectingMood ? 'Analyzing Mood...' : 'Re-Detect AI Mood'}</span>
             </button>
 
             <button
@@ -295,7 +332,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               required
               rows={9}
               className="glass-input"
-              placeholder="Write your daily thoughts, accomplishments, or feelings (or click Voice Dictation)..."
+              placeholder="Write your daily thoughts, accomplishments, or feelings (AI will detect your mood automatically as you type)..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
               style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
