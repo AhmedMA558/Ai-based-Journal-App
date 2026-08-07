@@ -1,23 +1,28 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'http://localhost:8080';
+// Axios client with fallback to Gateway
+const API_BASE_URL = window.location.origin.includes('localhost:3000') || window.location.origin.includes('localhost:5173')
+  ? '' // Proxy handles forwarding to localhost:8080
+  : 'http://localhost:8080';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true
 });
 
 // Request Interceptor: Attach JWT Token from Browser Cookies
 api.interceptors.request.use(
   (config) => {
     const token = Cookies.get('jwt_token');
+    const userId = localStorage.getItem('user_id');
+
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
     }
-    const userId = localStorage.getItem('user_id');
     if (userId) {
       config.headers['X-User-Id'] = userId;
     }
@@ -26,12 +31,11 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle Unauthorized / Expired Token
+// Response Interceptor: Handle Unauthorized Expiration
 api.interceptors.response.use(
-  (response) => response.data,
+  (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      console.warn('Unauthorized request or token expired. Clearing session cookies.');
+    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       Cookies.remove('jwt_token');
       localStorage.removeItem('user_id');
       localStorage.removeItem('user_name');

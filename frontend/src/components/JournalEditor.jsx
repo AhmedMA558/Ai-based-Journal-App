@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Save, X, Smile, Tag, FileText, Mic, MicOff, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import MoodWheel from './MoodWheel';
 import { journalService } from '../services/journalService';
 import { aiService } from '../services/aiService';
 
@@ -19,7 +20,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Audio Voice Note Dictation (Web Speech API)
+  // Audio Voice Dictation (Web Speech API)
   const toggleSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -74,7 +75,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast(`AI Detected Mood: ${res.data.primaryMood} ${res.data.emoji || ''}`, 'success');
 
         if (res.data.primaryMood?.toUpperCase() === 'HAPPY' || res.data.primaryMood?.toUpperCase() === 'EXCITED') {
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+          confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
         }
       }
     } catch (err) {
@@ -158,12 +159,12 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '900px', margin: '0 auto' }}>
-      <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem' }}>
+    <div style={{ padding: '2rem', maxWidth: '950px', margin: '0 auto' }}>
+      <div className="glass-panel glass-panel-neon animate-fade-in" style={{ padding: '2.5rem' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
             </h1>
             <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time Python Flask AI analysis & voice dictation</p>
@@ -174,26 +175,35 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         </div>
 
         {message && (
-          <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '12px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <AlertCircle size={18} />
             <span>{message}</span>
           </div>
         )}
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
           {/* Title Input */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '500' }}>Journal Title</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Journal Title</label>
             <input
               type="text"
               required
               className="glass-input"
-              placeholder="e.g. Completing Python AI Microservices & React Integration"
+              placeholder="e.g. Launching Python Flask AI Microservices & React SPA Frontend"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              style={{ fontSize: '1.1rem', fontWeight: '600' }}
+              style={{ fontSize: '1.15rem', fontWeight: '700' }}
             />
           </div>
+
+          {/* Interactive Mood Selector Wheel */}
+          <MoodWheel
+            selectedMood={mood}
+            onSelectMood={(m, emo) => {
+              setMood(m);
+              setEmoji(emo);
+            }}
+          />
 
           {/* AI Toolbar Buttons + Voice Dictation */}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -202,20 +212,35 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               onClick={toggleSpeechRecognition}
               style={{
                 background: isListening ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.06)',
-                border: isListening ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)',
-                color: isListening ? '#f87171' : '#f8fafc',
-                padding: '0.5rem 1rem',
-                borderRadius: '12px',
+                border: isListening ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.15)',
+                color: isListening ? '#f87171' : '#ffffff',
+                padding: '0.65rem 1.15rem',
+                borderRadius: '14px',
                 fontSize: '0.85rem',
                 fontWeight: '600',
                 cursor: 'pointer',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.5rem'
+                gap: '0.6rem',
+                transition: 'all 0.2s'
               }}
             >
-              {isListening ? <MicOff size={16} /> : <Mic size={16} color="#ec4899" />}
-              <span>{isListening ? 'Stop Dictation' : 'Voice Dictation'}</span>
+              {isListening ? (
+                <>
+                  <div className="voice-wave">
+                    <span className="voice-bar"></span>
+                    <span className="voice-bar"></span>
+                    <span className="voice-bar"></span>
+                    <span className="voice-bar"></span>
+                  </div>
+                  <span>Listening...</span>
+                </>
+              ) : (
+                <>
+                  <Mic size={18} color="#ec4899" />
+                  <span>Voice Dictation</span>
+                </>
+              )}
             </button>
 
             <button
@@ -223,9 +248,9 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               onClick={handleDetectMood}
               disabled={detectingMood || !content.trim()}
               className="btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              style={{ fontSize: '0.85rem' }}
             >
-              <Smile size={16} color="#4ade80" />
+              <Smile size={18} color="#4ade80" />
               <span>{detectingMood ? 'Analyzing Mood...' : 'AI Detect Mood & Emoji'}</span>
             </button>
 
@@ -234,9 +259,9 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               onClick={handleSummarize}
               disabled={summarizing || !content.trim()}
               className="btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              style={{ fontSize: '0.85rem' }}
             >
-              <FileText size={16} color="#38bdf8" />
+              <FileText size={18} color="#38bdf8" />
               <span>{summarizing ? 'Summarizing...' : 'AI Auto-Summarize'}</span>
             </button>
 
@@ -245,55 +270,46 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               onClick={handleGenerateTags}
               disabled={!content.trim()}
               className="btn-secondary"
-              style={{ fontSize: '0.85rem', padding: '0.5rem 1rem' }}
+              style={{ fontSize: '0.85rem' }}
             >
-              <Tag size={16} color="#c084fc" />
+              <Tag size={18} color="#c084fc" />
               <span>AI Auto-Tags</span>
             </button>
           </div>
 
-          {/* Mood & Emoji Badge Display */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(15, 20, 38, 0.6)', padding: '0.85rem 1.25rem', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <div style={{ fontSize: '2rem' }}>{emoji}</div>
-            <div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Detected Mood</div>
-              <div style={{ fontSize: '1rem', fontWeight: '700', color: '#4ade80' }}>{mood}</div>
-            </div>
-          </div>
-
           {/* AI Summary Card Preview */}
           {summary && (
-            <div style={{ background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '1rem', borderRadius: '14px' }}>
-              <div style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '600', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Sparkles size={14} />
-                <span>AI Generated Short Summary</span>
+            <div style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '1.25rem', borderRadius: '16px' }}>
+              <div style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '700', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Sparkles size={16} />
+                <span>AI Short Summary Preview</span>
               </div>
-              <p style={{ fontSize: '0.9rem', color: '#cbd5e1', lineHeight: '1.5' }}>{summary}</p>
+              <p style={{ fontSize: '0.95rem', color: '#f8fafc', lineHeight: '1.5' }}>{summary}</p>
             </div>
           )}
 
           {/* Journal Content Textarea */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '500' }}>Journal Content</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Journal Content</label>
             <textarea
               required
-              rows={8}
+              rows={9}
               className="glass-input"
-              placeholder="Write your daily thoughts, accomplishments, or feelings..."
+              placeholder="Write your daily thoughts, accomplishments, or feelings (or click Voice Dictation)..."
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              style={{ lineHeight: '1.6', resize: 'vertical' }}
+              style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
             />
           </div>
 
           {/* Tags Input */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '500' }}>Tags (Press Enter)</label>
+            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Tags (Press Enter)</label>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
               {tags.map((tag, idx) => (
-                <span key={idx} style={{ background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.3)', color: '#c084fc', padding: '0.3rem 0.65rem', borderRadius: '8px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span key={idx} style={{ background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc', padding: '0.35rem 0.75rem', borderRadius: '10px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
                   #{tag}
-                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => handleRemoveTag(tag)} />
+                  <X size={14} style={{ cursor: 'pointer' }} onClick={() => handleRemoveTag(tag)} />
                 </span>
               ))}
             </div>
@@ -309,9 +325,9 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
           {/* Submit Action Buttons */}
           <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary">
-              <Save size={18} />
+            <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '0.85rem 1.5rem' }}>Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary" style={{ padding: '0.85rem 2rem' }}>
+              <Save size={20} />
               <span>{saving ? 'Saving to MySQL...' : 'Save Journal Entry'}</span>
             </button>
           </div>
