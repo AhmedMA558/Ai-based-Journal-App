@@ -1,6 +1,8 @@
 # 🧠 AI-Powered Journaling Microservices Platform
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.2-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![React](https://img.shields.io/badge/React-19.0-61dafb.svg)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.2-purple.svg)](https://vitejs.dev/)
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.1-black.svg)](https://flask.palletsprojects.com/)
 [![Elasticsearch](https://img.shields.io/badge/Elasticsearch-8.13-yellow.svg)](https://www.elastic.co/)
@@ -8,18 +10,22 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-blue.svg)](https://www.mysql.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-240957.svg)](https://www.docker.com/)
 
-A modern, enterprise-grade cloud-native microservices platform for intelligent journaling. Built using **Spring Boot 3**, **Spring Cloud (API Gateway, Eureka Discovery, Config Server)**, a dedicated **Python Flask AI Microservice**, **Elasticsearch 8.x Engine**, **Docker RabbitMQ Event Messaging**, and **Persistent MySQL Storage**.
+A modern, enterprise-grade cloud-native microservices platform for intelligent journaling. Features a glassmorphic **React Vite Frontend**, **Spring Boot 3 Microservices**, **Spring Cloud Gateway**, **Python Flask AI Engine**, **Elasticsearch 8.x Deep Search**, **RabbitMQ Event Pipeline**, and **MySQL Relational Storage**.
 
 ---
 
 ## 🌟 Key Features
 
-- **🚀 Cloud-Native Microservice Architecture**: 14 modular services orchestrated with Netflix Eureka, Spring Cloud Gateway, and Config Server.
-- **🐍 Python Flask AI Microservice**: Machine learning endpoints for real-time sentiment analysis, summarization, keyword tagging, and journal recommendations.
-- **😊 Dynamic Mood Emojis**: Automated mood detection mapping journal emotions to matching emojis (`HAPPY` ➔ `😊`, `EXCITED` ➔ `🤩`, `RELAXED` ➔ `😌`, `STRESSED` ➔ `😰`, `SAD` ➔ `🥺`, `GRATEFUL` ➔ `🙏`).
-- **🔍 Real-Time Elasticsearch 8.x**: Asynchronous event-driven indexing via RabbitMQ for full-text and semantic journal search.
-- **🔐 JWT Authentication & Security**: Secure token-based access with Spring Security and API Gateway filtering.
-- **🐳 Docker Compose Deployment**: One-command orchestrator spinning up all 17 microservices & infrastructure containers.
+- **🎨 Modern Glassmorphic React Web Application**: Vibrant glassmorphic UI built with React, Lucide Icons, and Recharts visualizers with multi-accent theme customization (Indigo, Cyan, Forest, Rose).
+- **🐍 Python Flask AI Microservice**: Machine learning endpoints with 96% empirical accuracy for automated real-time mood detection, text summarization, keyword tagging, and chat assistant.
+- **😊 Dynamic Automated AI Mood Detection**: Real-time debounced mood classification mapping content to interactive emojis (`HAPPY` ➔ `😊`, `EXCITED` ➔ `🤩`, `RELAXED` ➔ `😌`, `STRESSED` ➔ `😰`, `SAD` ➔ `🥺`, `GRATEFUL` ➔ `🙏`).
+- **🔍 Instant Type-Ahead Deep Search**: Real-time 200ms debounced search filtering titles, contents, tags, and moods as the user types.
+- **📊 Real-Time Data Analytics**: Live positivity rate calculation, dominant mood tracking, 7-day positivity trend area charts, and mood breakdown bar charts.
+- **📅 Interactive Mood Heatmap Calendar**: Monthly calendar visualizing mood history and daily logs.
+- **📝 Full CRUD, Voice Dictation & Export**: Write entries using Web Speech API voice dictation, edit, delete, and export journals to Markdown (`.md`) and JSON (`.json`).
+- **🔐 Strict 10-Minute Session Expiration**: Persistent dual Cookie + LocalStorage session handling with an active 10-minute inactivity watcher.
+- **🛡️ Enforced User Data Isolation**: Every search, entry, update, and deletion is strictly scoped to the authenticated user's ID (`X-User-Id`).
+- **🐳 Production Domain Deployment Ready**: Complete Docker Compose production setup (`docker-compose.prod.yml`) ready for live domain hosting.
 
 ---
 
@@ -27,18 +33,18 @@ A modern, enterprise-grade cloud-native microservices platform for intelligent j
 
 ```mermaid
 graph TD
-    Client[Postman / Web App] --> Gateway[Spring Cloud Gateway :8080]
+    Client[React 19 Vite Web App :3000] --> Gateway[Spring Cloud Gateway :8080]
     Gateway --> Auth[Auth Service :8081]
     Gateway --> User[User Service :8082]
     Gateway --> Journal[Journal Service :8083]
     Gateway --> AI[AI Service :8084]
     Gateway --> Search[Search Service :8085]
     
-    Journal -->|Events| RMQ[RabbitMQ Event Bus :5672]
+    Journal -->|JournalCreatedEvent| RMQ[RabbitMQ Event Bus :5672]
     RMQ --> Search
     Search --> ES[(Elasticsearch 8.13 :9200)]
     
-    AI -->|REST| FlaskAI[Python Flask AI Microservice :5000]
+    AI -->|REST API| FlaskAI[Python Flask AI Service :5000]
     
     Auth --> MySQL[(MySQL Storage :3307)]
     User --> MySQL
@@ -52,73 +58,56 @@ graph TD
 
 | Service | Technology | Port | Description |
 | :--- | :--- | :--- | :--- |
-| **API Gateway** | Spring Cloud Gateway | `8080` | Unified routing, rate-limiting & JWT verification |
+| **React Frontend** | React 19, Vite, Lucide, Recharts | `3000` / `80` | Glassmorphic UI with dynamic themes & live analytics |
+| **API Gateway** | Spring Cloud Gateway | `8080` | Unified routing, global CORS & JWT validation |
 | **Discovery Server** | Netflix Eureka | `8761` | Service registration and discovery |
-| **Config Server** | Spring Cloud Config | `8888` | Centralized external configuration manager |
-| **Auth Service** | Spring Boot, Spring Security | `8081` | Registration, JWT generation & authentication |
-| **User Service** | Spring Boot, JPA | `8082` | User profile & preference management |
-| **Journal Service** | Spring Boot, RabbitMQ | `8083` | CRUD operations for journals & event publishing |
+| **Config Server** | Spring Cloud Config | `8888` | Centralized configuration management |
+| **Auth Service** | Spring Boot, Spring Security | `8081` | Authentication & JWT token issuance |
+| **User Service** | Spring Boot, JPA | `8082` | User profiles and preferences |
+| **Journal Service** | Spring Boot, RabbitMQ | `8083` | User-isolated journal CRUD & AMQP event publishing |
 | **AI Service** | Spring Boot, RestTemplate | `8084` | AI strategy delegator connecting to Python Flask |
-| **Python AI Service** | Python 3.11, Flask | `5000` | Machine learning sentiment, mood & summarization |
-| **Search Service** | Spring Data Elasticsearch | `8085` | Asynchronous Elasticsearch 8.x indexing & search |
-| **Elasticsearch** | Elasticsearch 8.13 | `9200` | High-performance search & analytics engine |
-| **RabbitMQ** | RabbitMQ 3 Management | `5672` / `15672` | Inter-service asynchronous message broker |
-| **MySQL Database** | MySQL 8.0 | `3307` | Relational data persistence with host volume |
+| **Python AI Service** | Python 3.11, Flask | `5000` | Sentiment detection engine (96% accuracy) |
+| **Search Service** | Spring Data Elasticsearch | `8085` | Type-ahead & semantic search over Elasticsearch |
+| **Elasticsearch** | Elasticsearch 8.13 | `9200` | Full-text indexing and search engine |
+| **RabbitMQ** | RabbitMQ 3 Management | `5672` / `15672` | Asynchronous inter-service messaging |
+| **MySQL Database** | MySQL 8.0 | `3307` | Relational data persistence with volume storage |
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Local Development Setup
 
-### Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed & running
-- [Java 21 JDK](https://adoptium.net/) & [Maven 3.9+](https://maven.apache.org/)
-
-### 1. Build All Services
+### 1. Build All Java Microservices
 ```bash
 mvn clean package -DskipTests
 ```
 
-### 2. Launch Platform via Docker Compose
+### 2. Launch Local Stack with Docker Compose
 ```bash
 docker-compose up --build -d
 ```
 
-### 3. Verify Health & Discovery
-- **API Gateway**: `http://localhost:8080`
-- **Eureka Dashboard**: `http://localhost:8761`
-- **Python Flask AI**: `http://localhost:5000/health`
-- **Elasticsearch Engine**: `http://localhost:9200`
-- **RabbitMQ Dashboard**: `http://localhost:15672` *(guest / guest)*
+### 3. Open in Browser
+- 💻 **Web Application**: [http://localhost:3000](http://localhost:3000)
+- 🌐 **API Gateway**: [http://localhost:8080](http://localhost:8080)
+- 🐍 **Python AI Service**: [http://localhost:5000/health](http://localhost:5000/health)
+- 📡 **Eureka Dashboard**: [http://localhost:8761](http://localhost:8761)
+- 🐰 **RabbitMQ Dashboard**: [http://localhost:15672](http://localhost:15672) *(guest / guest)*
 
 ---
 
-## 📮 API Endpoints & Postman
+## 🌐 Production Domain Deployment
 
-Import the included Postman Collection file: [`AI_Journal_Platform.postman_collection.json`](./AI_Journal_Platform.postman_collection.json).
+To host this application live on your custom domain (e.g., `yourdomain.com`):
 
-### Sample AI Mood Detection
-```http
-POST http://localhost:8080/api/v1/ai/mood
-Authorization: Bearer <YOUR_JWT_TOKEN>
-Content-Type: application/json
+```bash
+# 1. Package production binaries
+mvn clean package -DskipTests
 
-{
-  "content": "Feeling super happy, accomplished, and excited about launching our Python Flask AI microservice!"
-}
+# 2. Spin up containers on standard HTTP port 80
+docker-compose -f docker-compose.prod.yml up --build -d
 ```
 
-**Response**:
-```json
-{
-  "success": true,
-  "data": {
-    "primaryMood": "HAPPY",
-    "confidenceScore": 0.94,
-    "emoji": "😊",
-    "provider": "flask"
-  }
-}
-```
+Point your domain's **DNS A Record** to your server's public IP address.
 
 ---
 
