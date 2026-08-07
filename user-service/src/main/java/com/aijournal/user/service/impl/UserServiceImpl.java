@@ -1,6 +1,5 @@
 package com.aijournal.user.service.impl;
 
-import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.user.entity.UserPreferences;
 import com.aijournal.user.entity.UserProfile;
 import com.aijournal.user.repository.UserPreferencesRepository;

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { BookOpen, Plus, Trash2, Edit3, Tag, Search, RefreshCw, Calendar } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Edit3, Tag, Search, RefreshCw, Calendar, Download, FileText } from 'lucide-react';
 import { journalService } from '../services/journalService';
 
-export default function JournalFeed({ onNewJournal, onEditJournal }) {
+export default function JournalFeed({ onNewJournal, onEditJournal, showToast }) {
   const [journals, setJournals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,9 +31,36 @@ export default function JournalFeed({ onNewJournal, onEditJournal }) {
     try {
       await journalService.deleteJournal(id);
       setJournals(journals.filter(j => j.id !== id));
+      if (showToast) showToast('Journal entry deleted.', 'info');
     } catch (err) {
       console.error('Delete failed:', err);
     }
+  };
+
+  // Export all journals as JSON
+  const handleExportJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(journals, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `journals_backup_${new Date().toISOString().slice(0, 10)}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    if (showToast) showToast('Exported all journals to JSON backup file!', 'success');
+  };
+
+  // Export single journal as Markdown
+  const handleExportMarkdown = (e, journal) => {
+    e.stopPropagation();
+    const mdContent = `# ${journal.title}\n\n**Date**: ${journal.createdAt || 'Recent'}\n**Mood**: ${journal.mood || 'Neutral'}\n**Tags**: ${(journal.tags || []).join(', ')}\n\n---\n\n${journal.content}`;
+    const dataStr = "data:text/markdown;charset=utf-8," + encodeURIComponent(mdContent);
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `${(journal.title || 'journal').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.md`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    if (showToast) showToast(`Exported "${journal.title}" to Markdown!`, 'success');
   };
 
   const filteredJournals = journals.filter(j => {
@@ -49,12 +76,18 @@ export default function JournalFeed({ onNewJournal, onEditJournal }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>Journal Library</h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Browse and manage all your saved journal entries</p>
+          <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Browse, filter, and export all your saved journal entries</p>
         </div>
-        <button onClick={onNewJournal} className="btn-primary">
-          <Plus size={18} />
-          <span>New Journal Entry</span>
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button onClick={handleExportJSON} className="btn-secondary">
+            <Download size={16} color="#38bdf8" />
+            <span>Export JSON</span>
+          </button>
+          <button onClick={onNewJournal} className="btn-primary">
+            <Plus size={18} />
+            <span>New Journal Entry</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -116,6 +149,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal }) {
               journal={j}
               onEdit={() => onEditJournal(j)}
               onDelete={(e) => handleDelete(e, j.id)}
+              onExportMd={(e) => handleExportMarkdown(e, j)}
             />
           ))}
         </div>
@@ -124,7 +158,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal }) {
   );
 }
 
-function JournalFeedCard({ journal, onEdit, onDelete }) {
+function JournalFeedCard({ journal, onEdit, onDelete, onExportMd }) {
   const getMoodEmoji = (mood) => {
     const m = (mood || '').toUpperCase();
     if (m === 'HAPPY') return '😊';
@@ -144,8 +178,7 @@ function JournalFeedCard({ journal, onEdit, onDelete }) {
         display: 'flex',
         flexDirection: 'column',
         gap: '1rem',
-        position: 'relative',
-        transition: 'transform 0.2s, border-color 0.2s'
+        position: 'relative'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -165,6 +198,9 @@ function JournalFeedCard({ journal, onEdit, onDelete }) {
         </span>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          <button onClick={onExportMd} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Export as Markdown">
+            <FileText size={14} color="#a855f7" />
+          </button>
           <button onClick={onEdit} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Edit">
             <Edit3 size={14} color="#38bdf8" />
           </button>

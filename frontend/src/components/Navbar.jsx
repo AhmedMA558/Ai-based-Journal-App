@@ -1,6 +1,6 @@
 import React from 'react';
-import { LayoutDashboard, BookOpen, Sparkles, Search, BarChart3, LogOut, User, Zap } from 'lucide-react';
-import { authService } from '../services/authService';
+import { LayoutDashboard, BookOpen, Sparkles, Search, BarChart3, Calendar, LogOut, User } from 'lucide-react';
+import ThemeCustomizer from './ThemeCustomizer';
 
 export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
   const username = localStorage.getItem('user_name') || 'Journaler';
@@ -8,25 +8,30 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
   return (
     <aside className="glass-panel" style={{ margin: '1rem', padding: '1.5rem', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 2rem)' }}>
       {/* Brand Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '2.5rem' }}>
-        <div style={{
-          background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-          borderRadius: '12px',
-          width: '42px',
-          height: '42px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
-        }}>
-          <Sparkles size={24} color="#ffffff" />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{
+            background: 'linear-gradient(135deg, var(--accent-indigo, #6366f1), var(--accent-purple, #a855f7))',
+            borderRadius: '12px',
+            width: '42px',
+            height: '42px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.4)'
+          }}>
+            <Sparkles size={24} color="#ffffff" />
+          </div>
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              AURA
+            </h2>
+            <span style={{ fontSize: '0.75rem', color: 'var(--accent-indigo, #6366f1)', fontWeight: '600', letterSpacing: '0.05em' }}>AI PLATFORM</span>
+          </div>
         </div>
-        <div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            AURA
-          </h2>
-          <span style={{ fontSize: '0.75rem', color: '#6366f1', fontWeight: '600', letterSpacing: '0.05em' }}>AI PLATFORM</span>
-        </div>
+
+        {/* Theme Customizer Palette Selector */}
+        <ThemeCustomizer />
       </div>
 
       {/* Navigation Items */}
@@ -42,6 +47,12 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
           label="My Journals"
           active={activeTab === 'journals'}
           onClick={() => setActiveTab('journals')}
+        />
+        <NavItem
+          icon={<Calendar size={20} />}
+          label="Mood Calendar"
+          active={activeTab === 'calendar'}
+          onClick={() => setActiveTab('calendar')}
         />
         <NavItem
           icon={<Sparkles size={20} />}
@@ -65,24 +76,8 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
         />
       </nav>
 
-      {/* Cookie Expiration Alert & Profile Footer */}
+      {/* Profile Footer */}
       <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-        <div style={{
-          background: 'rgba(99, 102, 241, 0.1)',
-          border: '1px solid rgba(99, 102, 241, 0.2)',
-          borderRadius: '10px',
-          padding: '0.75rem',
-          marginBottom: '1rem',
-          fontSize: '0.75rem',
-          color: '#94a3b8',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem'
-        }}>
-          <Zap size={16} color="#6366f1" />
-          <span>Cookie Token Exp: <strong>1 Hour</strong></span>
-        </div>
-
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -138,7 +133,7 @@ function NavItem({ icon, label, active, badge, onClick }) {
         position: 'relative'
       }}
     >
-      <span style={{ color: active ? '#6366f1' : 'inherit' }}>{icon}</span>
+      <span style={{ color: active ? 'var(--accent-indigo, #6366f1)' : 'inherit' }}>{icon}</span>
       <span style={{ flex: 1 }}>{label}</span>
       {badge && (
         <span style={{

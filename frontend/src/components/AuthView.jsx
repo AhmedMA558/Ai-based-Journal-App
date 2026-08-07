@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Lock, Mail, User, ArrowRight, ShieldCheck, Cookie } from 'lucide-react';
+import { Sparkles, Lock, Mail, User, ArrowRight } from 'lucide-react';
 import { authService } from '../services/authService';
 
 export default function AuthView({ onLoginSuccess }) {
@@ -59,23 +59,6 @@ export default function AuthView({ onLoginSuccess }) {
           <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
             {isLogin ? 'Sign in to access your AI-powered journals & insights' : 'Join the next-generation intelligent journaling platform'}
           </p>
-        </div>
-
-        {/* Cookie Security Indicator */}
-        <div style={{
-          background: 'rgba(6, 182, 212, 0.1)',
-          border: '1px solid rgba(6, 182, 212, 0.25)',
-          borderRadius: '12px',
-          padding: '0.65rem 0.85rem',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem',
-          fontSize: '0.8rem',
-          color: '#38bdf8'
-        }}>
-          <Cookie size={18} />
-          <span>JWT Access Tokens stored in <strong>Browser Cookies</strong> (1-Hour Expiration).</span>
         </div>
 
         {/* Error Alert */}

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Sparkles, Save, X, Smile, Tag, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Save, X, Smile, Tag, FileText, Mic, MicOff, AlertCircle } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { journalService } from '../services/journalService';
 import { aiService } from '../services/aiService';
 
-export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
+export default function JournalEditor({ initialData, onClose, onSaveSuccess, showToast }) {
   const [title, setTitle] = useState(initialData?.title || '');
   const [content, setContent] = useState(initialData?.content || '');
   const [mood, setMood] = useState(initialData?.mood || 'HAPPY');
@@ -12,11 +12,54 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
   const [tags, setTags] = useState(initialData?.tags || ['reflection', 'journal']);
   const [tagInput, setTagInput] = useState('');
   
+  const [isListening, setIsListening] = useState(false);
   const [detectingMood, setDetectingMood] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
   const [summary, setSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+
+  // Audio Voice Note Dictation (Web Speech API)
+  const toggleSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      if (showToast) showToast('Speech recognition is not supported in this browser.', 'error');
+      return;
+    }
+
+    if (isListening) {
+      setIsListening(false);
+    } else {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+        if (showToast) showToast('Voice dictation active. Speak clearly...', 'info');
+      };
+
+      recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        setContent(prev => prev + ' ' + transcript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognition.start();
+    }
+  };
 
   // Real-time AI Mood Detection with Emojis
   const handleDetectMood = async () => {
@@ -28,7 +71,8 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
         if (res.data.primaryMood) setMood(res.data.primaryMood.toUpperCase());
         if (res.data.emoji) setEmoji(res.data.emoji);
 
-        // Confetti celebration if happy mood!
+        if (showToast) showToast(`AI Detected Mood: ${res.data.primaryMood} ${res.data.emoji || ''}`, 'success');
+
         if (res.data.primaryMood?.toUpperCase() === 'HAPPY' || res.data.primaryMood?.toUpperCase() === 'EXCITED') {
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
         }
@@ -48,6 +92,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
       const res = await aiService.summarize(content);
       if (res?.data?.shortSummary) {
         setSummary(res.data.shortSummary);
+        if (showToast) showToast('AI Summary Generated!', 'info');
       }
     } catch (err) {
       console.error('Summarize failed:', err);
@@ -64,6 +109,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
       if (res?.data && Array.isArray(res.data)) {
         const cleanTags = res.data.map(t => t.replace('#', ''));
         setTags(prev => [...new Set([...prev, ...cleanTags])]);
+        if (showToast) showToast('AI Auto-Tags Added!', 'success');
       }
     } catch (err) {
       console.error('Tag generator failed:', err);
@@ -97,8 +143,10 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
       const payload = { title, content, mood, tags };
       if (initialData && initialData.id) {
         await journalService.updateJournal(initialData.id, payload);
+        if (showToast) showToast('Journal updated successfully!', 'success');
       } else {
         await journalService.createJournal(payload);
+        if (showToast) showToast('New journal entry saved to MySQL!', 'success');
       }
       onSaveSuccess();
     } catch (err) {
@@ -118,7 +166,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
             <h1 style={{ fontSize: '1.8rem', fontWeight: '800' }}>
               {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time Python Flask AI analysis & sentiment mapping</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time Python Flask AI analysis & voice dictation</p>
           </div>
           <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
             <X size={20} />
@@ -147,8 +195,29 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess }) {
             />
           </div>
 
-          {/* AI Toolbar Buttons */}
+          {/* AI Toolbar Buttons + Voice Dictation */}
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={toggleSpeechRecognition}
+              style={{
+                background: isListening ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.06)',
+                border: isListening ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.12)',
+                color: isListening ? '#f87171' : '#f8fafc',
+                padding: '0.5rem 1rem',
+                borderRadius: '12px',
+                fontSize: '0.85rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              {isListening ? <MicOff size={16} /> : <Mic size={16} color="#ec4899" />}
+              <span>{isListening ? 'Stop Dictation' : 'Voice Dictation'}</span>
+            </button>
+
             <button
               type="button"
               onClick={handleDetectMood}
