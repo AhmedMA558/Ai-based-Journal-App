@@ -170,5 +170,13 @@ services:
     ports:
       - "8089:8089"
 
+  frontend:
+    build: ./frontend
+    container_name: journal-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway-service
+
 volumes:
   mysql_data:
