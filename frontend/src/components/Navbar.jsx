@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, BookOpen, Sparkles, Search, BarChart3, Calendar, LogOut, User } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Sparkles, Search, BarChart3, Calendar, LogOut, User, ShieldCheck } from 'lucide-react';
 import ThemeCustomizer from './ThemeCustomizer';
 
 export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
@@ -76,8 +76,24 @@ export default function Navbar({ activeTab, setActiveTab, user, onLogout }) {
         />
       </nav>
 
-      {/* Profile Footer */}
+      {/* 10-Minute Session Security Indicator & Profile Footer */}
       <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{
+          background: 'rgba(99, 102, 241, 0.12)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
+          borderRadius: '10px',
+          padding: '0.65rem 0.85rem',
+          marginBottom: '1rem',
+          fontSize: '0.75rem',
+          color: '#38bdf8',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem'
+        }}>
+          <ShieldCheck size={16} color="#38bdf8" />
+          <span>Active Session Exp: <strong>10 Mins</strong></span>
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

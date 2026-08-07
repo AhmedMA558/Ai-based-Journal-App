@@ -2,7 +2,17 @@ import api from './api';
 
 export const journalService = {
   getAllJournals: async () => {
-    return await api.get('/api/v1/journals');
+    const res = await api.get('/api/v1/journals');
+    if (res?.data?.data?.content && Array.isArray(res.data.data.content)) {
+      return res.data.data.content;
+    }
+    if (res?.data?.content && Array.isArray(res.data.content)) {
+      return res.data.content;
+    }
+    if (res?.data && Array.isArray(res.data)) {
+      return res.data;
+    }
+    return Array.isArray(res) ? res : [];
   },
 
   getJournalById: async (id) => {
@@ -10,11 +20,33 @@ export const journalService = {
   },
 
   createJournal: async (journalData) => {
-    return await api.post('/api/v1/journals', journalData);
+    const payload = {
+      title: journalData.title,
+      content: journalData.content,
+      mood: journalData.mood || 'HAPPY',
+      tags: journalData.tags || [],
+      isDraft: false,
+      isPinned: false,
+      isFavorite: false,
+      isArchived: false,
+      contentEncrypted: false
+    };
+    return await api.post('/api/v1/journals', payload);
   },
 
   updateJournal: async (id, journalData) => {
-    return await api.put(`/api/v1/journals/${id}`, journalData);
+    const payload = {
+      title: journalData.title,
+      content: journalData.content,
+      mood: journalData.mood || 'HAPPY',
+      tags: journalData.tags || [],
+      isDraft: false,
+      isPinned: false,
+      isFavorite: false,
+      isArchived: false,
+      contentEncrypted: false
+    };
+    return await api.put(`/api/v1/journals/${id}`, payload);
   },
 
   deleteJournal: async (id) => {

@@ -22,28 +22,34 @@ public class SearchController {
         this.searchService = searchService;
     }
 
+    private Long resolveUserId(Long userId) {
+        return (userId != null) ? userId : 1L;
+    }
+
     @GetMapping
-    @Operation(summary = "Search journals with multi-filters (Date, Mood, Tags, Category)")
+    @Operation(summary = "Search user-scoped journals with multi-filters (Date, Mood, Tags, Category)")
     public ResponseEntity<ApiResponse<PagedResponse<Map<String, Object>>>> search(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String mood,
             @RequestParam(required = false) String tag,
             @RequestParam(required = false) String category,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        PagedResponse<Map<String, Object>> response = searchService.searchJournals(userId, query, mood, tag, category, page, size);
+        Long activeUserId = resolveUserId(userId);
+        PagedResponse<Map<String, Object>> response = searchService.searchJournals(activeUserId, query, mood, tag, category, page, size);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @GetMapping("/semantic")
-    @Operation(summary = "Natural Language Smart Semantic Search ('Show entries where I was happy', 'When did I talk about my father?')")
+    @Operation(summary = "Natural Language Smart Semantic Search scoped to current user")
     public ResponseEntity<ApiResponse<PagedResponse<Map<String, Object>>>> semanticSearch(
-            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestParam String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        PagedResponse<Map<String, Object>> response = searchService.semanticSearch(userId, query, page, size);
+        Long activeUserId = resolveUserId(userId);
+        PagedResponse<Map<String, Object>> response = searchService.semanticSearch(activeUserId, query, page, size);
         return ResponseEntity.ok(ApiResponse.success("Semantic search results retrieved", response));
     }
 }

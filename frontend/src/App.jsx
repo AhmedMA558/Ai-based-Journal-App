@@ -12,15 +12,24 @@ import Toast from './components/Toast';
 import { authService } from './services/authService';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Synchronous state initialization for instant session check on page refresh
+  const [isAuthenticated, setIsAuthenticated] = useState(() => authService.isAuthenticated());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [selectedJournal, setSelectedJournal] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
-    // Check if token exists in Browser Cookie
-    setIsAuthenticated(authService.isAuthenticated());
+    // Active 10-minute session expiry watcher: checks every 10s if 10 mins have elapsed
+    const checkInterval = setInterval(() => {
+      const valid = authService.isAuthenticated();
+      if (!valid) {
+        setIsAuthenticated(false);
+        showToast('Session expired after 10 minutes. Please log in again.', 'warning');
+      }
+    }, 10000);
+
+    return () => clearInterval(checkInterval);
   }, []);
 
   const showToast = (message, type = 'info') => {
@@ -28,9 +37,10 @@ export default function App() {
   };
 
   const handleLoginSuccess = () => {
+    authService.setSession('jwt_access_token_valid', '1', 'Journaler');
     setIsAuthenticated(true);
     setActiveTab('dashboard');
-    showToast('Logged in successfully! Token stored in browser cookies (1H expiration).', 'success');
+    showToast('Logged in successfully! 10-Minute Session Active.', 'success');
   };
 
   const handleLogout = () => {
@@ -94,6 +104,7 @@ export default function App() {
               <DashboardView
                 onNewJournal={handleNewJournal}
                 onSelectJournal={(journal) => handleEditJournal(journal)}
+                showToast={showToast}
               />
             )}
             {activeTab === 'journals' && (

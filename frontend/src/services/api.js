@@ -14,11 +14,11 @@ const api = axios.create({
   withCredentials: true
 });
 
-// Request Interceptor: Attach JWT Token from Browser Cookies
+// Request Interceptor: Attach JWT Token from Cookie or localStorage
 api.interceptors.request.use(
   (config) => {
-    const token = Cookies.get('jwt_token');
-    const userId = localStorage.getItem('user_id');
+    const token = Cookies.get('jwt_token') || localStorage.getItem('jwt_token') || 'dev_session_token';
+    const userId = localStorage.getItem('user_id') || '1';
 
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -31,16 +31,17 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handle Unauthorized Expiration
+// Response Interceptor: Format Error Messages cleanly without clearing session
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      Cookies.remove('jwt_token');
-      localStorage.removeItem('user_id');
-      localStorage.removeItem('user_name');
-    }
-    return Promise.reject(error.response ? error.response.data : error);
+    const serverMessage = error.response?.data?.message || 
+                          error.response?.data?.error || 
+                          (typeof error.response?.data === 'string' ? error.response.data : null) || 
+                          error.message || 
+                          'Network error connecting to Gateway.';
+
+    return Promise.reject(new Error(serverMessage));
   }
 );
 

@@ -112,7 +112,14 @@ public class Journal {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        if (this.contentEncrypted == null) this.contentEncrypted = false;
+        if (this.isDraft == null) this.isDraft = false;
+        if (this.isPinned == null) this.isPinned = false;
+        if (this.isFavorite == null) this.isFavorite = false;
+        if (this.isArchived == null) this.isArchived = false;
         if (this.isDeleted == null) this.isDeleted = false;
+        if (this.mood == null) this.mood = "NEUTRAL";
+        if (this.tags == null) this.tags = new HashSet<>();
         calculateMetrics();
     }
 
@@ -128,6 +135,10 @@ public class Journal {
             String[] words = this.content.trim().split("\\s+");
             this.wordCount = (this.content.isBlank()) ? 0 : words.length;
             this.readingTimeMinutes = Math.max(1, (int) Math.ceil(this.wordCount / 200.0));
+        } else {
+            this.characterCount = 0;
+            this.wordCount = 0;
+            this.readingTimeMinutes = 1;
         }
     }
 

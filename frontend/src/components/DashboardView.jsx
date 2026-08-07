@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Plus, BookOpen, Flame, Heart, Smile, Frown, Meh, RefreshCw } from 'lucide-react';
+import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw } from 'lucide-react';
 import { journalService } from '../services/journalService';
 import { aiService } from '../services/aiService';
 
-export default function DashboardView({ onNewJournal, onSelectJournal }) {
+export default function DashboardView({ onNewJournal, onSelectJournal, showToast }) {
   const [journals, setJournals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recommendation, setRecommendation] = useState('Take 5 deep breaths and reflect on 3 good things today.');
@@ -16,8 +16,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal }) {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const journalRes = await journalService.getAllJournals();
-      const list = journalRes?.data || journalRes || [];
+      const list = await journalService.getAllJournals();
       setJournals(Array.isArray(list) ? list : []);
 
       // Fetch AI Daily Recommendations
@@ -33,6 +32,18 @@ export default function DashboardView({ onNewJournal, onSelectJournal }) {
       console.error('Failed to load dashboard data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this journal entry?')) return;
+    try {
+      await journalService.deleteJournal(id);
+      setJournals(journals.filter(j => j.id !== id));
+      if (showToast) showToast('Journal entry deleted.', 'info');
+    } catch (err) {
+      console.error('Delete failed:', err);
     }
   };
 
@@ -119,7 +130,12 @@ export default function DashboardView({ onNewJournal, onSelectJournal }) {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1.5rem' }}>
           {journals.slice(0, 6).map((journal) => (
-            <JournalCard key={journal.id} journal={journal} onClick={() => onSelectJournal(journal)} />
+            <DashboardJournalCard
+              key={journal.id}
+              journal={journal}
+              onSelect={() => onSelectJournal(journal)}
+              onDelete={(e) => handleDelete(e, journal.id)}
+            />
           ))}
         </div>
       )}
@@ -127,7 +143,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal }) {
   );
 }
 
-function JournalCard({ journal, onClick }) {
+function DashboardJournalCard({ journal, onSelect, onDelete }) {
   const getMoodEmoji = (mood) => {
     const m = (mood || '').toUpperCase();
     if (m === 'HAPPY') return '😊';
@@ -141,11 +157,9 @@ function JournalCard({ journal, onClick }) {
 
   return (
     <div
-      onClick={onClick}
       className="glass-panel"
       style={{
         padding: '1.5rem',
-        cursor: 'pointer',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.85rem',
@@ -167,26 +181,34 @@ function JournalCard({ journal, onClick }) {
           <span>{getMoodEmoji(journal.mood)}</span>
           <span>{journal.mood || 'Neutral'}</span>
         </span>
-        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-          {journal.createdAt ? new Date(journal.createdAt).toLocaleDateString() : 'Today'}
-        </span>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button onClick={onSelect} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Edit Entry">
+            <Edit3 size={14} color="#38bdf8" />
+          </button>
+          <button onClick={onDelete} className="btn-secondary" style={{ padding: '0.35rem', borderRadius: '8px' }} title="Delete Entry">
+            <Trash2 size={14} color="#f87171" />
+          </button>
+        </div>
       </div>
 
-      <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', lineHeight: '1.3' }}>
-        {journal.title}
-      </h3>
+      <div onClick={onSelect} style={{ cursor: 'pointer' }}>
+        <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#f8fafc', lineHeight: '1.3', marginBottom: '0.4rem' }}>
+          {journal.title}
+        </h3>
 
-      <p style={{
-        fontSize: '0.9rem',
-        color: '#94a3b8',
-        lineHeight: '1.5',
-        display: '-webkit-box',
-        WebkitLineClamp: 3,
-        WebkitBoxOrient: 'vertical',
-        overflow: 'hidden'
-      }}>
-        {journal.content}
-      </p>
+        <p style={{
+          fontSize: '0.9rem',
+          color: '#94a3b8',
+          lineHeight: '1.5',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden'
+        }}>
+          {journal.content}
+        </p>
+      </div>
 
       {journal.tags && journal.tags.length > 0 && (
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: 'auto' }}>

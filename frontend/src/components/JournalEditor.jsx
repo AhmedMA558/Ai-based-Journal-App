@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Save, X, Smile, Tag, FileText, Mic, MicOff, AlertCircle } from 'lucide-react';
+import { Sparkles, Save, X, Smile, Tag, FileText, Mic, AlertCircle, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MoodWheel from './MoodWheel';
 import { journalService } from '../services/journalService';
@@ -19,31 +19,68 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   const [summary, setSummary] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
-  const [isManualMood, setIsManualMood] = useState(false);
+  const [aiDetectedMood, setAiDetectedMood] = useState(initialData?.mood || '');
+  const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Automated Real-Time AI Mood Detection on Typing (Debounced)
+  // Normalize mood string to standard keys (HAPPY, EXCITED, RELAXED, STRESSED, SAD, GRATEFUL)
+  const normalizeMood = (rawMood) => {
+    if (!rawMood) return 'HAPPY';
+    const m = rawMood.toUpperCase();
+    if (m.includes('EXCITE')) return 'EXCITED';
+    if (m.includes('HAPP') || m.includes('JOY')) return 'HAPPY';
+    if (m.includes('RELAX') || m.includes('CALM')) return 'RELAXED';
+    if (m.includes('STRESS') || m.includes('ANXIO')) return 'STRESSED';
+    if (m.includes('SAD') || m.includes('DEPR')) return 'SAD';
+    if (m.includes('GRATE') || m.includes('THANK')) return 'GRATEFUL';
+    return 'HAPPY';
+  };
+
+  // Helper map for emojis
+  const getEmojiForMood = (mKey) => {
+    const map = {
+      HAPPY: '😊',
+      EXCITED: '🤩',
+      RELAXED: '😌',
+      STRESSED: '😰',
+      SAD: '🥺',
+      GRATEFUL: '🙏'
+    };
+    return map[mKey] || '😊';
+  };
+
+  // Automated Real-Time AI Mood Detection as User Types (Debounced)
   useEffect(() => {
-    if (!content.trim() || content.trim().length < 8 || isManualMood) return;
+    if (!content.trim() || content.trim().length < 8 || isManualOverride) return;
 
     const timer = setTimeout(async () => {
       setDetectingMood(true);
       try {
         const res = await aiService.detectMood(content);
-        if (res?.data) {
-          if (res.data.primaryMood) setMood(res.data.primaryMood.toUpperCase());
-          if (res.data.emoji) setEmoji(res.data.emoji);
+        if (res?.data && res.data.primaryMood) {
+          const detectedKey = normalizeMood(res.data.primaryMood);
+          const detectedEmoji = res.data.emoji || getEmojiForMood(detectedKey);
+          
+          setMood(detectedKey);
+          setEmoji(detectedEmoji);
+          setAiDetectedMood(detectedKey);
+
+          if (showToast) showToast(`AI Detected Mood: ${detectedKey} ${detectedEmoji}`, 'info');
+
+          if (detectedKey === 'HAPPY' || detectedKey === 'EXCITED') {
+            confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+          }
         }
       } catch (err) {
         console.error('Auto mood detection error:', err);
       } finally {
         setDetectingMood(false);
       }
-    }, 750);
+    }, 700);
 
     return () => clearTimeout(timer);
-  }, [content, isManualMood]);
+  }, [content, isManualOverride]);
 
-  // Audio Voice Dictation (Web Speech API)
+  // Audio Voice Dictation
   const toggleSpeechRecognition = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -85,19 +122,24 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     }
   };
 
-  // Manual Trigger for Real-time AI Mood Detection with Emojis
+  // Explicit AI Re-Detect Button Handler
   const handleDetectMood = async () => {
     if (!content.trim()) return;
     setDetectingMood(true);
     try {
       const res = await aiService.detectMood(content);
-      if (res?.data) {
-        if (res.data.primaryMood) setMood(res.data.primaryMood.toUpperCase());
-        if (res.data.emoji) setEmoji(res.data.emoji);
+      if (res?.data && res.data.primaryMood) {
+        const detectedKey = normalizeMood(res.data.primaryMood);
+        const detectedEmoji = res.data.emoji || getEmojiForMood(detectedKey);
 
-        if (showToast) showToast(`AI Detected Mood: ${res.data.primaryMood} ${res.data.emoji || ''}`, 'success');
+        setMood(detectedKey);
+        setEmoji(detectedEmoji);
+        setAiDetectedMood(detectedKey);
+        setIsManualOverride(false);
 
-        if (res.data.primaryMood?.toUpperCase() === 'HAPPY' || res.data.primaryMood?.toUpperCase() === 'EXCITED') {
+        if (showToast) showToast(`AI Detected Mood: ${detectedKey} ${detectedEmoji}`, 'success');
+
+        if (detectedKey === 'HAPPY' || detectedKey === 'EXCITED') {
           confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
         }
       }
@@ -164,7 +206,20 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
     setSaving(true);
     try {
-      const payload = { title, content, mood, tags };
+      // Ensure AI mood analysis is triggered if not done yet
+      let finalMood = mood;
+      if (!isManualOverride && content.trim().length >= 5) {
+        try {
+          const aiRes = await aiService.detectMood(content);
+          if (aiRes?.data?.primaryMood) {
+            finalMood = normalizeMood(aiRes.data.primaryMood);
+          }
+        } catch (err) {
+          // Fallback to active state
+        }
+      }
+
+      const payload = { title, content, mood: finalMood, tags };
       if (initialData && initialData.id) {
         await journalService.updateJournal(initialData.id, payload);
         if (showToast) showToast('Journal updated successfully!', 'success');
@@ -190,7 +245,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             <h1 style={{ fontSize: '2rem', fontWeight: '800', background: 'linear-gradient(135deg, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
             </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Automated AI mood detection as you write + manual customization</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Automated AI mood detection from entry content + manual override</p>
           </div>
           <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
             <X size={20} />
@@ -212,32 +267,63 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               type="text"
               required
               className="glass-input"
-              placeholder="e.g. Launching Python Flask AI Microservices & React SPA Frontend"
+              placeholder="e.g. Completing Microservices Architecture & AI Integration"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               style={{ fontSize: '1.15rem', fontWeight: '700' }}
             />
           </div>
 
-          {/* Automated AI Mood Badge & Interactive Selector Wheel */}
+          {/* Journal Content Textarea */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600' }}>
-                Mood & Emoji ({isManualMood ? 'Manual Customization' : 'Automated AI Detection'})
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+              <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600' }}>Journal Content</label>
               {detectingMood && (
                 <span style={{ fontSize: '0.75rem', color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <Sparkles size={14} className="animate-spin" />
-                  <span>AI Analyzing Text...</span>
+                  <span>AI Detecting Mood...</span>
                 </span>
               )}
             </div>
+            <textarea
+              required
+              rows={9}
+              className="glass-input"
+              placeholder="Write your thoughts, feelings, or daily experience (AI will analyze your text and automatically select your mood)..."
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
+            />
+          </div>
+
+          {/* AI Automated Mood Selection Grid */}
+          <div style={{ background: 'rgba(12, 16, 34, 0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Sparkles size={18} color="#818cf8" />
+                <span style={{ fontSize: '0.9rem', color: '#ffffff', fontWeight: '700' }}>
+                  AI Detected Mood: <strong style={{ color: '#4ade80' }}>{mood} {emoji}</strong>
+                </span>
+              </div>
+
+              {isManualOverride ? (
+                <span style={{ fontSize: '0.75rem', color: '#fde047', background: 'rgba(253,224,71,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600' }}>
+                  Manual Selection Active
+                </span>
+              ) : (
+                <span style={{ fontSize: '0.75rem', color: '#4ade80', background: 'rgba(74,222,128,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                  <CheckCircle2 size={12} />
+                  <span>AI Auto-Detected</span>
+                </span>
+              )}
+            </div>
+
             <MoodWheel
               selectedMood={mood}
               onSelectMood={(m, emo) => {
                 setMood(m);
                 setEmoji(emo);
-                setIsManualMood(true);
+                setIsManualOverride(true);
               }}
             />
           </div>
@@ -288,7 +374,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               style={{ fontSize: '0.85rem' }}
             >
               <Smile size={18} color="#4ade80" />
-              <span>{detectingMood ? 'Analyzing Mood...' : 'Re-Detect AI Mood'}</span>
+              <span>{detectingMood ? 'Analyzing Mood...' : 'Re-Analyze AI Mood'}</span>
             </button>
 
             <button
@@ -324,20 +410,6 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               <p style={{ fontSize: '0.95rem', color: '#f8fafc', lineHeight: '1.5' }}>{summary}</p>
             </div>
           )}
-
-          {/* Journal Content Textarea */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Journal Content</label>
-            <textarea
-              required
-              rows={9}
-              className="glass-input"
-              placeholder="Write your daily thoughts, accomplishments, or feelings (AI will detect your mood automatically as you type)..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
-            />
-          </div>
 
           {/* Tags Input */}
           <div>
