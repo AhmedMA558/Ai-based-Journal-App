@@ -14,17 +14,13 @@ const api = axios.create({
   withCredentials: true
 });
 
-// Request Interceptor: Attach JWT Token from Cookie or localStorage
+// Request Interceptor: Attach JWT Token from Cookie or localStorage, if present
 api.interceptors.request.use(
   (config) => {
-    const token = Cookies.get('jwt_token') || localStorage.getItem('jwt_token') || 'dev_session_token';
-    const userId = localStorage.getItem('user_id') || '1';
+    const token = Cookies.get('jwt_token') || localStorage.getItem('jwt_token');
 
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    if (userId) {
-      config.headers['X-User-Id'] = userId;
     }
     return config;
   },

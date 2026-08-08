@@ -1,6 +1,7 @@
 package com.aijournal.file.controller;
 
 import com.aijournal.common.dto.ApiResponse;
+import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.file.storage.FileStorageStrategy;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,7 +42,12 @@ public class FileController {
 
     @GetMapping("/download")
     @Operation(summary = "Download attachment file")
-    public ResponseEntity<byte[]> downloadFile(@RequestParam("path") String path) {
+    public ResponseEntity<byte[]> downloadFile(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestParam("path") String path) {
+        if (path.contains("..") || !path.startsWith("user-" + userId + "/")) {
+            throw new ForbiddenException("You do not have access to this file");
+        }
         byte[] data = fileStorageStrategy.getFile(path);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + path.substring(path.lastIndexOf("/") + 1) + "\"")

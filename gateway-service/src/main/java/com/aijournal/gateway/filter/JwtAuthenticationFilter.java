@@ -8,6 +8,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
@@ -20,7 +21,7 @@ import java.util.List;
 @Component
 public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAuthenticationFilter.Config> {
 
-    @Value("${jwt.secret:defaultSecretKeyForTestingJwtTokenValidation1234567890}")
+    @Value("${jwt.secret}")
     private String jwtSecret;
 
     private static final String HEADER_USER_ID = "X-User-Id";
@@ -49,10 +50,6 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
                 return chain.filter(exchange);
             }
 
-            if (hasDirectUserIdHeader(request)) {
-                return chain.filter(exchange);
-            }
-
             return authenticateAndFilter(exchange, chain);
         };
     }
@@ -61,24 +58,22 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
         return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
     }
 
-    private boolean hasDirectUserIdHeader(ServerHttpRequest request) {
-        return request.getHeaders().containsKey(HEADER_USER_ID)
-                && !request.getHeaders().containsKey(HttpHeaders.AUTHORIZATION);
-    }
-
     private Mono<Void> authenticateAndFilter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String authHeader = request.getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return proceedWithFallback(exchange, chain);
+            return reject(exchange);
         }
 
         try {
             Claims claims = parseToken(authHeader.substring(7));
+            if (claims.get("userId") == null) {
+                return reject(exchange);
+            }
             return proceedWithClaims(exchange, chain, claims);
         } catch (Exception e) {
-            return proceedWithFallback(exchange, chain);
+            return reject(exchange);
         }
     }
 
@@ -92,7 +87,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     }
 
     private Mono<Void> proceedWithClaims(ServerWebExchange exchange, GatewayFilterChain chain, Claims claims) {
-        String userId = claims.get("userId") != null ? String.valueOf(claims.get("userId")) : "1";
+        String userId = String.valueOf(claims.get("userId"));
         String email = claims.getSubject() != null ? claims.getSubject() : "user@example.com";
 
         ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
@@ -102,11 +97,9 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
         return chain.filter(exchange.mutate().request(modifiedRequest).build());
     }
 
-    private Mono<Void> proceedWithFallback(ServerWebExchange exchange, GatewayFilterChain chain) {
-        ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
-                .header(HEADER_USER_ID, "1")
-                .build();
-        return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    private Mono<Void> reject(ServerWebExchange exchange) {
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        return exchange.getResponse().setComplete();
     }
 
     @SuppressWarnings("java:S2094")
