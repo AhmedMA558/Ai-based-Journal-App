@@ -33,3 +33,6 @@ logs/
 # Operating System
 Thumbs.db
 Desktop.ini
+
+# Secrets
+.env

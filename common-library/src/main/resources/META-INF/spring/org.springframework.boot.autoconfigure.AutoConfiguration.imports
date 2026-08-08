@@ -1,0 +1,2 @@
+com.aijournal.common.security.JwtSecurityAutoConfiguration
+com.aijournal.common.messaging.RabbitMessagingAutoConfiguration

@@ -4,7 +4,7 @@ services:
     container_name: journal-mysql-prod
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootProdPassword123!}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
     ports:
       - "3307:3306"
     volumes:
@@ -71,6 +71,8 @@ services:
     restart: always
     ports:
       - "8080:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       - discovery-server
       - config-server
@@ -85,7 +87,8 @@ services:
     environment:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootProdPassword123!}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       mysql:
         condition: service_healthy
@@ -99,7 +102,8 @@ services:
     environment:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootProdPassword123!}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       mysql:
         condition: service_healthy
@@ -113,8 +117,9 @@ services:
     environment:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/journal_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootProdPassword123!}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       SPRING_RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       mysql:
         condition: service_healthy
@@ -130,9 +135,10 @@ services:
     environment:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/ai_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-RootProdPassword123!}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       AI_PROVIDER: flask
       FLASK_AI_URL: http://python-ai-service:5000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       mysql:
         condition: service_healthy
@@ -148,6 +154,7 @@ services:
     environment:
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
       SPRING_RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:
       - elasticsearch
       - rabbitmq
