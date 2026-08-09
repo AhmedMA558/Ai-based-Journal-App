@@ -7,35 +7,22 @@ const COOKIE_EXPIRES_DAYS = 10 / (24 * 60); // 10 Minutes in days (10/1440)
 export const authService = {
   // Login user and set 10-minute session expiry
   login: async (usernameOrEmail, password) => {
-    try {
-      const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
-      if (res && res.data && res.data.accessToken) {
-        const token = res.data.accessToken;
-        authService.setSession(token, res.data.userId, res.data.username || usernameOrEmail);
-      }
-      return res;
-    } catch (err) {
-      // Dev fallback with 10-minute expiry
-      const devToken = 'dev_jwt_token_' + Date.now();
-      authService.setSession(devToken, '1', usernameOrEmail || 'Journaler');
-      return { success: true, message: 'Logged in (10-Min Session)' };
+    const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
+    if (res && res.data && res.data.accessToken) {
+      const token = res.data.accessToken;
+      authService.setSession(token, res.data.userId, res.data.username || usernameOrEmail);
     }
+    return res;
   },
 
   // Register user with 10-minute session
   register: async (username, email, password, fullName) => {
-    try {
-      const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
-      if (res && res.data && res.data.accessToken) {
-        const token = res.data.accessToken;
-        authService.setSession(token, res.data.userId, res.data.username || username);
-      }
-      return res;
-    } catch (err) {
-      const devToken = 'dev_jwt_token_' + Date.now();
-      authService.setSession(devToken, '1', username || 'Journaler');
-      return { success: true, message: 'Registered (10-Min Session)' };
+    const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
+    if (res && res.data && res.data.accessToken) {
+      const token = res.data.accessToken;
+      authService.setSession(token, res.data.userId, res.data.username || username);
     }
+    return res;
   },
 
   // Set active session tokens with strict 10-minute expiration

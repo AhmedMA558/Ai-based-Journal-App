@@ -70,6 +70,8 @@ services:
     container_name: gateway-service
     ports:
       - "8080:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       - discovery-server
       - config-server
@@ -84,6 +86,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       mysql:
         condition: service_healthy
@@ -97,6 +100,7 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/user_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       mysql:
         condition: service_healthy
@@ -111,6 +115,7 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       mysql:
         condition: service_healthy
@@ -128,6 +133,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: root
       AI_PROVIDER: flask
       FLASK_AI_URL: http://python-ai-service:5000
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       mysql:
         condition: service_healthy
@@ -142,6 +148,7 @@ services:
     environment:
       SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
       SPRING_RABBITMQ_HOST: rabbitmq
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
       - elasticsearch
       - rabbitmq
@@ -151,24 +158,32 @@ services:
     container_name: recommendation-service
     ports:
       - "8086:8086"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
 
   notification-service:
     build: ./notification-service
     container_name: notification-service
     ports:
       - "8087:8087"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
 
   analytics-service:
     build: ./analytics-service
     container_name: analytics-service
     ports:
       - "8088:8088"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
 
   file-service:
     build: ./file-service
     container_name: file-service
     ports:
       - "8089:8089"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
 
   frontend:
     build: ./frontend

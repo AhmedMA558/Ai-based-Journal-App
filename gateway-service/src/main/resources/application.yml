@@ -89,7 +89,7 @@ eureka:
       defaultZone: http://discovery-server:8761/eureka/
 
 jwt:
-  secret: defaultSecretKeyForTestingJwtTokenValidation1234567890
+  secret: ${JWT_SECRET}
 
 management:
   endpoints:
