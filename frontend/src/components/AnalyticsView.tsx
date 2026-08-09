@@ -18,6 +18,7 @@ import {
 import { Smile, TrendingUp, Flame, Award, RefreshCw } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { MOODS as SHARED_MOODS, MOOD_META, type Mood as SharedMood, type MoodMeta } from '@/lib/moods';
+import { getAiLevel } from '@/lib/journalStats';
 
 // AnalyticsView is the only consumer that needs an 8th "NEUTRAL" bucket: the
 // backend seeds newly-indexed journals with mood "NEUTRAL" before AI
@@ -175,7 +176,7 @@ export default function AnalyticsView() {
         <div className="glass-panel p-6 text-center">
           <Award size={32} color="#c084fc" className="mb-[0.4rem]" />
           <div className="text-[0.8rem] text-[#94a3b8]">AI Level</div>
-          <div className="text-[1.4rem] font-extrabold text-[#c084fc]">Master Journaler</div>
+          <div className="text-[1.4rem] font-extrabold text-[#c084fc]">{getAiLevel(totalEntries)}</div>
         </div>
       </div>
 
