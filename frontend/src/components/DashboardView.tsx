@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { aiService } from '@/services/aiService';
+import { MOOD_META, type Mood } from '@/lib/moods';
 
 interface Journal {
   id: number | string;
@@ -18,12 +19,8 @@ interface DashboardViewProps {
   showToast?: (message: string, type?: string) => void;
 }
 
-const MOOD_EMOJI: Record<string, string> = {
-  HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠',
-};
-
 function getMoodEmoji(mood?: string): string {
-  return MOOD_EMOJI[(mood || '').toUpperCase()] || '😊';
+  return MOOD_META[(mood || '').toUpperCase() as Mood]?.emoji || '😊';
 }
 
 interface MoodBadgeStyle {
@@ -32,20 +29,11 @@ interface MoodBadgeStyle {
   color: string;
 }
 
-const MOOD_BADGE_STYLE: Record<string, MoodBadgeStyle> = {
-  HAPPY: { bg: 'rgba(74, 222, 128, 0.18)', border: 'rgba(74, 222, 128, 0.35)', color: '#4ade80' },
-  EXCITED: { bg: 'rgba(253, 224, 71, 0.18)', border: 'rgba(253, 224, 71, 0.35)', color: '#fde047' },
-  RELAXED: { bg: 'rgba(56, 189, 248, 0.18)', border: 'rgba(56, 189, 248, 0.35)', color: '#38bdf8' },
-  STRESSED: { bg: 'rgba(248, 113, 113, 0.18)', border: 'rgba(248, 113, 113, 0.35)', color: '#f87171' },
-  SAD: { bg: 'rgba(192, 132, 252, 0.18)', border: 'rgba(192, 132, 252, 0.35)', color: '#c084fc' },
-  GRATEFUL: { bg: 'rgba(251, 113, 133, 0.18)', border: 'rgba(251, 113, 133, 0.35)', color: '#fb7185' },
-  ANGRY: { bg: 'rgba(239, 68, 68, 0.22)', border: 'rgba(239, 68, 68, 0.45)', color: '#ef4444' },
-};
-
 const DEFAULT_MOOD_BADGE_STYLE: MoodBadgeStyle = { bg: 'rgba(99, 102, 241, 0.18)', border: 'rgba(99, 102, 241, 0.35)', color: '#818cf8' };
 
 function getMoodBadgeStyle(mood?: string): MoodBadgeStyle {
-  return MOOD_BADGE_STYLE[(mood || '').toUpperCase()] || DEFAULT_MOOD_BADGE_STYLE;
+  const meta = MOOD_META[(mood || '').toUpperCase() as Mood];
+  return meta ? { bg: meta.bg, border: meta.border, color: meta.text } : DEFAULT_MOOD_BADGE_STYLE;
 }
 
 export default function DashboardView({ onNewJournal, onSelectJournal, showToast }: DashboardViewProps) {
