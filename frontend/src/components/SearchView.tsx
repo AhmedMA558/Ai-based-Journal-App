@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Search, Filter, BookOpen, Sparkles, SortAsc, AlertCircle } from 'lucide-react';
 import { searchService } from '@/services/searchService';
 import { cn } from '@/lib/utils';
+import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
 
 interface SearchResult {
   id: string;
@@ -14,17 +15,10 @@ interface SearchResult {
   createdAt?: string;
 }
 
-type MoodFilter = 'ALL' | 'HAPPY' | 'EXCITED' | 'RELAXED' | 'STRESSED' | 'SAD' | 'GRATEFUL' | 'ANGRY';
 type SortBy = 'newest' | 'oldest';
 
-const MOOD_FILTERS: MoodFilter[] = ['ALL', 'HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD', 'GRATEFUL', 'ANGRY'];
-
-const MOOD_EMOJI: Record<string, string> = {
-  HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠',
-};
-
 function getMoodEmoji(m?: string): string {
-  return MOOD_EMOJI[(m || '').toUpperCase()] || '😊';
+  return MOOD_META[(m || '').toUpperCase() as Mood]?.emoji || '😊';
 }
 
 // Requesting a larger single page rather than building pagination controls,
