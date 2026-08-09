@@ -32,7 +32,12 @@ public class SecurityConfig {
                                 AntPathRequestMatcher.antMatcher("/v3/api-docs/**"),
                                 AntPathRequestMatcher.antMatcher("/swagger-ui/**"),
                                 AntPathRequestMatcher.antMatcher("/swagger-ui.html"),
-                                AntPathRequestMatcher.antMatcher("/actuator/**")
+                                AntPathRequestMatcher.antMatcher("/actuator/**"),
+                                // Spring Boot's default error handling forwards here internally for
+                                // any uncaught exception (e.g. @ResponseStatus) or unmatched route -
+                                // without this, that forward itself gets blocked, and every error
+                                // response (401, 404, 405, ...) gets rewritten into an opaque 403.
+                                AntPathRequestMatcher.antMatcher("/error")
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
