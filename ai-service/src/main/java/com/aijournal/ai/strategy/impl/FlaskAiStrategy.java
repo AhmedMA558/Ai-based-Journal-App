@@ -181,6 +181,52 @@ public class FlaskAiStrategy implements AiProviderStrategy {
     }
 
     @Override
+    public RephraseResult rephrase(String content) {
+        try {
+            String url = flaskBaseUrl + "/api/v1/ai/rephrase";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("rephrased") != null) {
+                    return new RephraseResult(content, (String) data.get("rephrased"));
+                }
+            }
+        } catch (Exception e) {
+            // Fallback
+        }
+        return new RephraseResult(content, content);
+    }
+
+    @Override
+    public GrammarResult fixGrammar(String content) {
+        try {
+            String url = flaskBaseUrl + "/api/v1/ai/grammar";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("corrected") != null) {
+                    return new GrammarResult(content, (String) data.get("corrected"));
+                }
+            }
+        } catch (Exception e) {
+            // Fallback
+        }
+        return new GrammarResult(content, content);
+    }
+
+    @Override
     public ReflectionResult generateDailyReflection(String content) {
         return new ReflectionResult(
                 List.of("What went well today?"),

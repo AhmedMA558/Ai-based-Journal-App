@@ -69,6 +69,16 @@ public class MockAiStrategy implements AiProviderStrategy {
     }
 
     @Override
+    public RephraseResult rephrase(String content) {
+        return new RephraseResult(content, content);
+    }
+
+    @Override
+    public GrammarResult fixGrammar(String content) {
+        return new GrammarResult(content, content);
+    }
+
+    @Override
     public ReflectionResult generateDailyReflection(String content) {
         return new ReflectionResult(
                 List.of("What made today special?", "What can you improve tomorrow?"),

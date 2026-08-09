@@ -115,4 +115,18 @@ public class AiController {
         ReflectionResult result = aiService.generateDailyReflection(request.get("content"));
         return ResponseEntity.ok(ApiResponse.success(result));
     }
+
+    @PostMapping("/rephrase")
+    @Operation(summary = "Rephrase Journal Text via AI")
+    public ResponseEntity<ApiResponse<RephraseResult>> rephrase(@RequestBody Map<String, String> request) {
+        RephraseResult result = aiService.rephrase(request.get("content"));
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @PostMapping("/grammar")
+    @Operation(summary = "Fix Grammar & Spelling via AI")
+    public ResponseEntity<ApiResponse<GrammarResult>> fixGrammar(@RequestBody Map<String, String> request) {
+        GrammarResult result = aiService.fixGrammar(request.get("content"));
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
 }
