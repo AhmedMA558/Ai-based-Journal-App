@@ -2,93 +2,108 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SearchView from './SearchView';
-import { journalService } from '@/services/journalService';
+import { searchService } from '@/services/searchService';
 
-vi.mock('@/services/journalService', () => ({
-  journalService: {
-    getAllJournals: vi.fn(),
+vi.mock('@/services/searchService', () => ({
+  searchService: {
+    search: vi.fn(),
   },
 }));
 
-const mockedGetAllJournals = vi.mocked(journalService.getAllJournals);
+const mockedSearch = vi.mocked(searchService.search);
 
-const SAMPLE_JOURNALS = [
-  { id: 1, title: 'Hackathon Day', content: 'We built something great', mood: 'HAPPY', tags: ['coding'], createdAt: '2024-01-01' },
-  { id: 2, title: 'Stressful Week', content: 'Deadlines everywhere', mood: 'STRESSED', tags: ['work'], createdAt: '2024-02-01' },
-  { id: 3, title: 'Gratitude Journal', content: 'Thankful for friends', mood: 'GRATEFUL', tags: ['gratitude'], createdAt: '2024-03-01' },
+function apiResponse(content: unknown[]) {
+  return { data: { data: { content } } } as any;
+}
+
+const SAMPLE_RESULTS = [
+  { id: 'es-1', journalId: 1, userId: 1, title: 'Hackathon Day', content: 'We built something great', mood: 'HAPPY', tags: ['coding'], createdAt: '2024-01-01T00:00:00' },
+  { id: 'es-2', journalId: 2, userId: 1, title: 'Gratitude Journal', content: 'Thankful for friends', mood: 'GRATEFUL', tags: [], createdAt: '2024-03-01T00:00:00' },
 ];
 
 describe('SearchView', () => {
   beforeEach(() => {
-    mockedGetAllJournals.mockReset();
-    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    mockedSearch.mockReset();
+    mockedSearch.mockResolvedValue(apiResponse(SAMPLE_RESULTS));
   });
 
-  it('renders the header and loads all journals initially', async () => {
+  it('runs an initial search on mount and renders the results', async () => {
     render(<SearchView />);
-    expect(screen.getByText('Deep Type-Ahead Elasticsearch')).toBeInTheDocument();
+
     expect(await screen.findByText('Hackathon Day')).toBeInTheDocument();
-    expect(screen.getByText(/Found/)).toHaveTextContent('Found 3 matching entries');
+    expect(screen.getByText('Gratitude Journal')).toBeInTheDocument();
+    await waitFor(() => expect(mockedSearch).toHaveBeenCalledWith({ query: '', mood: 'ALL', size: 50 }));
   });
 
-  it('filters by search query across title/content/mood/tags', async () => {
+  it('debounces typed queries and calls the backend with the query text', async () => {
     const user = userEvent.setup();
     render(<SearchView />);
     await screen.findByText('Hackathon Day');
+    mockedSearch.mockClear();
 
     await user.type(
       screen.getByPlaceholderText('Type anything to search in real-time (e.g. hackathon, stressed, gratitude)...'),
       'gratitude'
     );
 
-    expect(await screen.findByText('Gratitude Journal')).toBeInTheDocument();
-    expect(screen.queryByText('Hackathon Day')).not.toBeInTheDocument();
-    expect(screen.queryByText('Stressful Week')).not.toBeInTheDocument();
+    await waitFor(
+      () => expect(mockedSearch).toHaveBeenCalledWith({ query: 'gratitude', mood: 'ALL', size: 50 }),
+      { timeout: 2000 }
+    );
   });
 
-  it('filters by mood pill selection', async () => {
+  it('passes the selected mood pill as a backend filter', async () => {
     const user = userEvent.setup();
     render(<SearchView />);
     await screen.findByText('Hackathon Day');
+    mockedSearch.mockClear();
 
     await user.click(screen.getByText('STRESSED 😰'));
 
-    expect(await screen.findByText('Stressful Week')).toBeInTheDocument();
-    expect(screen.queryByText('Hackathon Day')).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedSearch).toHaveBeenCalledWith({ query: '', mood: 'STRESSED', size: 50 }));
   });
 
-  it('sorts newest first by default and re-sorts oldest first on demand', async () => {
+  it('shows a "Searching..." state while a request is in flight', async () => {
+    let resolveSearch!: (value: ReturnType<typeof apiResponse>) => void;
+    mockedSearch.mockReturnValue(new Promise((resolve) => { resolveSearch = resolve; }));
+
+    render(<SearchView />);
+
+    expect(await screen.findByText('Searching...')).toBeInTheDocument();
+
+    resolveSearch(apiResponse(SAMPLE_RESULTS));
+    expect(await screen.findByText('Found 2 matching entries')).toBeInTheDocument();
+  });
+
+  it('shows an error message when the search request fails', async () => {
+    mockedSearch.mockReset();
+    mockedSearch.mockRejectedValue(new Error('network down'));
+
+    render(<SearchView />);
+
+    expect(await screen.findByText('Search failed. Please try again.')).toBeInTheDocument();
+  });
+
+  it('shows the empty state when there are no matches', async () => {
+    mockedSearch.mockReset();
+    mockedSearch.mockResolvedValue(apiResponse([]));
+
+    render(<SearchView />);
+
+    expect(await screen.findByText('No Matching Entries')).toBeInTheDocument();
+  });
+
+  it('sorts results client-side and re-sorts on demand', async () => {
     const user = userEvent.setup();
     render(<SearchView />);
     await screen.findByText('Hackathon Day');
 
-    // The fetch-completion render and the sort-effect render are two separate commits
-    // (fetchAllJournals sets filteredResults to the raw fetch order first; the sort
-    // effect re-sorts and re-renders right after) - wait for the settled, sorted order
-    // rather than asserting immediately after the first text appears.
-    await waitFor(() => {
-      const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-      expect(titles).toEqual(['Gratitude Journal', 'Stressful Week', 'Hackathon Day']);
-    });
+    let titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(titles).toEqual(['Gratitude Journal', 'Hackathon Day']);
 
     await user.selectOptions(screen.getByDisplayValue('Newest First'), 'oldest');
 
-    await waitFor(() => {
-      const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-      expect(titles).toEqual(['Hackathon Day', 'Stressful Week', 'Gratitude Journal']);
-    });
-  });
-
-  it('shows the empty state when nothing matches', async () => {
-    const user = userEvent.setup();
-    render(<SearchView />);
-    await screen.findByText('Hackathon Day');
-
-    await user.type(
-      screen.getByPlaceholderText('Type anything to search in real-time (e.g. hackathon, stressed, gratitude)...'),
-      'zzzznomatch'
-    );
-
-    expect(await screen.findByText('No Matching Entries')).toBeInTheDocument();
+    titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+    expect(titles).toEqual(['Hackathon Day', 'Gratitude Journal']);
   });
 });

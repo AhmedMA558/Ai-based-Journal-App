@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Search, Filter, BookOpen, Sparkles, SortAsc } from 'lucide-react';
-import { journalService } from '@/services/journalService';
+import { Search, Filter, BookOpen, Sparkles, SortAsc, AlertCircle } from 'lucide-react';
+import { searchService } from '@/services/searchService';
 import { cn } from '@/lib/utils';
 
-interface Journal {
-  id: number | string;
+interface SearchResult {
+  id: string;
+  journalId: number;
+  userId: number;
   title?: string;
   content?: string;
   mood?: string;
   tags?: string[];
   createdAt?: string;
-  [key: string]: unknown;
 }
 
 type MoodFilter = 'ALL' | 'HAPPY' | 'EXCITED' | 'RELAXED' | 'STRESSED' | 'SAD' | 'GRATEFUL' | 'ANGRY';
@@ -26,55 +27,48 @@ function getMoodEmoji(m?: string): string {
   return MOOD_EMOJI[(m || '').toUpperCase()] || '😊';
 }
 
+// Requesting a larger single page rather than building pagination controls,
+// to keep the existing "see all matches at once" UX without expanding scope.
+const RESULTS_PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 300;
+
 export default function SearchView() {
   const [query, setQuery] = useState('');
-  const [journals, setJournals] = useState<Journal[]>([]);
-  const [filteredResults, setFilteredResults] = useState<Journal[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [selectedMoodFilter, setSelectedMoodFilter] = useState<MoodFilter>('ALL');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
+  // Debounced, backend-driven search - re-runs whenever the query text or mood
+  // filter changes. Sorting is applied client-side to whatever page comes back
+  // (the endpoint doesn't offer server-side sorting).
   useEffect(() => {
-    fetchAllJournals();
-  }, []);
+    setLoading(true);
+    setError(null);
 
-  const fetchAllJournals = async () => {
-    try {
-      const list = await journalService.getAllJournals();
-      const arr: Journal[] = Array.isArray(list) ? list : [];
-      setJournals(arr);
-      setFilteredResults(arr);
-    } catch (err) {
-      console.error('Search load failed:', err);
-    }
-  };
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchService.search({ query, mood: selectedMoodFilter, size: RESULTS_PAGE_SIZE });
+        const content = res?.data?.data?.content;
+        setResults(Array.isArray(content) ? content : []);
+      } catch (err) {
+        console.error('Search failed:', err);
+        setError('Search failed. Please try again.');
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, SEARCH_DEBOUNCE_MS);
 
-  // Instant Type-Ahead Deep Search & Filter logic
-  useEffect(() => {
-    let result = journals;
+    return () => clearTimeout(timer);
+  }, [query, selectedMoodFilter]);
 
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      result = result.filter(
-        (j) =>
-          (j.title || '').toLowerCase().includes(q) ||
-          (j.content || '').toLowerCase().includes(q) ||
-          (j.mood || '').toLowerCase().includes(q) ||
-          (j.tags || []).some((t) => t.toLowerCase().includes(q))
-      );
-    }
-
-    if (selectedMoodFilter !== 'ALL') {
-      result = result.filter((j) => (j.mood || '').toUpperCase() === selectedMoodFilter);
-    }
-
-    result = [...result].sort((a, b) => {
-      const aTime = new Date(a.createdAt || 0).getTime();
-      const bTime = new Date(b.createdAt || 0).getTime();
-      return sortBy === 'newest' ? bTime - aTime : aTime - bTime;
-    });
-
-    setFilteredResults(result);
-  }, [query, selectedMoodFilter, sortBy, journals]);
+  const sortedResults = [...results].sort((a, b) => {
+    const aTime = new Date(a.createdAt || 0).getTime();
+    const bTime = new Date(b.createdAt || 0).getTime();
+    return sortBy === 'newest' ? bTime - aTime : aTime - bTime;
+  });
 
   return (
     <div className="p-8 max-w-[1100px] mx-auto flex flex-col gap-6">
@@ -138,13 +132,19 @@ export default function SearchView() {
       {/* Results Header Count */}
       <div className="text-[0.85rem] text-[#94a3b8] flex items-center gap-[0.4rem]">
         <Sparkles size={14} color="#4ade80" />
-        <span>
-          Found <strong>{filteredResults.length}</strong> matching entries
-        </span>
+        <span>{loading ? 'Searching...' : `Found ${sortedResults.length} matching entries`}</span>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Results Grid */}
-      {filteredResults.length === 0 ? (
+      {!error && !loading && sortedResults.length === 0 ? (
         <div className="glass-panel p-14 text-center">
           <BookOpen size={44} color="#64748b" className="mb-4" />
           <h3 className="text-[1.15rem] mb-[0.4rem]">No Matching Entries</h3>
@@ -152,7 +152,7 @@ export default function SearchView() {
         </div>
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
-          {filteredResults.map((j) => (
+          {sortedResults.map((j) => (
             <div key={j.id} className="glass-panel p-6 flex flex-col gap-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs py-1 px-[0.65rem] rounded-2xl bg-[rgba(99,102,241,0.15)] text-[#818cf8] font-bold">
