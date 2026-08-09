@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
 import AuthView from './components/AuthView';
@@ -15,13 +16,49 @@ import SettingsModal from './components/SettingsModal';
 import AchievementsModal from './components/AchievementsModal';
 import Toast from './components/Toast';
 import { authService } from './services/authService';
+import { journalService } from './services/journalService';
+
+function EditJournalRoute({ onSaveSuccess, showToast }) {
+  const { journalId } = useParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [initialData, setInitialData] = useState(location.state?.journal ?? null);
+  const [loading, setLoading] = useState(!location.state?.journal);
+
+  useEffect(() => {
+    if (location.state?.journal) return;
+    let cancelled = false;
+    journalService.getJournalById(journalId)
+      .then((res) => {
+        if (!cancelled) setInitialData(res?.data?.data ?? null);
+      })
+      .catch(() => {
+        showToast('Could not load that journal entry.', 'error');
+        navigate('/journals', { replace: true });
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [journalId]);
+
+  if (loading) return null;
+  return (
+    <JournalEditor
+      initialData={initialData}
+      onClose={() => navigate('/journals')}
+      onSaveSuccess={onSaveSuccess}
+      showToast={showToast}
+    />
+  );
+}
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => authService.isAuthenticated());
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [selectedJournal, setSelectedJournal] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
   const [toast, setToast] = useState(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   // Modals & Drawers state
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -71,7 +108,7 @@ export default function App() {
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
-    setActiveTab('dashboard');
+    navigate('/dashboard');
     showToast('Logged in successfully! 10-Minute Session Active.', 'success');
   };
 
@@ -82,45 +119,38 @@ export default function App() {
   };
 
   const handleNewJournal = () => {
-    setSelectedJournal(null);
-    setIsEditing(true);
+    navigate('/journals/new');
   };
 
   const handleEditJournal = (journal) => {
-    setSelectedJournal(journal);
-    setIsEditing(true);
+    navigate(`/journals/${journal.id}/edit`, { state: { journal } });
   };
 
   const handleSaveSuccess = () => {
-    setIsEditing(false);
-    setSelectedJournal(null);
-    setActiveTab('journals');
+    navigate('/journals');
   };
 
   const handleCommandPaletteAction = (actionId) => {
     if (actionId === 'new-journal') {
       handleNewJournal();
     } else if (actionId === 'ai-chat') {
-      setIsEditing(false);
-      setActiveTab('ai-chat');
+      navigate('/ai-chat');
     } else if (actionId === 'journals') {
-      setIsEditing(false);
-      setActiveTab('journals');
+      navigate('/journals');
     } else if (actionId === 'calendar') {
-      setIsEditing(false);
-      setActiveTab('calendar');
+      navigate('/calendar');
     } else if (actionId === 'search') {
-      setIsEditing(false);
-      setActiveTab('search');
+      navigate('/search');
     } else if (actionId === 'analytics') {
-      setIsEditing(false);
-      setActiveTab('analytics');
+      navigate('/analytics');
     } else if (actionId === 'toggle-theme') {
       toggleTheme();
     } else if (actionId === 'voice-dictation') {
       handleNewJournal();
     }
   };
+
+  const activeTab = location.pathname.startsWith('/journals') ? 'journals' : location.pathname.slice(1) || 'dashboard';
 
   if (!isAuthenticated) {
     return (
@@ -157,10 +187,7 @@ export default function App() {
       {/* Sidebar Navigation */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={(tab) => {
-          setIsEditing(false);
-          setActiveTab(tab);
-        }}
+        setActiveTab={(tab) => navigate(`/${tab}`)}
         onLogout={handleLogout}
         onOpenAchievements={() => setIsAchievementsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -179,39 +206,52 @@ export default function App() {
 
         {/* Dynamic Route Content */}
         <main className="main-content">
-          {isEditing ? (
-            <JournalEditor
-              initialData={selectedJournal}
-              onClose={() => setIsEditing(false)}
-              onSaveSuccess={handleSaveSuccess}
-              showToast={showToast}
-            />
-          ) : (
-            <>
-              {activeTab === 'dashboard' && (
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route
+              path="/dashboard"
+              element={
                 <DashboardView
                   onNewJournal={handleNewJournal}
                   onSelectJournal={(journal) => handleEditJournal(journal)}
                   showToast={showToast}
                 />
-              )}
-              {activeTab === 'journals' && (
+              }
+            />
+            <Route
+              path="/journals"
+              element={
                 <JournalFeed
                   onNewJournal={handleNewJournal}
                   onEditJournal={(journal) => handleEditJournal(journal)}
                   showToast={showToast}
                 />
-              )}
-              {activeTab === 'calendar' && (
-                <CalendarView
-                  onSelectJournal={(journal) => handleEditJournal(journal)}
+              }
+            />
+            <Route
+              path="/journals/new"
+              element={
+                <JournalEditor
+                  initialData={null}
+                  onClose={() => navigate('/journals')}
+                  onSaveSuccess={handleSaveSuccess}
+                  showToast={showToast}
                 />
-              )}
-              {activeTab === 'ai-chat' && <AIChatView />}
-              {activeTab === 'search' && <SearchView />}
-              {activeTab === 'analytics' && <AnalyticsView />}
-            </>
-          )}
+              }
+            />
+            <Route
+              path="/journals/:journalId/edit"
+              element={<EditJournalRoute onSaveSuccess={handleSaveSuccess} showToast={showToast} />}
+            />
+            <Route
+              path="/calendar"
+              element={<CalendarView onSelectJournal={(journal) => handleEditJournal(journal)} />}
+            />
+            <Route path="/ai-chat" element={<AIChatView />} />
+            <Route path="/search" element={<SearchView />} />
+            <Route path="/analytics" element={<AnalyticsView />} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
