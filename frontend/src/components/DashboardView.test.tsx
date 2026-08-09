@@ -1,0 +1,115 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import DashboardView from './DashboardView';
+import { journalService } from '@/services/journalService';
+import { aiService } from '@/services/aiService';
+
+vi.mock('@/services/journalService', () => ({
+  journalService: {
+    getAllJournals: vi.fn(),
+    deleteJournal: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/aiService', () => ({
+  aiService: {
+    getRecommendations: vi.fn(),
+  },
+}));
+
+const mockedGetAllJournals = vi.mocked(journalService.getAllJournals);
+const mockedDeleteJournal = vi.mocked(journalService.deleteJournal);
+const mockedGetRecommendations = vi.mocked(aiService.getRecommendations);
+
+const SAMPLE_JOURNALS = [
+  { id: 1, title: 'First Entry', content: 'Some content here', mood: 'HAPPY', tags: ['life'] },
+  { id: 2, title: 'Second Entry', content: 'More content', mood: 'STRESSED', tags: [] },
+];
+
+describe('DashboardView', () => {
+  beforeEach(() => {
+    mockedGetAllJournals.mockReset();
+    mockedDeleteJournal.mockReset();
+    mockedGetRecommendations.mockReset();
+    mockedGetRecommendations.mockResolvedValue({ data: [] } as any);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  it('shows journal counts and entries once loaded', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('First Entry')).toBeInTheDocument();
+    expect(screen.getByText('2 Entries')).toBeInTheDocument();
+    expect(screen.getByText('2 Days')).toBeInTheDocument();
+  });
+
+  it('shows the empty state and can trigger a new journal from it', async () => {
+    mockedGetAllJournals.mockResolvedValue([]);
+    const onNewJournal = vi.fn();
+    const user = userEvent.setup();
+    render(<DashboardView onNewJournal={onNewJournal} onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('No Journal Entries Yet')).toBeInTheDocument();
+    await user.click(screen.getByText('Create First Entry'));
+    expect(onNewJournal).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an AI recommendation when the service returns one', async () => {
+    mockedGetAllJournals.mockResolvedValue([]);
+    mockedGetRecommendations.mockResolvedValue({ data: ['Try a 10-minute walk today.'] } as any);
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('"Try a 10-minute walk today."')).toBeInTheDocument();
+  });
+
+  it('falls back to the default recommendation when the AI service fails', async () => {
+    mockedGetAllJournals.mockResolvedValue([]);
+    mockedGetRecommendations.mockRejectedValue(new Error('down'));
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('"Take 5 deep breaths and reflect on 3 good things today."')).toBeInTheDocument();
+  });
+
+  it('calls onSelectJournal when a journal card is clicked', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    const onSelectJournal = vi.fn();
+    const user = userEvent.setup();
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={onSelectJournal} />);
+
+    await screen.findByText('First Entry');
+    await user.click(screen.getByText('First Entry'));
+
+    expect(onSelectJournal).toHaveBeenCalledWith(SAMPLE_JOURNALS[0]);
+  });
+
+  it('deletes a journal after confirmation and shows a toast', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    mockedDeleteJournal.mockResolvedValue(undefined as any);
+    const showToast = vi.fn();
+    const user = userEvent.setup();
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} showToast={showToast} />);
+
+    await screen.findByText('First Entry');
+    const deleteButtons = screen.getAllByTitle('Delete Entry');
+    await user.click(deleteButtons[0]);
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(mockedDeleteJournal).toHaveBeenCalledWith(1);
+    expect(await screen.findByText('Second Entry')).toBeInTheDocument();
+    expect(screen.queryByText('First Entry')).not.toBeInTheDocument();
+    expect(showToast).toHaveBeenCalledWith('Journal entry deleted.', 'info');
+  });
+
+  it('re-fetches journals when the refresh button is clicked', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    const user = userEvent.setup();
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    await screen.findByText('First Entry');
+    await user.click(screen.getByText('Refresh'));
+
+    expect(mockedGetAllJournals).toHaveBeenCalledTimes(2);
+  });
+});

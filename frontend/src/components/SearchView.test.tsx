@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SearchView from './SearchView';
 import { journalService } from '@/services/journalService';
@@ -62,13 +62,21 @@ describe('SearchView', () => {
     render(<SearchView />);
     await screen.findByText('Hackathon Day');
 
-    let titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(titles).toEqual(['Gratitude Journal', 'Stressful Week', 'Hackathon Day']);
+    // The fetch-completion render and the sort-effect render are two separate commits
+    // (fetchAllJournals sets filteredResults to the raw fetch order first; the sort
+    // effect re-sorts and re-renders right after) - wait for the settled, sorted order
+    // rather than asserting immediately after the first text appears.
+    await waitFor(() => {
+      const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+      expect(titles).toEqual(['Gratitude Journal', 'Stressful Week', 'Hackathon Day']);
+    });
 
     await user.selectOptions(screen.getByDisplayValue('Newest First'), 'oldest');
 
-    titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
-    expect(titles).toEqual(['Hackathon Day', 'Stressful Week', 'Gratitude Journal']);
+    await waitFor(() => {
+      const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent);
+      expect(titles).toEqual(['Hackathon Day', 'Stressful Week', 'Gratitude Journal']);
+    });
   });
 
   it('shows the empty state when nothing matches', async () => {
