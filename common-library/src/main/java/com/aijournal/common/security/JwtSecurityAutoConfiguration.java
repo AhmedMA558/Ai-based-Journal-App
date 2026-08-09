@@ -64,6 +64,7 @@ public class JwtSecurityAutoConfiguration {
                     .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                     .authorizeHttpRequests(auth -> auth
                             .requestMatchers(
+                                    AntPathRequestMatcher.antMatcher("/error"),
                                     AntPathRequestMatcher.antMatcher("/v3/api-docs/**"),
                                     AntPathRequestMatcher.antMatcher("/swagger-ui/**"),
                                     AntPathRequestMatcher.antMatcher("/swagger-ui.html"),
