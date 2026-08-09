@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
+import { MOOD_META, type Mood } from '@/lib/moods';
 
 interface JournalEntry {
   createdAt?: string;
@@ -13,17 +14,8 @@ interface CalendarViewProps {
   onSelectJournal: (journal: JournalEntry) => void;
 }
 
-const MOOD_EMOJI: Record<string, string> = {
-  HAPPY: '😊',
-  EXCITED: '🤩',
-  RELAXED: '😌',
-  STRESSED: '😰',
-  SAD: '🥺',
-  GRATEFUL: '🙏',
-};
-
 function getMoodEmoji(mood?: string): string {
-  return MOOD_EMOJI[(mood || '').toUpperCase()] || '😐';
+  return MOOD_META[(mood || '').toUpperCase() as Mood]?.emoji || '😐';
 }
 
 const MONTH_NAMES = [
