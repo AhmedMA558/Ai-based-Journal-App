@@ -8,9 +8,9 @@ export const authService = {
   // Login user and set 10-minute session expiry
   login: async (usernameOrEmail, password) => {
     const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
-    if (res && res.data && res.data.accessToken) {
-      const token = res.data.accessToken;
-      authService.setSession(token, res.data.userId, res.data.username || usernameOrEmail);
+    const authData = res?.data?.data;
+    if (authData?.accessToken) {
+      authService.setSession(authData.accessToken, authData.userId, authData.username || usernameOrEmail);
     }
     return res;
   },
@@ -18,9 +18,9 @@ export const authService = {
   // Register user with 10-minute session
   register: async (username, email, password, fullName) => {
     const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
-    if (res && res.data && res.data.accessToken) {
-      const token = res.data.accessToken;
-      authService.setSession(token, res.data.userId, res.data.username || username);
+    const authData = res?.data?.data;
+    if (authData?.accessToken) {
+      authService.setSession(authData.accessToken, authData.userId, authData.username || username);
     }
     return res;
   },
