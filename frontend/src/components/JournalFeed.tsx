@@ -1,0 +1,259 @@
+import { useEffect, useState, type MouseEvent } from 'react';
+import { BookOpen, Plus, Download, Edit3, Trash2, LayoutGrid, List, Filter } from 'lucide-react';
+import { journalService } from '@/services/journalService';
+import { cn } from '@/lib/utils';
+
+interface Journal {
+  id: number | string;
+  title?: string;
+  content?: string;
+  mood?: string;
+  tags?: string[];
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+type MoodFilter = 'ALL' | 'HAPPY' | 'EXCITED' | 'RELAXED' | 'STRESSED' | 'SAD' | 'GRATEFUL' | 'ANGRY';
+type ViewMode = 'grid' | 'list';
+
+interface JournalFeedProps {
+  onNewJournal: () => void;
+  onEditJournal: (journal: Journal) => void;
+  showToast?: (message: string, type?: string) => void;
+}
+
+const MOOD_FILTERS: MoodFilter[] = ['ALL', 'HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD', 'GRATEFUL', 'ANGRY'];
+
+const MOOD_EMOJI: Record<string, string> = {
+  HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠',
+};
+
+function getMoodEmoji(mood?: string): string {
+  return MOOD_EMOJI[(mood || '').toUpperCase()] || '😐';
+}
+
+function downloadBlob(content: string, mimeType: string, filename: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+}
+
+export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: JournalFeedProps) {
+  const [journals, setJournals] = useState<Journal[]>([]);
+  const [filteredJournals, setFilteredJournals] = useState<Journal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedMoodFilter, setSelectedMoodFilter] = useState<MoodFilter>('ALL');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
+
+  useEffect(() => {
+    fetchJournals();
+  }, []);
+
+  const fetchJournals = async () => {
+    setLoading(true);
+    try {
+      const list = await journalService.getAllJournals();
+      const arr: Journal[] = Array.isArray(list) ? list : [];
+      setJournals(arr);
+      setFilteredJournals(arr);
+    } catch (err) {
+      console.error('Failed to load journals:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFilterMood = (mood: MoodFilter) => {
+    setSelectedMoodFilter(mood);
+    if (mood === 'ALL') {
+      setFilteredJournals(journals);
+    } else {
+      setFilteredJournals(journals.filter((j) => (j.mood || '').toUpperCase() === mood));
+    }
+  };
+
+  const handleDelete = async (e: MouseEvent, id: Journal['id']) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this journal entry?')) return;
+    try {
+      await journalService.deleteJournal(id);
+      const updated = journals.filter((j) => j.id !== id);
+      setJournals(updated);
+      setFilteredJournals(updated);
+      if (showToast) showToast('Journal entry deleted.', 'info');
+    } catch (err) {
+      console.error('Delete failed:', err);
+    }
+  };
+
+  const exportToMarkdown = () => {
+    const mdContent = journals
+      .map((j) => `# ${j.title}\n**Date**: ${j.createdAt || 'N/A'}\n**Mood**: ${j.mood || 'HAPPY'}\n\n${j.content}\n\n---\n`)
+      .join('\n');
+    downloadBlob(mdContent, 'text/markdown', `journals_export_${Date.now()}.md`);
+    if (showToast) showToast('Exported entries to Markdown (.md)', 'success');
+  };
+
+  const exportToJSON = () => {
+    const jsonStr = JSON.stringify(journals, null, 2);
+    downloadBlob(jsonStr, 'application/json', `journals_export_${Date.now()}.json`);
+    if (showToast) showToast('Exported entries to JSON (.json)', 'success');
+  };
+
+  const exportToCSV = () => {
+    const headers = ['ID', 'Title', 'Content', 'Mood', 'Date'];
+    const rows = journals.map((j) => [
+      j.id,
+      `"${(j.title || '').replace(/"/g, '""')}"`,
+      `"${(j.content || '').replace(/"/g, '""')}"`,
+      j.mood || 'HAPPY',
+      j.createdAt || '',
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    downloadBlob(csvContent, 'text/csv', `journals_export_${Date.now()}.csv`);
+    if (showToast) showToast('Exported entries to CSV (.csv)', 'success');
+  };
+
+  return (
+    <div className="p-8 max-w-[1200px] mx-auto flex flex-col gap-7">
+      {/* Feed Header Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-[2rem] font-extrabold">My Journal Library</h1>
+          <p className="text-[#94a3b8] text-[0.9rem]">Browse, filter, edit, delete, and export your AI-analyzed entries</p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex bg-white/5 p-[0.2rem] rounded-[10px] border border-white/10">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={cn(
+                'p-[0.4rem] border-0 rounded-lg cursor-pointer',
+                viewMode === 'grid' ? 'bg-[rgba(99,102,241,0.25)] text-[#818cf8]' : 'bg-transparent text-[#94a3b8]'
+              )}
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'p-[0.4rem] border-0 rounded-lg cursor-pointer',
+                viewMode === 'list' ? 'bg-[rgba(99,102,241,0.25)] text-[#818cf8]' : 'bg-transparent text-[#94a3b8]'
+              )}
+            >
+              <List size={16} />
+            </button>
+          </div>
+
+          {/* Multi-Format Exporter */}
+          <button onClick={exportToMarkdown} className="btn-secondary text-[0.85rem]">
+            <Download size={16} /> Export MD
+          </button>
+          <button onClick={exportToJSON} className="btn-secondary text-[0.85rem]">
+            <Download size={16} /> Export JSON
+          </button>
+          <button onClick={exportToCSV} className="btn-secondary text-[0.85rem]">
+            <Download size={16} /> Export CSV
+          </button>
+
+          <button onClick={onNewJournal} className="btn-primary">
+            <Plus size={18} /> New Entry
+          </button>
+        </div>
+      </div>
+
+      {/* Mood Filter Pill Bar with ANGRY support */}
+      <div className="flex items-center gap-[0.6rem] overflow-x-auto pb-2">
+        <Filter size={16} color="#64748b" />
+        {MOOD_FILTERS.map((m) => (
+          <button
+            key={m}
+            onClick={() => handleFilterMood(m)}
+            className={cn(
+              'py-[0.4rem] px-[0.85rem] rounded-[20px] text-[0.8rem] cursor-pointer whitespace-nowrap',
+              selectedMoodFilter === m
+                ? 'bg-[linear-gradient(135deg,rgba(99,102,241,0.25),rgba(168,85,247,0.15))] border border-[#6366f1] text-white font-semibold'
+                : 'bg-white/[0.04] border border-white/[0.08] text-[#94a3b8] font-medium'
+            )}
+          >
+            {m === 'ALL' ? 'All Entries' : `${m} ${getMoodEmoji(m)}`}
+          </button>
+        ))}
+      </div>
+
+      {/* Journal Cards Feed */}
+      {loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="glass-panel skeleton-pulse h-[220px] rounded-[20px]" />
+          ))}
+        </div>
+      ) : filteredJournals.length === 0 ? (
+        <div className="glass-panel py-16 px-8 text-center">
+          <BookOpen size={48} color="#64748b" className="mb-4" />
+          <h3 className="text-[1.2rem] mb-[0.4rem]">No Journal Entries Found</h3>
+          <p className="text-[#94a3b8] mb-6">Try clearing filters or create a new journal entry.</p>
+          <button onClick={onNewJournal} className="btn-primary">
+            <Plus size={18} /> Write Journal
+          </button>
+        </div>
+      ) : (
+        <div className={cn('gap-6', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))]' : 'flex flex-col')}>
+          {filteredJournals.map((journal) => (
+            <div key={journal.id} className="glass-panel p-6 flex flex-col gap-[0.85rem] relative">
+              <div className="flex items-center justify-between">
+                <span
+                  className={cn(
+                    'text-xs py-1 px-[0.65rem] rounded-xl font-semibold inline-flex items-center gap-[0.35rem]',
+                    (journal.mood || '').toUpperCase() === 'ANGRY'
+                      ? 'bg-[rgba(239,68,68,0.2)] text-[#ef4444]'
+                      : 'bg-[rgba(99,102,241,0.15)] text-[#818cf8]'
+                  )}
+                >
+                  <span>{getMoodEmoji(journal.mood)}</span>
+                  <span>{journal.mood || 'HAPPY'}</span>
+                </span>
+
+                <div className="flex items-center gap-[0.35rem]">
+                  <button
+                    onClick={() => onEditJournal(journal)}
+                    className="btn-secondary p-[0.35rem] rounded-lg"
+                    title="Edit Entry"
+                  >
+                    <Edit3 size={14} color="#38bdf8" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(e, journal.id)}
+                    className="btn-secondary p-[0.35rem] rounded-lg"
+                    title="Delete Entry"
+                  >
+                    <Trash2 size={14} color="#f87171" />
+                  </button>
+                </div>
+              </div>
+
+              <div onClick={() => onEditJournal(journal)} className="cursor-pointer">
+                <h3 className="text-[1.15rem] font-bold text-[#f8fafc] leading-[1.3] mb-[0.4rem]">{journal.title}</h3>
+                <p className="text-[0.9rem] text-[#94a3b8] leading-[1.5] line-clamp-3">{journal.content}</p>
+              </div>
+
+              {journal.tags && journal.tags.length > 0 && (
+                <div className="flex gap-[0.4rem] flex-wrap mt-auto">
+                  {journal.tags.map((tag, idx) => (
+                    <span key={idx} className="text-[0.7rem] text-[#a855f7] bg-[rgba(168,85,247,0.1)] py-[0.15rem] px-[0.4rem] rounded-md">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
