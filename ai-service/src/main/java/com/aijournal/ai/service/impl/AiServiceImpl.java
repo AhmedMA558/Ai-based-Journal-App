@@ -110,6 +110,16 @@ public class AiServiceImpl implements AiService {
         return getStrategy().generateDailyReflection(content);
     }
 
+    @Override
+    public RephraseResult rephrase(String content) {
+        return getStrategy().rephrase(content);
+    }
+
+    @Override
+    public GrammarResult fixGrammar(String content) {
+        return getStrategy().fixGrammar(content);
+    }
+
     private AiProviderStrategy getStrategy() {
         return aiStrategyFactory.getActiveStrategy();
     }

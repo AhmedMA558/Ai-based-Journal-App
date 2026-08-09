@@ -15,10 +15,14 @@ public interface AiProviderStrategy {
     SentimentResult analyzeSentiment(String content);
     WritingImprovementResult suggestWritingImprovements(String content);
     ReflectionResult generateDailyReflection(String content);
+    RephraseResult rephrase(String content);
+    GrammarResult fixGrammar(String content);
 
     record SummaryResult(String shortSummary, String detailedSummary, String bulletSummary) {}
     record MoodResult(String primaryMood, double confidenceScore, String emoji) {}
     record SentimentResult(String sentiment, double score) {}
     record WritingImprovementResult(String grammarSuggestions, String clarityScore, String vocabularyTips) {}
     record ReflectionResult(List<String> reflectionQuestions, List<String> followUpQuestions, List<String> suggestions) {}
+    record RephraseResult(String original, String rephrased) {}
+    record GrammarResult(String original, String corrected) {}
 }

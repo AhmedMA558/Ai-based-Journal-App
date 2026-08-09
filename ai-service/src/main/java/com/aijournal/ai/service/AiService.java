@@ -18,4 +18,6 @@ public interface AiService {
     SentimentResult analyzeSentiment(String content);
     WritingImprovementResult suggestWritingImprovements(String content);
     ReflectionResult generateDailyReflection(String content);
+    RephraseResult rephrase(String content);
+    GrammarResult fixGrammar(String content);
 }
