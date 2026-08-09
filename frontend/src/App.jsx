@@ -70,7 +70,6 @@ export default function App() {
   };
 
   const handleLoginSuccess = () => {
-    authService.setSession('jwt_access_token_valid', '1', 'Journaler');
     setIsAuthenticated(true);
     setActiveTab('dashboard');
     showToast('Logged in successfully! 10-Minute Session Active.', 'success');
