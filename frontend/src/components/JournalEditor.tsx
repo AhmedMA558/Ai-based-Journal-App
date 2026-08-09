@@ -138,9 +138,9 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
       setDetectingMood(true);
       try {
         const res = await aiService.detectMood(content);
-        if (res?.data && res.data.primaryMood) {
-          const detectedKey = normalizeMood(res.data.primaryMood);
-          const detectedEmoji = res.data.emoji || getEmojiForMood(detectedKey);
+        if (res?.data?.data && res.data.data.primaryMood) {
+          const detectedKey = normalizeMood(res.data.data.primaryMood);
+          const detectedEmoji = res.data.data.emoji || getEmojiForMood(detectedKey);
 
           setMood(detectedKey);
           setEmoji(detectedEmoji);
@@ -198,7 +198,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     setAiWriting(true);
     try {
       const res = await aiService.rephrase(content);
-      const newText = res?.data?.rephrased || res?.data?.response || res?.data;
+      const newText = res?.data?.data?.rephrased;
       if (newText && typeof newText === 'string') {
         setContent(newText);
         if (showToast) showToast('AI Rephrased Content!', 'success');
@@ -215,7 +215,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     setAiWriting(true);
     try {
       const res = await aiService.fixGrammar(content);
-      const newText = res?.data?.corrected || res?.data?.response || res?.data;
+      const newText = res?.data?.data?.corrected;
       if (newText && typeof newText === 'string') {
         setContent(newText);
         if (showToast) showToast('AI Corrected Grammar & Spelling!', 'success');
@@ -232,7 +232,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     setAiWriting(true);
     try {
       const res = await aiService.chat(`Continue writing the next two sentences for this journal reflection: "${content}"`);
-      const newText = res?.data?.response || res?.data;
+      const newText = res?.data?.data;
       if (newText && typeof newText === 'string') {
         setContent((prev) => prev.trim() + ' ' + newText);
         if (showToast) showToast('AI Continued Writing!', 'success');
@@ -263,9 +263,9 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     setDetectingMood(true);
     try {
       const res = await aiService.detectMood(content);
-      if (res?.data && res.data.primaryMood) {
-        const detectedKey = normalizeMood(res.data.primaryMood);
-        const detectedEmoji = res.data.emoji || getEmojiForMood(detectedKey);
+      if (res?.data?.data && res.data.data.primaryMood) {
+        const detectedKey = normalizeMood(res.data.data.primaryMood);
+        const detectedEmoji = res.data.data.emoji || getEmojiForMood(detectedKey);
 
         setMood(detectedKey);
         setEmoji(detectedEmoji);
@@ -289,8 +289,8 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     setSummarizing(true);
     try {
       const res = await aiService.summarize(content);
-      if (res?.data?.shortSummary) {
-        setSummary(res.data.shortSummary);
+      if (res?.data?.data?.shortSummary) {
+        setSummary(res.data.data.shortSummary);
         if (showToast) showToast('AI Summary Generated!', 'info');
       }
     } catch {
@@ -304,8 +304,8 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     if (!content.trim()) return;
     try {
       const res = await aiService.generateTags(content);
-      if (res?.data && Array.isArray(res.data)) {
-        const cleanTags = res.data.map((t: string) => t.replace('#', ''));
+      if (res?.data?.data && Array.isArray(res.data.data)) {
+        const cleanTags = res.data.data.map((t: string) => t.replace('#', ''));
         setTags((prev) => [...new Set([...prev, ...cleanTags])]);
         if (showToast) showToast('AI Auto-Tags Added!', 'success');
       }
@@ -342,8 +342,8 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
       if (!isManualOverride && content.trim().length >= 3) {
         try {
           const aiRes = await aiService.detectMood(content);
-          if (aiRes?.data?.primaryMood) {
-            finalMood = normalizeMood(aiRes.data.primaryMood);
+          if (aiRes?.data?.data?.primaryMood) {
+            finalMood = normalizeMood(aiRes.data.data.primaryMood);
           }
         } catch {
           // Fallback to active mood

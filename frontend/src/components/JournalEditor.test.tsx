@@ -154,7 +154,7 @@ describe('JournalEditor', () => {
   });
 
   it('rephrases content via the AI toolbar', async () => {
-    mockedRephrase.mockResolvedValue({ data: { rephrased: 'A nicer version of the text.' } } as any);
+    mockedRephrase.mockResolvedValue({ data: { data: { rephrased: 'A nicer version of the text.' } } } as any);
     const user = userEvent.setup();
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
 
