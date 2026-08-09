@@ -1,18 +1,111 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Sparkles, Save, X, Smile, Tag, FileText, Mic, AlertCircle, CheckCircle2, Wand2, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MoodWheel from './MoodWheel';
-import { journalService } from '../services/journalService';
-import { aiService } from '../services/aiService';
+import { journalService } from '@/services/journalService';
+import { aiService } from '@/services/aiService';
+import { MOOD_META, type Mood } from '@/lib/moods';
+import { cn } from '@/lib/utils';
 
-export default function JournalEditor({ initialData, onClose, onSaveSuccess, showToast }) {
+// The Web Speech API isn't part of TypeScript's standard DOM lib - this covers
+// only the subset actually used here (constructor, config flags, event handlers).
+interface SpeechRecognitionResultItem {
+  transcript: string;
+}
+interface SpeechRecognitionResultList {
+  length: number;
+  [index: number]: { [index: number]: SpeechRecognitionResultItem };
+}
+interface SpeechRecognitionEvent extends Event {
+  resultIndex: number;
+  results: SpeechRecognitionResultList;
+}
+interface SpeechRecognitionInstance extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+}
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  }
+}
+
+interface JournalData {
+  id?: number | string;
+  title?: string;
+  content?: string;
+  mood?: string;
+  tags?: string[];
+}
+
+interface JournalEditorProps {
+  initialData?: JournalData | null;
+  onClose: () => void;
+  onSaveSuccess: () => void;
+  showToast?: (message: string, type?: string) => void;
+}
+
+function getEmojiForMood(mKey: Mood): string {
+  return MOOD_META[mKey]?.emoji || '😊';
+}
+
+// Standardize free-form/AI-returned mood text into one of our known mood keys.
+function normalizeMood(rawMood?: string): Mood {
+  if (!rawMood) return 'HAPPY';
+  const m = rawMood.toUpperCase();
+  if (m.includes('ANGRY') || m.includes('MAD') || m.includes('RAGE')) return 'ANGRY';
+  if (m.includes('EXCITE')) return 'EXCITED';
+  if (m.includes('HAPP') || m.includes('JOY')) return 'HAPPY';
+  if (m.includes('RELAX') || m.includes('CALM')) return 'RELAXED';
+  if (m.includes('STRESS') || m.includes('ANXIO')) return 'STRESSED';
+  if (m.includes('SAD') || m.includes('DEPR')) return 'SAD';
+  if (m.includes('GRATE') || m.includes('THANK')) return 'GRATEFUL';
+  return 'HAPPY';
+}
+
+// Instant Keystroke Mood Evaluator (0ms Latency)
+function evaluateInstantMood(text: string): { mood: Mood; emoji: string } {
+  const txt = (text || '').toLowerCase();
+  if (!txt.trim()) return { mood: 'HAPPY', emoji: '😊' };
+
+  if (txt.includes('angry') || txt.includes('mad') || txt.includes('rage') || txt.includes('furious') || txt.includes('hate') || txt.includes('annoyed') || txt.includes('irritated') || txt.includes('outraged')) {
+    return { mood: 'ANGRY', emoji: '😠' };
+  }
+  if (txt.includes('stress') || txt.includes('overwhelm') || txt.includes('frustat') || txt.includes('frustrat') || txt.includes('tired') || txt.includes('exhaust') || txt.includes('anxio') || txt.includes('busy') || txt.includes('workload')) {
+    return { mood: 'STRESSED', emoji: '😰' };
+  }
+  if (txt.includes('sad') || txt.includes('lonely') || txt.includes('hurt') || txt.includes('ruin') || txt.includes('bad') || txt.includes('cry') || txt.includes('depress') || txt.includes('upset') || txt.includes('worst')) {
+    return { mood: 'SAD', emoji: '🥺' };
+  }
+  if (txt.includes('thank') || txt.includes('grate') || txt.includes('bless') || txt.includes('apprec')) {
+    return { mood: 'GRATEFUL', emoji: '🙏' };
+  }
+  if (txt.includes('relax') || txt.includes('calm') || txt.includes('peace') || txt.includes('cozy') || txt.includes('tea') || txt.includes('lake') || txt.includes('spa')) {
+    return { mood: 'RELAXED', emoji: '😌' };
+  }
+  if (txt.includes('excit') || txt.includes('hype') || txt.includes('thrill') || txt.includes('win') || txt.includes('launch') || txt.includes('trip') || txt.includes('concert')) {
+    return { mood: 'EXCITED', emoji: '🤩' };
+  }
+  return { mood: 'HAPPY', emoji: '😊' };
+}
+
+export default function JournalEditor({ initialData, onClose, onSaveSuccess, showToast }: JournalEditorProps) {
   const [title, setTitle] = useState(initialData?.title || '');
   const [content, setContent] = useState(initialData?.content || '');
-  const [mood, setMood] = useState(initialData?.mood || 'HAPPY');
+  const [mood, setMood] = useState<Mood>(normalizeMood(initialData?.mood));
   const [emoji, setEmoji] = useState('😊');
-  const [tags, setTags] = useState(initialData?.tags || ['reflection', 'journal']);
+  const [tags, setTags] = useState<string[]>(initialData?.tags || ['reflection', 'journal']);
   const [tagInput, setTagInput] = useState('');
-  
+
   const [isListening, setIsListening] = useState(false);
   const [detectingMood, setDetectingMood] = useState(false);
   const [summarizing, setSummarizing] = useState(false);
@@ -22,52 +115,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   const [message, setMessage] = useState('');
   const [isManualOverride, setIsManualOverride] = useState(false);
 
-  // Standardize mood keys
-  const normalizeMood = (rawMood) => {
-    if (!rawMood) return 'HAPPY';
-    const m = rawMood.toUpperCase();
-    if (m.includes('ANGRY') || m.includes('MAD') || m.includes('RAGE')) return 'ANGRY';
-    if (m.includes('EXCITE')) return 'EXCITED';
-    if (m.includes('HAPP') || m.includes('JOY')) return 'HAPPY';
-    if (m.includes('RELAX') || m.includes('CALM')) return 'RELAXED';
-    if (m.includes('STRESS') || m.includes('ANXIO')) return 'STRESSED';
-    if (m.includes('SAD') || m.includes('DEPR')) return 'SAD';
-    if (m.includes('GRATE') || m.includes('THANK')) return 'GRATEFUL';
-    return 'HAPPY';
-  };
-
-  const getEmojiForMood = (mKey) => {
-    const map = { HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠' };
-    return map[mKey] || '😊';
-  };
-
-  // Instant Keystroke Mood Evaluator (0ms Latency)
-  const evaluateInstantMood = (text) => {
-    const txt = (text || '').toLowerCase();
-    if (!txt.trim()) return { mood: 'HAPPY', emoji: '😊' };
-
-    if (txt.includes('angry') || txt.includes('mad') || txt.includes('rage') || txt.includes('furious') || txt.includes('hate') || txt.includes('annoyed') || txt.includes('irritated') || txt.includes('outraged')) {
-      return { mood: 'ANGRY', emoji: '😠' };
-    }
-    if (txt.includes('stress') || txt.includes('overwhelm') || txt.includes('frustat') || txt.includes('frustrat') || txt.includes('tired') || txt.includes('exhaust') || txt.includes('anxio') || txt.includes('busy') || txt.includes('workload')) {
-      return { mood: 'STRESSED', emoji: '😰' };
-    }
-    if (txt.includes('sad') || txt.includes('lonely') || txt.includes('hurt') || txt.includes('ruin') || txt.includes('bad') || txt.includes('cry') || txt.includes('depress') || txt.includes('upset') || txt.includes('worst')) {
-      return { mood: 'SAD', emoji: '🥺' };
-    }
-    if (txt.includes('thank') || txt.includes('grate') || txt.includes('bless') || txt.includes('apprec')) {
-      return { mood: 'GRATEFUL', emoji: '🙏' };
-    }
-    if (txt.includes('relax') || txt.includes('calm') || txt.includes('peace') || txt.includes('cozy') || txt.includes('tea') || txt.includes('lake') || txt.includes('spa')) {
-      return { mood: 'RELAXED', emoji: '😌' };
-    }
-    if (txt.includes('excit') || txt.includes('hype') || txt.includes('thrill') || txt.includes('win') || txt.includes('launch') || txt.includes('trip') || txt.includes('concert')) {
-      return { mood: 'EXCITED', emoji: '🤩' };
-    }
-    return { mood: 'HAPPY', emoji: '😊' };
-  };
-
-  const handleContentChange = (e) => {
+  const handleContentChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setContent(val);
 
@@ -93,7 +141,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (res?.data && res.data.primaryMood) {
           const detectedKey = normalizeMood(res.data.primaryMood);
           const detectedEmoji = res.data.emoji || getEmojiForMood(detectedKey);
-          
+
           setMood(detectedKey);
           setEmoji(detectedEmoji);
 
@@ -101,7 +149,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
             confetti({ particleCount: 35, spread: 50, origin: { y: 0.6 } });
           }
         }
-      } catch (err) {
+      } catch {
         // Asynchronous AI error fallback
       } finally {
         setDetectingMood(false);
@@ -112,8 +160,8 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   }, [content, isManualOverride]);
 
   const toggleSpeechRecognition = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
       if (showToast) showToast('Speech recognition is not supported in this browser.', 'error');
       return;
     }
@@ -121,7 +169,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     if (isListening) {
       setIsListening(false);
     } else {
-      const recognition = new SpeechRecognition();
+      const recognition = new SpeechRecognitionCtor();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
@@ -136,7 +184,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         for (let i = event.resultIndex; i < event.results.length; i++) {
           transcript += event.results[i][0].transcript;
         }
-        setContent(prev => prev + ' ' + transcript);
+        setContent((prev) => prev + ' ' + transcript);
       };
 
       recognition.onerror = () => setIsListening(false);
@@ -155,7 +203,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         setContent(newText);
         if (showToast) showToast('AI Rephrased Content!', 'success');
       }
-    } catch (err) {
+    } catch {
       // Rephrase error fallback
     } finally {
       setAiWriting(false);
@@ -172,7 +220,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         setContent(newText);
         if (showToast) showToast('AI Corrected Grammar & Spelling!', 'success');
       }
-    } catch (err) {
+    } catch {
       // Fix grammar error fallback
     } finally {
       setAiWriting(false);
@@ -186,20 +234,20 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
       const res = await aiService.chat(`Continue writing the next two sentences for this journal reflection: "${content}"`);
       const newText = res?.data?.response || res?.data;
       if (newText && typeof newText === 'string') {
-        setContent(prev => prev.trim() + ' ' + newText);
+        setContent((prev) => prev.trim() + ' ' + newText);
         if (showToast) showToast('AI Continued Writing!', 'success');
       }
-    } catch (err) {
+    } catch {
       // Continue writing fallback
     } finally {
       setAiWriting(false);
     }
   };
 
-  const handleSelectTemplate = (templateType) => {
+  const handleSelectTemplate = (templateType: 'daily' | 'gratitude' | 'weekly') => {
     if (templateType === 'daily') {
       setTitle('Daily Reflection & Wins');
-      setContent('1. Today\'s Top Accomplishment:\n2. What made me feel grateful:\n3. Key takeaways for tomorrow:');
+      setContent("1. Today's Top Accomplishment:\n2. What made me feel grateful:\n3. Key takeaways for tomorrow:");
     } else if (templateType === 'gratitude') {
       setTitle('Gratitude & Positive Focus');
       setContent('1. Three things I appreciate today:\n2. Someone who helped me recently:\n3. A pleasant surprise that happened:');
@@ -229,7 +277,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
         }
       }
-    } catch (err) {
+    } catch {
       // Mood detection fallback
     } finally {
       setDetectingMood(false);
@@ -245,7 +293,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         setSummary(res.data.shortSummary);
         if (showToast) showToast('AI Summary Generated!', 'info');
       }
-    } catch (err) {
+    } catch {
       // Summarize fallback
     } finally {
       setSummarizing(false);
@@ -257,16 +305,16 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     try {
       const res = await aiService.generateTags(content);
       if (res?.data && Array.isArray(res.data)) {
-        const cleanTags = res.data.map(t => t.replace('#', ''));
-        setTags(prev => [...new Set([...prev, ...cleanTags])]);
+        const cleanTags = res.data.map((t: string) => t.replace('#', ''));
+        setTags((prev) => [...new Set([...prev, ...cleanTags])]);
         if (showToast) showToast('AI Auto-Tags Added!', 'success');
       }
-    } catch (err) {
+    } catch {
       // Generate tags fallback
     }
   };
 
-  const handleAddTag = (e) => {
+  const handleAddTag = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && tagInput.trim()) {
       e.preventDefault();
       const clean = tagInput.trim().replace('#', '');
@@ -277,11 +325,11 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     }
   };
 
-  const handleRemoveTag = (tagToRemove) => {
-    setTags(tags.filter(t => t !== tagToRemove));
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  const handleSave = async (e) => {
+  const handleSave = async (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
       setMessage('Title and Content are required.');
@@ -290,14 +338,14 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
     setSaving(true);
     try {
-      let finalMood = mood;
+      let finalMood: Mood = mood;
       if (!isManualOverride && content.trim().length >= 3) {
         try {
           const aiRes = await aiService.detectMood(content);
           if (aiRes?.data?.primaryMood) {
             finalMood = normalizeMood(aiRes.data.primaryMood);
           }
-        } catch (err) {
+        } catch {
           // Fallback to active mood
         }
       }
@@ -311,7 +359,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast(`New journal entry saved with AI Mood ${finalMood} ${getEmojiForMood(finalMood)}!`, 'success');
       }
       onSaveSuccess();
-    } catch (err) {
+    } catch (err: any) {
       setMessage(err?.message || 'Failed to save journal entry.');
     } finally {
       setSaving(false);
@@ -319,113 +367,111 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
   };
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto' }}>
-      <div className="glass-panel animate-fade-in" style={{ padding: '2.5rem' }}>
+    <div className="p-8 max-w-[1000px] mx-auto">
+      <div className="glass-panel animate-fade-in p-10">
         {/* Header Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 style={{ fontSize: '2rem', fontWeight: '800' }}>
-              {initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}
-            </h1>
-            <p style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Real-time instant mood detection, voice dictation & AI writing suite</p>
+            <h1 className="text-[2rem] font-extrabold">{initialData ? 'Edit Journal Entry' : 'Create Journal Entry'}</h1>
+            <p className="text-[#94a3b8] text-[0.9rem]">Real-time instant mood detection, voice dictation & AI writing suite</p>
           </div>
-          <button onClick={onClose} className="btn-secondary" style={{ padding: '0.5rem', borderRadius: '50%' }}>
+          <button onClick={onClose} className="btn-secondary p-2 rounded-full">
             <X size={20} />
           </button>
         </div>
 
         {/* Quick Templates Bar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-          <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Templates:</span>
-          <button type="button" onClick={() => handleSelectTemplate('daily')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+        <div className="flex items-center gap-[0.6rem] mb-6 overflow-x-auto pb-2">
+          <span className="text-[0.8rem] text-[#64748b] font-semibold">Templates:</span>
+          <button type="button" onClick={() => handleSelectTemplate('daily')} className="btn-secondary py-[0.35rem] px-3 text-[0.8rem]">
             Daily Reflection
           </button>
-          <button type="button" onClick={() => handleSelectTemplate('gratitude')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+          <button type="button" onClick={() => handleSelectTemplate('gratitude')} className="btn-secondary py-[0.35rem] px-3 text-[0.8rem]">
             Gratitude Log
           </button>
-          <button type="button" onClick={() => handleSelectTemplate('weekly')} className="btn-secondary" style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}>
+          <button type="button" onClick={() => handleSelectTemplate('weekly')} className="btn-secondary py-[0.35rem] px-3 text-[0.8rem]">
             Weekly Review
           </button>
         </div>
 
         {message && (
-          <div style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', padding: '0.75rem 1rem', borderRadius: '14px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-[14px] mb-6 flex items-center gap-2">
             <AlertCircle size={18} />
             <span>{message}</span>
           </div>
         )}
 
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <form onSubmit={handleSave} className="flex flex-col gap-6">
           {/* Title Input */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Journal Title</label>
+            <label className="block text-[0.85rem] text-[#cbd5e1] mb-[0.4rem] font-semibold">Journal Title</label>
             <input
               type="text"
               required
-              className="glass-input"
+              className="glass-input text-[1.15rem] font-bold"
               placeholder="e.g. Completing SaaS UI Redesign & AI Microservice"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              style={{ fontSize: '1.15rem', fontWeight: '700' }}
             />
           </div>
 
           {/* Journal Content Textarea */}
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <label style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: '600' }}>Journal Content</label>
+            <div className="flex items-center justify-between mb-[0.4rem]">
+              <label className="text-[0.85rem] text-[#cbd5e1] font-semibold">Journal Content</label>
 
               {/* Metrics Badge */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', fontSize: '0.75rem', color: '#94a3b8' }}>
+              <div className="flex items-center gap-[0.85rem] text-xs text-[#94a3b8]">
                 <span>{wordCount} Words</span>
                 <span>{charCount} Characters</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}><Clock size={12} /> {readingTime} Min Read</span>
+                <span className="flex items-center gap-[0.2rem]">
+                  <Clock size={12} /> {readingTime} Min Read
+                </span>
               </div>
             </div>
 
             <textarea
               required
               rows={9}
-              className="glass-input"
+              className="glass-input leading-[1.7] resize-y text-base"
               placeholder="Write your thoughts, feelings, or daily experience (AI will analyze your text instantly as you type)..."
               value={content}
               onChange={handleContentChange}
-              style={{ lineHeight: '1.7', resize: 'vertical', fontSize: '1rem' }}
             />
           </div>
 
           {/* AI Writing Assistant Toolbar */}
-          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', background: 'rgba(255,255,255,0.03)', padding: '0.85rem', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <span style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '700', width: '100%', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.25rem' }}>
+          <div className="flex gap-[0.6rem] flex-wrap bg-white/[0.03] p-[0.85rem] rounded-2xl border border-white/[0.06]">
+            <span className="text-[0.8rem] text-[#818cf8] font-bold w-full flex items-center gap-[0.35rem] mb-1">
               <Wand2 size={14} /> AI Writing Assistant Suite
             </span>
-            <button type="button" onClick={handleAIRephrase} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+            <button type="button" onClick={handleAIRephrase} disabled={aiWriting || !content.trim()} className="btn-secondary text-[0.8rem] py-[0.4rem] px-[0.85rem]">
               {aiWriting ? 'Rephrasing...' : 'Rephrase Text'}
             </button>
-            <button type="button" onClick={handleAIFixGrammar} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+            <button type="button" onClick={handleAIFixGrammar} disabled={aiWriting || !content.trim()} className="btn-secondary text-[0.8rem] py-[0.4rem] px-[0.85rem]">
               {aiWriting ? 'Fixing...' : 'Fix Grammar'}
             </button>
-            <button type="button" onClick={handleAIContinueWriting} disabled={aiWriting || !content.trim()} className="btn-secondary" style={{ fontSize: '0.8rem', padding: '0.4rem 0.85rem' }}>
+            <button type="button" onClick={handleAIContinueWriting} disabled={aiWriting || !content.trim()} className="btn-secondary text-[0.8rem] py-[0.4rem] px-[0.85rem]">
               {aiWriting ? 'Writing...' : 'Continue Writing'}
             </button>
           </div>
 
           {/* AI Automated Mood Selection Grid */}
-          <div style={{ background: 'rgba(12, 16, 34, 0.6)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px', padding: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="bg-[rgba(12,16,34,0.6)] border border-white/[0.08] rounded-[18px] p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
                 <Sparkles size={18} color="#818cf8" />
-                <span style={{ fontSize: '0.9rem', color: '#ffffff', fontWeight: '700' }}>
-                  AI Detected Mood: <strong style={{ color: mood === 'ANGRY' ? '#ef4444' : '#4ade80' }}>{mood} {emoji}</strong>
+                <span className="text-[0.9rem] text-white font-bold">
+                  AI Detected Mood: <strong className={mood === 'ANGRY' ? 'text-[#ef4444]' : 'text-[#4ade80]'}>{mood} {emoji}</strong>
                 </span>
               </div>
 
               {isManualOverride ? (
-                <span style={{ fontSize: '0.75rem', color: '#fde047', background: 'rgba(253,224,71,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600' }}>
+                <span className="text-xs text-[#fde047] bg-[rgba(253,224,71,0.15)] py-1 px-[0.6rem] rounded-lg font-semibold">
                   Manual Override
                 </span>
               ) : (
-                <span style={{ fontSize: '0.75rem', color: '#4ade80', background: 'rgba(74,222,128,0.15)', padding: '0.25rem 0.6rem', borderRadius: '8px', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span className="text-xs text-[#4ade80] bg-[rgba(74,222,128,0.15)] py-1 px-[0.6rem] rounded-lg font-semibold inline-flex items-center gap-[0.3rem]">
                   <CheckCircle2 size={12} />
                   <span>Real-Time AI Active</span>
                 </span>
@@ -443,39 +489,32 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           </div>
 
           {/* Voice Dictation & AI Controls */}
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="flex gap-3 flex-wrap">
             <button
               type="button"
               onClick={toggleSpeechRecognition}
-              style={{
-                background: isListening ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255,255,255,0.06)',
-                border: isListening ? '1px solid #ef4444' : '1px solid rgba(255,255,255,0.15)',
-                color: isListening ? '#f87171' : '#ffffff',
-                padding: '0.65rem 1.15rem',
-                borderRadius: '14px',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.6rem'
-              }}
+              className={cn(
+                'py-[0.65rem] px-[1.15rem] rounded-[14px] text-[0.85rem] font-semibold cursor-pointer inline-flex items-center gap-[0.6rem]',
+                isListening
+                  ? 'bg-[rgba(239,68,68,0.25)] border border-[#ef4444] text-[#f87171]'
+                  : 'bg-white/[0.06] border border-white/[0.15] text-white'
+              )}
             >
               <Mic size={18} color="#ec4899" />
               <span>{isListening ? 'Listening...' : 'Voice Dictation'}</span>
             </button>
 
-            <button type="button" onClick={handleDetectMood} disabled={detectingMood || !content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <button type="button" onClick={handleDetectMood} disabled={detectingMood || !content.trim()} className="btn-secondary text-[0.85rem]">
               <Smile size={18} color="#4ade80" />
               <span>Re-Analyze Mood</span>
             </button>
 
-            <button type="button" onClick={handleSummarize} disabled={summarizing || !content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <button type="button" onClick={handleSummarize} disabled={summarizing || !content.trim()} className="btn-secondary text-[0.85rem]">
               <FileText size={18} color="#38bdf8" />
               <span>Summarize</span>
             </button>
 
-            <button type="button" onClick={handleGenerateTags} disabled={!content.trim()} className="btn-secondary" style={{ fontSize: '0.85rem' }}>
+            <button type="button" onClick={handleGenerateTags} disabled={!content.trim()} className="btn-secondary text-[0.85rem]">
               <Tag size={18} color="#c084fc" />
               <span>Auto-Tags</span>
             </button>
@@ -483,23 +522,26 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
           {/* AI Summary Preview */}
           {summary && (
-            <div style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.3)', padding: '1.25rem', borderRadius: '16px' }}>
-              <div style={{ fontSize: '0.8rem', color: '#818cf8', fontWeight: '700', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <div className="bg-[rgba(99,102,241,0.15)] border border-[rgba(99,102,241,0.3)] p-5 rounded-2xl">
+              <div className="text-[0.8rem] text-[#818cf8] font-bold mb-[0.4rem] flex items-center gap-[0.4rem]">
                 <Sparkles size={16} />
                 <span>AI Summary</span>
               </div>
-              <p style={{ fontSize: '0.95rem', color: '#f8fafc', lineHeight: '1.5' }}>{summary}</p>
+              <p className="text-[0.95rem] text-[#f8fafc] leading-[1.5]">{summary}</p>
             </div>
           )}
 
           {/* Tags Input */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '0.4rem', fontWeight: '600' }}>Tags (Press Enter)</label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+            <label className="block text-[0.85rem] text-[#cbd5e1] mb-[0.4rem] font-semibold">Tags (Press Enter)</label>
+            <div className="flex gap-2 flex-wrap mb-3">
               {tags.map((tag, idx) => (
-                <span key={idx} style={{ background: 'rgba(168,85,247,0.18)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc', padding: '0.35rem 0.75rem', borderRadius: '10px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: '600' }}>
+                <span
+                  key={idx}
+                  className="bg-[rgba(168,85,247,0.18)] border border-[rgba(168,85,247,0.35)] text-[#c084fc] py-[0.35rem] px-3 rounded-[10px] text-[0.85rem] inline-flex items-center gap-[0.4rem] font-semibold"
+                >
                   #{tag}
-                  <X size={14} style={{ cursor: 'pointer' }} onClick={() => handleRemoveTag(tag)} />
+                  <X size={14} className="cursor-pointer" onClick={() => handleRemoveTag(tag)} />
                 </span>
               ))}
             </div>
@@ -514,9 +556,11 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
           </div>
 
           {/* Submit Action Buttons */}
-          <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-            <button type="button" onClick={onClose} className="btn-secondary" style={{ padding: '0.85rem 1.5rem' }}>Cancel</button>
-            <button type="submit" disabled={saving} className="btn-primary" style={{ padding: '0.85rem 2rem' }}>
+          <div className="flex gap-4 justify-end mt-4">
+            <button type="button" onClick={onClose} className="btn-secondary py-[0.85rem] px-6">
+              Cancel
+            </button>
+            <button type="submit" disabled={saving} className="btn-primary py-[0.85rem] px-8">
               <Save size={20} />
               <span>{saving ? 'Saving...' : 'Save Journal Entry'}</span>
             </button>
