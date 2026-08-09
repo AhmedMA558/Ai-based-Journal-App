@@ -2,6 +2,7 @@ import { useEffect, useState, type MouseEvent } from 'react';
 import { BookOpen, Plus, Download, Edit3, Trash2, LayoutGrid, List, Filter } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
+import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
 
 interface Journal {
   id: number | string;
@@ -13,7 +14,6 @@ interface Journal {
   [key: string]: unknown;
 }
 
-type MoodFilter = 'ALL' | 'HAPPY' | 'EXCITED' | 'RELAXED' | 'STRESSED' | 'SAD' | 'GRATEFUL' | 'ANGRY';
 type ViewMode = 'grid' | 'list';
 
 interface JournalFeedProps {
@@ -22,14 +22,8 @@ interface JournalFeedProps {
   showToast?: (message: string, type?: string) => void;
 }
 
-const MOOD_FILTERS: MoodFilter[] = ['ALL', 'HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD', 'GRATEFUL', 'ANGRY'];
-
-const MOOD_EMOJI: Record<string, string> = {
-  HAPPY: '😊', EXCITED: '🤩', RELAXED: '😌', STRESSED: '😰', SAD: '🥺', GRATEFUL: '🙏', ANGRY: '😠',
-};
-
 function getMoodEmoji(mood?: string): string {
-  return MOOD_EMOJI[(mood || '').toUpperCase()] || '😐';
+  return MOOD_META[(mood || '').toUpperCase() as Mood]?.emoji || '😐';
 }
 
 function downloadBlob(content: string, mimeType: string, filename: string) {

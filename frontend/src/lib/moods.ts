@@ -26,6 +26,10 @@ export const MOODS: Mood[] = [
   'ANGRY',
 ];
 
+export type MoodFilter = 'ALL' | Mood;
+
+export const MOOD_FILTERS: MoodFilter[] = ['ALL', ...MOODS];
+
 export const MOOD_META: Record<Mood, MoodMeta> = {
   HAPPY: {
     key: 'HAPPY',
