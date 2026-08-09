@@ -3,6 +3,7 @@ import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw } from
 import { journalService } from '@/services/journalService';
 import { aiService } from '@/services/aiService';
 import { MOOD_META, type Mood } from '@/lib/moods';
+import { calculateStreak } from '@/lib/journalStats';
 
 interface Journal {
   id: number | string;
@@ -10,6 +11,7 @@ interface Journal {
   content?: string;
   mood?: string;
   tags?: string[];
+  createdAt?: string;
   [key: string]: unknown;
 }
 
@@ -112,7 +114,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
           <div>
             <div className="text-[0.85rem] text-[#94a3b8] font-medium">Journaling Streak</div>
             <div className="text-[1.8rem] font-extrabold text-[#f8fafc]">
-              {journals.length > 0 ? `${journals.length} Days` : '0 Days'}
+              {calculateStreak(journals).current} Days
             </div>
           </div>
         </div>

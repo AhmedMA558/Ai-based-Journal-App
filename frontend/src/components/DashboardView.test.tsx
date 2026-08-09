@@ -22,9 +22,13 @@ const mockedGetAllJournals = vi.mocked(journalService.getAllJournals);
 const mockedDeleteJournal = vi.mocked(journalService.deleteJournal);
 const mockedGetRecommendations = vi.mocked(aiService.getRecommendations);
 
+const today = new Date();
+const yesterday = new Date(today);
+yesterday.setDate(yesterday.getDate() - 1);
+
 const SAMPLE_JOURNALS = [
-  { id: 1, title: 'First Entry', content: 'Some content here', mood: 'HAPPY', tags: ['life'] },
-  { id: 2, title: 'Second Entry', content: 'More content', mood: 'STRESSED', tags: [] },
+  { id: 1, title: 'First Entry', content: 'Some content here', mood: 'HAPPY', tags: ['life'], createdAt: today.toISOString() },
+  { id: 2, title: 'Second Entry', content: 'More content', mood: 'STRESSED', tags: [], createdAt: yesterday.toISOString() },
 ];
 
 describe('DashboardView', () => {
