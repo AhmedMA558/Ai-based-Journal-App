@@ -17,8 +17,15 @@ import {
 } from 'recharts';
 import { Smile, TrendingUp, Flame, Award, RefreshCw } from 'lucide-react';
 import { journalService } from '@/services/journalService';
+import { MOODS as SHARED_MOODS, MOOD_META, type Mood as SharedMood, type MoodMeta } from '@/lib/moods';
 
-type Mood = 'HAPPY' | 'EXCITED' | 'RELAXED' | 'STRESSED' | 'SAD' | 'GRATEFUL' | 'ANGRY' | 'NEUTRAL';
+// AnalyticsView is the only consumer that needs an 8th "NEUTRAL" bucket: the
+// backend seeds newly-indexed journals with mood "NEUTRAL" before AI
+// classification runs, and that value is a real, reportable analytics
+// bucket here - but it's a system placeholder, not a feeling a user picks,
+// so it deliberately stays out of the shared Mood/MOOD_META contract that
+// MoodWheel's mood *picker* also relies on.
+type Mood = SharedMood | 'NEUTRAL';
 
 interface Journal {
   id: number | string;
@@ -27,29 +34,18 @@ interface Journal {
   [key: string]: unknown;
 }
 
-const MOODS: Mood[] = ['HAPPY', 'EXCITED', 'RELAXED', 'STRESSED', 'SAD', 'GRATEFUL', 'ANGRY', 'NEUTRAL'];
+const MOODS: Mood[] = [...SHARED_MOODS, 'NEUTRAL'];
 
-const MOOD_COLORS: Record<Mood, string> = {
-  HAPPY: '#4ade80',
-  EXCITED: '#fde047',
-  RELAXED: '#38bdf8',
-  STRESSED: '#f87171',
-  SAD: '#c084fc',
-  GRATEFUL: '#fb7185',
-  ANGRY: '#ef4444',
-  NEUTRAL: '#94a3b8',
+const NEUTRAL_META: MoodMeta = {
+  key: 'NEUTRAL' as SharedMood,
+  label: 'Neutral',
+  emoji: '😐',
+  bg: 'rgba(148, 163, 184, 0.15)',
+  border: 'rgba(148, 163, 184, 0.4)',
+  text: '#94a3b8',
 };
 
-const MOOD_EMOJIS: Record<Mood, string> = {
-  HAPPY: '😊',
-  EXCITED: '🤩',
-  RELAXED: '😌',
-  STRESSED: '😰',
-  SAD: '🥺',
-  GRATEFUL: '🙏',
-  ANGRY: '😠',
-  NEUTRAL: '😐',
-};
+const ANALYTICS_MOOD_META: Record<Mood, MoodMeta> = { ...MOOD_META, NEUTRAL: NEUTRAL_META };
 
 // recharts' `shape` render-prop passes a large, loosely-typed geometry/payload
 // bag - `any` here matches how recharts' own examples and most TS consumers type it.
@@ -102,9 +98,9 @@ export default function AnalyticsView() {
   const positivityRate = totalEntries > 0 ? Math.round((positiveCount / totalEntries) * 100) : 100;
 
   const moodBreakdown = MOODS.filter((m) => moodCounts[m] > 0 || totalEntries === 0).map((m) => ({
-    name: `${m.charAt(0) + m.slice(1).toLowerCase()} ${MOOD_EMOJIS[m] || '😊'}`,
+    name: `${m.charAt(0) + m.slice(1).toLowerCase()} ${ANALYTICS_MOOD_META[m]?.emoji || '😊'}`,
     value: moodCounts[m],
-    color: MOOD_COLORS[m] || '#6366f1',
+    color: ANALYTICS_MOOD_META[m]?.text || '#6366f1',
   }));
 
   const radarData = [
@@ -157,10 +153,10 @@ export default function AnalyticsView() {
       {/* Top Real-Time Metric Cards */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-5">
         <div className="glass-panel p-6 text-center">
-          <Smile size={32} color={MOOD_COLORS[dominantMood] || '#4ade80'} className="mb-[0.4rem]" />
+          <Smile size={32} color={ANALYTICS_MOOD_META[dominantMood]?.text || '#4ade80'} className="mb-[0.4rem]" />
           <div className="text-[0.8rem] text-[#94a3b8]">Dominant Real-Time Mood</div>
-          <div className="text-[1.4rem] font-extrabold" style={{ color: MOOD_COLORS[dominantMood] || '#4ade80' }}>
-            {dominantMood} {MOOD_EMOJIS[dominantMood] || '😊'}
+          <div className="text-[1.4rem] font-extrabold" style={{ color: ANALYTICS_MOOD_META[dominantMood]?.text || '#4ade80' }}>
+            {dominantMood} {ANALYTICS_MOOD_META[dominantMood]?.emoji || '😊'}
           </div>
         </div>
 
