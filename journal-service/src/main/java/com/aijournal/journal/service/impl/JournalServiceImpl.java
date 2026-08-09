@@ -4,6 +4,7 @@ import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.event.JournalCreatedEvent;
 import com.aijournal.common.event.JournalUpdatedEvent;
 import com.aijournal.common.exception.ResourceNotFoundException;
+import com.aijournal.common.messaging.JournalEventRouting;
 import com.aijournal.journal.entity.Journal;
 import com.aijournal.journal.repository.JournalRepository;
 import com.aijournal.journal.service.JournalService;
@@ -21,10 +22,6 @@ public class JournalServiceImpl implements JournalService {
 
     private final JournalRepository journalRepository;
     private final RabbitTemplate rabbitTemplate;
-
-    public static final String EXCHANGE_NAME = "journal.exchange";
-    public static final String ROUTING_KEY_CREATED = "journal.created";
-    public static final String ROUTING_KEY_UPDATED = "journal.updated";
 
     public JournalServiceImpl(JournalRepository journalRepository, RabbitTemplate rabbitTemplate) {
         this.journalRepository = journalRepository;
@@ -66,7 +63,7 @@ public class JournalServiceImpl implements JournalService {
                     saved.getWeather(),
                     LocalDateTime.now()
             );
-            rabbitTemplate.convertAndSend(EXCHANGE_NAME, ROUTING_KEY_CREATED, event);
+            rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_CREATED, event);
         } catch (Exception e) {
             // Log fallback if RabbitMQ broker is offline
         }
@@ -99,7 +96,7 @@ public class JournalServiceImpl implements JournalService {
                     saved.getContent(),
                     LocalDateTime.now()
             );
-            rabbitTemplate.convertAndSend(EXCHANGE_NAME, ROUTING_KEY_UPDATED, event);
+            rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_UPDATED, event);
         } catch (Exception e) {
             // Log fallback
         }
@@ -185,7 +182,9 @@ public class JournalServiceImpl implements JournalService {
     @Override
     @Transactional
     public void permanentDeleteJournal(Long userId, Long journalId) {
-        journalRepository.deleteById(journalId);
+        Long activeUserId = userId != null ? userId : 1L;
+        Journal journal = getJournalById(activeUserId, journalId);
+        journalRepository.delete(journal);
     }
 
     private PagedResponse<Journal> toPagedResponse(Page<Journal> page) {

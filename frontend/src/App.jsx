@@ -1,15 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
 import AuthView from './components/AuthView';
-import DashboardView from './components/DashboardView';
-import JournalEditor from './components/JournalEditor';
-import JournalFeed from './components/JournalFeed';
-import CalendarView from './components/CalendarView';
-import AIChatView from './components/AIChatView';
-import SearchView from './components/SearchView';
-import AnalyticsView from './components/AnalyticsView';
 import CommandPalette from './components/CommandPalette';
 import NotificationsDrawer from './components/NotificationsDrawer';
 import SettingsModal from './components/SettingsModal';
@@ -54,6 +47,15 @@ function EditJournalRoute({ onSaveSuccess, showToast }) {
   );
 }
 
+// Lazy Loaded View Components for Dynamic Code Splitting & Performance
+const DashboardView = lazy(() => import('./components/DashboardView'));
+const JournalEditor = lazy(() => import('./components/JournalEditor'));
+const JournalFeed = lazy(() => import('./components/JournalFeed'));
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const AIChatView = lazy(() => import('./components/AIChatView'));
+const SearchView = lazy(() => import('./components/SearchView'));
+const AnalyticsView = lazy(() => import('./components/AnalyticsView'));
+
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => authService.isAuthenticated());
   const [toast, setToast] = useState(null);
@@ -67,9 +69,8 @@ export default function App() {
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
 
-  // Apply Theme Token Attribute
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
 
@@ -204,54 +205,61 @@ export default function App() {
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
-        {/* Dynamic Route Content */}
+        {/* Dynamic Route Content with Lazy Loading Suspense */}
         <main className="main-content">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route
-              path="/dashboard"
-              element={
-                <DashboardView
-                  onNewJournal={handleNewJournal}
-                  onSelectJournal={(journal) => handleEditJournal(journal)}
-                  showToast={showToast}
-                />
-              }
-            />
-            <Route
-              path="/journals"
-              element={
-                <JournalFeed
-                  onNewJournal={handleNewJournal}
-                  onEditJournal={(journal) => handleEditJournal(journal)}
-                  showToast={showToast}
-                />
-              }
-            />
-            <Route
-              path="/journals/new"
-              element={
-                <JournalEditor
-                  initialData={null}
-                  onClose={() => navigate('/journals')}
-                  onSaveSuccess={handleSaveSuccess}
-                  showToast={showToast}
-                />
-              }
-            />
-            <Route
-              path="/journals/:journalId/edit"
-              element={<EditJournalRoute onSaveSuccess={handleSaveSuccess} showToast={showToast} />}
-            />
-            <Route
-              path="/calendar"
-              element={<CalendarView onSelectJournal={(journal) => handleEditJournal(journal)} />}
-            />
-            <Route path="/ai-chat" element={<AIChatView />} />
-            <Route path="/search" element={<SearchView />} />
-            <Route path="/analytics" element={<AnalyticsView />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
+          <Suspense fallback={
+            <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="glass-panel skeleton-pulse" style={{ height: '180px', borderRadius: '20px' }}></div>
+              <div className="glass-panel skeleton-pulse" style={{ height: '300px', borderRadius: '20px' }}></div>
+            </div>
+          }>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <DashboardView
+                    onNewJournal={handleNewJournal}
+                    onSelectJournal={(journal) => handleEditJournal(journal)}
+                    showToast={showToast}
+                  />
+                }
+              />
+              <Route
+                path="/journals"
+                element={
+                  <JournalFeed
+                    onNewJournal={handleNewJournal}
+                    onEditJournal={(journal) => handleEditJournal(journal)}
+                    showToast={showToast}
+                  />
+                }
+              />
+              <Route
+                path="/journals/new"
+                element={
+                  <JournalEditor
+                    initialData={null}
+                    onClose={() => navigate('/journals')}
+                    onSaveSuccess={handleSaveSuccess}
+                    showToast={showToast}
+                  />
+                }
+              />
+              <Route
+                path="/journals/:journalId/edit"
+                element={<EditJournalRoute onSaveSuccess={handleSaveSuccess} showToast={showToast} />}
+              />
+              <Route
+                path="/calendar"
+                element={<CalendarView onSelectJournal={(journal) => handleEditJournal(journal)} />}
+              />
+              <Route path="/ai-chat" element={<AIChatView />} />
+              <Route path="/search" element={<SearchView />} />
+              <Route path="/analytics" element={<AnalyticsView />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>
