@@ -1,0 +1,121 @@
+package com.aijournal.user.service;
+
+import com.aijournal.user.entity.UserPreferences;
+import com.aijournal.user.entity.UserProfile;
+import com.aijournal.user.repository.UserPreferencesRepository;
+import com.aijournal.user.repository.UserProfileRepository;
+import com.aijournal.user.service.impl.UserServiceImpl;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class UserServiceTest {
+
+    @Mock
+    private UserProfileRepository userProfileRepository;
+
+    @Mock
+    private UserPreferencesRepository userPreferencesRepository;
+
+    @InjectMocks
+    private UserServiceImpl userService;
+
+    @Test
+    void getProfile_ExistingProfile_ReturnsItWithoutSaving() {
+        UserProfile existing = new UserProfile(1L, "bio", "avatar.png", "555-1234", "US", "NYC");
+        when(userProfileRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        UserProfile result = userService.getProfile(1L);
+
+        assertThat(result).isSameAs(existing);
+        verify(userProfileRepository, never()).save(any());
+    }
+
+    @Test
+    void getProfile_NoExistingProfile_CreatesAndSavesDefault() {
+        when(userProfileRepository.findById(2L)).thenReturn(Optional.empty());
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfile result = userService.getProfile(2L);
+
+        ArgumentCaptor<UserProfile> captor = ArgumentCaptor.forClass(UserProfile.class);
+        verify(userProfileRepository).save(captor.capture());
+        assertThat(captor.getValue().getUserId()).isEqualTo(2L);
+        assertThat(result.getUserId()).isEqualTo(2L);
+    }
+
+    @Test
+    void updateProfile_OverwritesAllFiveMutableFields() {
+        UserProfile existing = new UserProfile(3L, "old bio", "old.png", "000", "CA", "Toronto");
+        when(userProfileRepository.findById(3L)).thenReturn(Optional.of(existing));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserProfile updates = new UserProfile(3L, "new bio", "new.png", "111", "UK", "London");
+        UserProfile result = userService.updateProfile(3L, updates);
+
+        assertThat(result.getBio()).isEqualTo("new bio");
+        assertThat(result.getAvatarUrl()).isEqualTo("new.png");
+        assertThat(result.getPhoneNumber()).isEqualTo("111");
+        assertThat(result.getCountry()).isEqualTo("UK");
+        assertThat(result.getCity()).isEqualTo("London");
+    }
+
+    @Test
+    void getPreferences_ExistingPreferences_ReturnsItWithoutSaving() {
+        UserPreferences existing = new UserPreferences(1L, false, "EST", "fr", false, false, "07:00");
+        when(userPreferencesRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        UserPreferences result = userService.getPreferences(1L);
+
+        assertThat(result).isSameAs(existing);
+        verify(userPreferencesRepository, never()).save(any());
+    }
+
+    @Test
+    void getPreferences_NoExistingPreferences_CreatesAndSavesDefault() {
+        when(userPreferencesRepository.findById(4L)).thenReturn(Optional.empty());
+        when(userPreferencesRepository.save(any(UserPreferences.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserPreferences result = userService.getPreferences(4L);
+
+        ArgumentCaptor<UserPreferences> captor = ArgumentCaptor.forClass(UserPreferences.class);
+        verify(userPreferencesRepository).save(captor.capture());
+        assertThat(captor.getValue().getUserId()).isEqualTo(4L);
+        assertThat(result.getUserId()).isEqualTo(4L);
+    }
+
+    @Test
+    void updatePreferences_OverwritesAllSixMutableFields() {
+        UserPreferences existing = new UserPreferences(5L, true, "UTC", "en", true, true, "20:00");
+        when(userPreferencesRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(userPreferencesRepository.save(any(UserPreferences.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserPreferences updates = new UserPreferences(5L, false, "PST", "es", false, false, "06:30");
+        UserPreferences result = userService.updatePreferences(5L, updates);
+
+        assertThat(result.getDarkMode()).isFalse();
+        assertThat(result.getTimeZone()).isEqualTo("PST");
+        assertThat(result.getLanguage()).isEqualTo("es");
+        assertThat(result.getEmailNotifications()).isFalse();
+        assertThat(result.getPushNotifications()).isFalse();
+        assertThat(result.getDailyReminderTime()).isEqualTo("06:30");
+    }
+
+    @Test
+    void deleteUserAccount_DeletesFromBothRepositories() {
+        userService.deleteUserAccount(6L);
+
+        verify(userProfileRepository).deleteById(6L);
+        verify(userPreferencesRepository).deleteById(6L);
+    }
+}
