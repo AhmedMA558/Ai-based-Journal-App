@@ -1,7 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, User, ShieldCheck, Palette, Server } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
+import { authService } from '@/services/authService';
+import { userService } from '@/services/userService';
 import ThemeCustomizer from './ThemeCustomizer';
 
 type SettingsTab = 'profile' | 'security' | 'appearance' | 'services';
@@ -11,10 +14,22 @@ interface SettingsModalProps {
   onClose: () => void;
 }
 
+interface CurrentUser {
+  username?: string;
+  email?: string;
+  fullName?: string;
+}
+
+interface ProfileData {
+  bio?: string;
+  avatarUrl?: string;
+  phoneNumber?: string;
+  country?: string;
+  city?: string;
+}
+
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-  const username = localStorage.getItem('user_name') || 'Journaler';
-  const userId = localStorage.getItem('user_id') || '1';
 
   if (!isOpen) return null;
 
@@ -51,44 +66,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
             {/* Inner Tab Content */}
             <div className="flex-1 p-6 overflow-y-auto">
-              {activeTab === 'profile' && (
-                <div className="flex flex-col gap-5">
-                  <h3 className="text-[1.1rem] font-bold">User Profile</h3>
-                  <div>
-                    <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Username</label>
-                    <input type="text" className="glass-input" defaultValue={username} readOnly />
-                  </div>
-                  <div>
-                    <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">User ID</label>
-                    <input type="text" className="glass-input" defaultValue={userId} readOnly />
-                  </div>
-                  <div>
-                    <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Primary Email</label>
-                    <input type="email" className="glass-input" defaultValue="user@journaler.ai" readOnly />
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'security' && (
-                <div className="flex flex-col gap-5">
-                  <h3 className="text-[1.1rem] font-bold">Security & Sessions</h3>
-                  <div className="bg-[rgba(99,102,241,0.1)] border border-[rgba(99,102,241,0.25)] p-4 rounded-xl">
-                    <div className="text-[0.9rem] font-semibold text-[#38bdf8] mb-[0.2rem]">10-Minute Active Session Enforced</div>
-                    <div className="text-[0.8rem] text-[#94a3b8]">
-                      Session tokens are signed with JWT and automatically expire after 10 minutes of inactivity.
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-[0.85rem] bg-white/[0.03] rounded-xl">
-                    <div>
-                      <div className="text-[0.9rem] font-semibold">Two-Factor Authentication (2FA)</div>
-                      <div className="text-xs text-[#64748b]">Add an extra layer of security using TOTP apps.</div>
-                    </div>
-                    <span className="text-xs bg-[rgba(34,197,94,0.15)] text-[#4ade80] py-[0.2rem] px-2 rounded-md font-bold">
-                      Enabled
-                    </span>
-                  </div>
-                </div>
-              )}
+              {activeTab === 'profile' && <ProfileTab isOpen={isOpen} />}
+              {activeTab === 'security' && <SecurityTab isOpen={isOpen} />}
 
               {activeTab === 'appearance' && (
                 <div className="flex flex-col gap-5">
@@ -116,6 +95,411 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </motion.div>
       </div>
     </AnimatePresence>
+  );
+}
+
+function ProfileTab({ isOpen }: { isOpen: boolean }) {
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [profile, setProfile] = useState<ProfileData>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([authService.getCurrentUser(), userService.getProfile()])
+      .then(([user, profileData]) => {
+        if (cancelled) return;
+        setCurrentUser(user || null);
+        setProfile(profileData || {});
+      })
+      .catch(() => {
+        if (!cancelled) setMessage('Failed to load profile.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  const handleSave = async (e: FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setMessage('');
+    try {
+      const updated = await userService.updateProfile(profile);
+      setProfile(updated || profile);
+      setMessage('Profile saved.');
+    } catch (err: any) {
+      setMessage(err?.message || 'Failed to save profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-[0.85rem] text-[#94a3b8]">Loading profile...</div>;
+  }
+
+  return (
+    <form onSubmit={handleSave} className="flex flex-col gap-5">
+      <h3 className="text-[1.1rem] font-bold">User Profile</h3>
+
+      <div>
+        <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Username</label>
+        <input type="text" className="glass-input" value={currentUser?.username || ''} readOnly />
+      </div>
+      <div>
+        <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Primary Email</label>
+        <input type="email" className="glass-input" value={currentUser?.email || ''} readOnly />
+      </div>
+      <div>
+        <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Bio</label>
+        <textarea
+          className="glass-input"
+          rows={3}
+          value={profile.bio || ''}
+          onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Phone Number</label>
+          <input
+            type="text"
+            className="glass-input"
+            value={profile.phoneNumber || ''}
+            onChange={(e) => setProfile({ ...profile, phoneNumber: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Country</label>
+          <input
+            type="text"
+            className="glass-input"
+            value={profile.country || ''}
+            onChange={(e) => setProfile({ ...profile, country: e.target.value })}
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">City</label>
+        <input
+          type="text"
+          className="glass-input"
+          value={profile.city || ''}
+          onChange={(e) => setProfile({ ...profile, city: e.target.value })}
+        />
+      </div>
+
+      {message && <p className="text-[0.8rem] text-[#94a3b8]">{message}</p>}
+
+      <button type="submit" disabled={saving} className="btn-primary self-start px-6">
+        {saving ? 'Saving...' : 'Save Profile'}
+      </button>
+    </form>
+  );
+}
+
+function SecurityTab({ isOpen }: { isOpen: boolean }) {
+  const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    authService
+      .getMfaStatus()
+      .then((status) => {
+        if (!cancelled) setMfaEnabled(Boolean(status?.mfaEnabled));
+      })
+      .catch(() => {
+        if (!cancelled) setMfaEnabled(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="flex flex-col gap-5">
+      <h3 className="text-[1.1rem] font-bold">Security & Sessions</h3>
+      <div className="bg-[rgba(99,102,241,0.1)] border border-[rgba(99,102,241,0.25)] p-4 rounded-xl">
+        <div className="text-[0.9rem] font-semibold text-[#38bdf8] mb-[0.2rem]">10-Minute Active Session Enforced</div>
+        <div className="text-[0.8rem] text-[#94a3b8]">
+          Session tokens are signed with JWT and automatically expire after 10 minutes of inactivity.
+        </div>
+      </div>
+
+      <PasswordChangeSection />
+
+      {mfaEnabled === null ? (
+        <div className="text-[0.85rem] text-[#94a3b8]">Loading 2FA status...</div>
+      ) : (
+        <TwoFactorSection mfaEnabled={mfaEnabled} onStatusChange={setMfaEnabled} />
+      )}
+    </div>
+  );
+}
+
+function PasswordChangeSection() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage('');
+    if (newPassword !== confirmNewPassword) {
+      setMessage('New passwords do not match.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await authService.changePassword(currentPassword, newPassword);
+      setMessage('Password changed successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setMessage(err?.message || 'Failed to change password.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-[0.85rem] bg-white/[0.03] rounded-xl">
+      <div className="text-[0.9rem] font-semibold">Change Password</div>
+      <input
+        type="password"
+        required
+        className="glass-input"
+        placeholder="Current password"
+        value={currentPassword}
+        onChange={(e) => setCurrentPassword(e.target.value)}
+      />
+      <input
+        type="password"
+        required
+        minLength={6}
+        className="glass-input"
+        placeholder="New password"
+        value={newPassword}
+        onChange={(e) => setNewPassword(e.target.value)}
+      />
+      <input
+        type="password"
+        required
+        className="glass-input"
+        placeholder="Confirm new password"
+        value={confirmNewPassword}
+        onChange={(e) => setConfirmNewPassword(e.target.value)}
+      />
+      {message && <p className="text-[0.8rem] text-[#94a3b8]">{message}</p>}
+      <button type="submit" disabled={saving} className="btn-secondary self-start px-5 text-[0.85rem]">
+        {saving ? 'Updating...' : 'Update Password'}
+      </button>
+    </form>
+  );
+}
+
+interface TwoFactorSectionProps {
+  mfaEnabled: boolean;
+  onStatusChange: (enabled: boolean) => void;
+}
+
+function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps) {
+  const [enrollStep, setEnrollStep] = useState<'idle' | 'setup' | 'recovery-codes'>('idle');
+  const [setupData, setSetupData] = useState<{ secret: string; otpAuthUri: string } | null>(null);
+  const [enrollCode, setEnrollCode] = useState('');
+  const [enrollError, setEnrollError] = useState('');
+  const [enrollSaving, setEnrollSaving] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [codesAcknowledged, setCodesAcknowledged] = useState(false);
+
+  const [showDisableForm, setShowDisableForm] = useState(false);
+  const [disablePassword, setDisablePassword] = useState('');
+  const [disableCode, setDisableCode] = useState('');
+  const [disableError, setDisableError] = useState('');
+  const [disableSaving, setDisableSaving] = useState(false);
+
+  const startSetup = async () => {
+    setEnrollError('');
+    try {
+      const data = await authService.setupMfa();
+      setSetupData(data);
+      setEnrollStep('setup');
+    } catch (err: any) {
+      setEnrollError(err?.message || 'Failed to start 2FA setup.');
+    }
+  };
+
+  const confirmEnable = async (e: FormEvent) => {
+    e.preventDefault();
+    setEnrollError('');
+    setEnrollSaving(true);
+    try {
+      const result = await authService.enableMfa(enrollCode);
+      setRecoveryCodes(result?.recoveryCodes || []);
+      setEnrollStep('recovery-codes');
+    } catch (err: any) {
+      setEnrollError(err?.message || 'Invalid code. Please try again.');
+    } finally {
+      setEnrollSaving(false);
+    }
+  };
+
+  const finishEnrollment = () => {
+    onStatusChange(true);
+    setEnrollStep('idle');
+    setSetupData(null);
+    setEnrollCode('');
+    setRecoveryCodes([]);
+    setCodesAcknowledged(false);
+  };
+
+  const handleDisable = async (e: FormEvent) => {
+    e.preventDefault();
+    setDisableError('');
+    setDisableSaving(true);
+    try {
+      await authService.disableMfa(disablePassword, disableCode);
+      onStatusChange(false);
+      setShowDisableForm(false);
+      setDisablePassword('');
+      setDisableCode('');
+    } catch (err: any) {
+      setDisableError(err?.message || 'Failed to disable 2FA.');
+    } finally {
+      setDisableSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 p-[0.85rem] bg-white/[0.03] rounded-xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[0.9rem] font-semibold">Two-Factor Authentication (2FA)</div>
+          <div className="text-xs text-[#64748b]">Add an extra layer of security using TOTP apps.</div>
+        </div>
+        <span
+          className={cn(
+            'text-xs py-[0.2rem] px-2 rounded-md font-bold',
+            mfaEnabled ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]' : 'bg-[rgba(148,163,184,0.15)] text-[#94a3b8]'
+          )}
+        >
+          {mfaEnabled ? 'Enabled' : 'Disabled'}
+        </span>
+      </div>
+
+      {!mfaEnabled && enrollStep === 'idle' && (
+        <button type="button" onClick={startSetup} className="btn-primary self-start px-5 text-[0.85rem]">
+          Set Up 2FA
+        </button>
+      )}
+
+      {enrollStep === 'setup' && setupData && (
+        <div className="flex flex-col gap-3">
+          <p className="text-[0.8rem] text-[#94a3b8]">Scan this QR code with your authenticator app:</p>
+          <div className="bg-white p-3 rounded-xl self-start">
+            <QRCodeSVG value={setupData.otpAuthUri} size={160} />
+          </div>
+          <p className="text-[0.75rem] text-[#64748b]">
+            Or enter this code manually: <code className="text-[#c084fc]">{setupData.secret}</code>
+          </p>
+          <form onSubmit={confirmEnable} className="flex flex-col gap-2">
+            <input
+              type="text"
+              required
+              autoFocus
+              className="glass-input"
+              placeholder="Enter the 6-digit code to confirm"
+              value={enrollCode}
+              onChange={(e) => setEnrollCode(e.target.value)}
+            />
+            {enrollError && <p className="text-[0.8rem] text-[#f87171]">{enrollError}</p>}
+            <button type="submit" disabled={enrollSaving} className="btn-primary self-start px-5 text-[0.85rem]">
+              {enrollSaving ? 'Confirming...' : 'Confirm & Enable'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {enrollStep === 'recovery-codes' && (
+        <div className="flex flex-col gap-3">
+          <p className="text-[0.85rem] font-semibold text-[#fde047]">
+            Save these recovery codes now - they won't be shown again.
+          </p>
+          <div className="grid grid-cols-2 gap-2 bg-black/30 p-3 rounded-xl font-mono text-[0.8rem]">
+            {recoveryCodes.map((code) => (
+              <span key={code}>{code}</span>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 text-[0.8rem] text-[#94a3b8]">
+            <input
+              type="checkbox"
+              checked={codesAcknowledged}
+              onChange={(e) => setCodesAcknowledged(e.target.checked)}
+            />
+            I've saved these recovery codes
+          </label>
+          <button
+            type="button"
+            disabled={!codesAcknowledged}
+            onClick={finishEnrollment}
+            className="btn-primary self-start px-5 text-[0.85rem]"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
+      {mfaEnabled && !showDisableForm && (
+        <button
+          type="button"
+          onClick={() => setShowDisableForm(true)}
+          className="btn-secondary self-start px-5 text-[0.85rem]"
+        >
+          Disable 2FA
+        </button>
+      )}
+
+      {mfaEnabled && showDisableForm && (
+        <form onSubmit={handleDisable} className="flex flex-col gap-2">
+          <input
+            type="password"
+            required
+            className="glass-input"
+            placeholder="Current password"
+            value={disablePassword}
+            onChange={(e) => setDisablePassword(e.target.value)}
+          />
+          <input
+            type="text"
+            required
+            className="glass-input"
+            placeholder="6-digit authenticator code"
+            value={disableCode}
+            onChange={(e) => setDisableCode(e.target.value)}
+          />
+          {disableError && <p className="text-[0.8rem] text-[#f87171]">{disableError}</p>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={disableSaving} className="btn-secondary px-5 text-[0.85rem]">
+              {disableSaving ? 'Disabling...' : 'Confirm Disable'}
+            </button>
+            <button type="button" onClick={() => setShowDisableForm(false)} className="btn-secondary px-5 text-[0.85rem]">
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
