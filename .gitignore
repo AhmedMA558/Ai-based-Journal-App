@@ -36,3 +36,4 @@ Desktop.ini
 
 # Secrets
 .env
+k8s/02-secret.yaml

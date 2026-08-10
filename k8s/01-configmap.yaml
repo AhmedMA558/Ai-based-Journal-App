@@ -1,0 +1,14 @@
+# Shared non-secret configuration consumed via envFrom by every Java service.
+# These are the same hostname/URL values docker-compose.yml hardcodes per
+# service - K8s Service DNS resolution works the same way Compose's does, so
+# as long as each Service below is named to match, no URLs need to change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://discovery-server:8761/eureka/"
+  SPRING_RABBITMQ_HOST: "rabbitmq"
+  SPRING_ELASTICSEARCH_URIS: "http://elasticsearch:9200"
+  FLASK_AI_URL: "http://python-ai-service:5000"
+  AI_PROVIDER: "flask"
