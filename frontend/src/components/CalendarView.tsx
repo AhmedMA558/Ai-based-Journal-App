@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
 import { MOOD_META, type Mood } from '@/lib/moods';
@@ -26,18 +26,25 @@ const MONTH_NAMES = [
 export default function CalendarView({ onSelectJournal }: CalendarViewProps) {
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     fetchJournals();
   }, []);
 
   const fetchJournals = async () => {
+    setLoading(true);
+    setError('');
     try {
       const res = await journalService.getAllJournals();
       const list = res?.data || res || [];
       setJournals(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error('Calendar error:', err);
+      setError('Could not load your calendar. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -69,7 +76,7 @@ export default function CalendarView({ onSelectJournal }: CalendarViewProps) {
   });
 
   return (
-    <div className="p-8 max-w-[1000px] mx-auto flex flex-col gap-6">
+    <div className="p-8 max-w-[1000px] mx-auto flex flex-col gap-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -89,43 +96,57 @@ export default function CalendarView({ onSelectJournal }: CalendarViewProps) {
         </div>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Calendar Grid */}
-      <div className="glass-panel p-7">
-        <div className="grid grid-cols-7 gap-3 text-center font-semibold text-[#94a3b8] mb-4 text-[0.85rem]">
-          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-        </div>
+      {loading ? (
+        <div className="glass-panel p-7 skeleton-pulse h-[420px] rounded-[20px]" />
+      ) : (
+        !error && (
+          <div className="glass-panel p-7">
+            <div className="grid grid-cols-7 gap-3 text-center font-semibold text-[#94a3b8] mb-4 text-[0.85rem]">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
 
-        <div className="grid grid-cols-7 gap-3">
-          {days.map((day, idx) => {
-            if (!day) {
-              return <div key={idx} className="h-20 opacity-20" />;
-            }
+            <div className="grid grid-cols-7 gap-3">
+              {days.map((day, idx) => {
+                if (!day) {
+                  return <div key={idx} className="h-20 opacity-20" />;
+                }
 
-            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const journalForDay = journalMap[dateKey];
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const journalForDay = journalMap[dateKey];
 
-            return (
-              <div
-                key={idx}
-                onClick={() => journalForDay && onSelectJournal(journalForDay)}
-                className={cn(
-                  'h-20 rounded-xl p-2 flex flex-col justify-between transition-all duration-200',
-                  journalForDay
-                    ? 'bg-[rgba(99,102,241,0.18)] border border-[rgba(99,102,241,0.4)] cursor-pointer'
-                    : 'bg-white/[0.03] border border-white/5 cursor-default'
-                )}
-              >
-                <span className={cn('text-[0.8rem] font-semibold', journalForDay ? 'text-[#f8fafc]' : 'text-[#64748b]')}>
-                  {day}
-                </span>
-                {journalForDay && (
-                  <div className="text-[1.4rem] text-center">{getMoodEmoji(journalForDay.mood)}</div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => journalForDay && onSelectJournal(journalForDay)}
+                    className={cn(
+                      'h-20 rounded-xl p-2 flex flex-col justify-between transition-all duration-200',
+                      journalForDay
+                        ? 'bg-[rgba(99,102,241,0.18)] border border-[rgba(99,102,241,0.4)] cursor-pointer'
+                        : 'bg-white/[0.03] border border-white/5 cursor-default'
+                    )}
+                  >
+                    <span className={cn('text-[0.8rem] font-semibold', journalForDay ? 'text-[#f8fafc]' : 'text-[#64748b]')}>
+                      {day}
+                    </span>
+                    {journalForDay && (
+                      <div className="text-[1.4rem] text-center">{getMoodEmoji(journalForDay.mood)}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )
+      )}
     </div>
   );
 }

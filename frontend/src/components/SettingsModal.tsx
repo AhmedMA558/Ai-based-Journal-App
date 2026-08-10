@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, ShieldCheck, Palette, Server } from 'lucide-react';
+import { X, User, ShieldCheck, Palette, Server, AlertCircle } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
@@ -55,9 +55,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
 
           {/* Modal Body: Sidebar Tabs + Main View */}
-          <div className="flex flex-1 overflow-hidden">
-            {/* Inner Settings Sidebar */}
-            <div className="w-[220px] border-r border-r-white/[0.08] p-4 flex flex-col gap-[0.35rem]">
+          <div className="flex flex-col sm:flex-row flex-1 overflow-hidden">
+            {/* Inner Settings Sidebar - horizontal scrollable tab row on mobile, vertical list from sm: up */}
+            <div className="w-full sm:w-[220px] shrink-0 border-b sm:border-b-0 sm:border-r border-white/[0.08] p-4 flex flex-row sm:flex-col gap-[0.35rem] overflow-x-auto sm:overflow-x-visible">
               <SettingsTabBtn icon={<User size={16} />} label="Profile & User" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
               <SettingsTabBtn icon={<ShieldCheck size={16} />} label="Security & Sessions" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
               <SettingsTabBtn icon={<Palette size={16} />} label="Appearance & Themes" active={activeTab === 'appearance'} onClick={() => setActiveTab('appearance')} />
@@ -102,6 +102,7 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profile, setProfile] = useState<ProfileData>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -109,6 +110,7 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
     if (!isOpen) return;
     let cancelled = false;
     setLoading(true);
+    setLoadError('');
     Promise.all([authService.getCurrentUser(), userService.getProfile()])
       .then(([user, profileData]) => {
         if (cancelled) return;
@@ -116,7 +118,7 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
         setProfile(profileData || {});
       })
       .catch(() => {
-        if (!cancelled) setMessage('Failed to load profile.');
+        if (!cancelled) setLoadError('Failed to load profile. Please try reopening Settings.');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -142,7 +144,23 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   };
 
   if (loading) {
-    return <div className="text-[0.85rem] text-[#94a3b8]">Loading profile...</div>;
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="skeleton-pulse h-6 w-40 rounded-lg" />
+        <div className="skeleton-pulse h-10 rounded-lg" />
+        <div className="skeleton-pulse h-10 rounded-lg" />
+        <div className="skeleton-pulse h-20 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+        <AlertCircle size={18} />
+        <span>{loadError}</span>
+      </div>
+    );
   }
 
   return (
@@ -166,7 +184,7 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
           onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
         />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Phone Number</label>
           <input
@@ -207,17 +225,19 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
 
 function SecurityTab({ isOpen }: { isOpen: boolean }) {
   const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
+  const [mfaLoadError, setMfaLoadError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
+    setMfaLoadError('');
     authService
       .getMfaStatus()
       .then((status) => {
         if (!cancelled) setMfaEnabled(Boolean(status?.mfaEnabled));
       })
       .catch(() => {
-        if (!cancelled) setMfaEnabled(false);
+        if (!cancelled) setMfaLoadError('Could not load 2FA status. Please try reopening Settings.');
       });
     return () => {
       cancelled = true;
@@ -236,8 +256,13 @@ function SecurityTab({ isOpen }: { isOpen: boolean }) {
 
       <PasswordChangeSection />
 
-      {mfaEnabled === null ? (
-        <div className="text-[0.85rem] text-[#94a3b8]">Loading 2FA status...</div>
+      {mfaLoadError ? (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+          <AlertCircle size={18} />
+          <span>{mfaLoadError}</span>
+        </div>
+      ) : mfaEnabled === null ? (
+        <div className="skeleton-pulse h-16 rounded-xl" />
       ) : (
         <TwoFactorSection mfaEnabled={mfaEnabled} onStatusChange={setMfaEnabled} />
       )}
@@ -436,7 +461,7 @@ function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps)
           <p className="text-[0.85rem] font-semibold text-[#fde047]">
             Save these recovery codes now - they won't be shown again.
           </p>
-          <div className="grid grid-cols-2 gap-2 bg-black/30 p-3 rounded-xl font-mono text-[0.8rem]">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-black/30 p-3 rounded-xl font-mono text-[0.8rem]">
             {recoveryCodes.map((code) => (
               <span key={code}>{code}</span>
             ))}
@@ -515,7 +540,7 @@ function SettingsTabBtn({ icon, label, active, onClick }: SettingsTabBtnProps) {
     <button
       onClick={onClick}
       className={cn(
-        'flex items-center gap-[0.65rem] py-[0.65rem] px-[0.85rem] rounded-[10px] border-0 text-[0.85rem] cursor-pointer text-left w-full',
+        'flex items-center gap-[0.65rem] py-[0.65rem] px-[0.85rem] rounded-[10px] border-0 text-[0.85rem] cursor-pointer text-left shrink-0 sm:w-full sm:shrink whitespace-nowrap',
         active
           ? 'bg-[linear-gradient(135deg,rgba(99,102,241,0.25),rgba(168,85,247,0.15))] text-white font-semibold'
           : 'bg-transparent text-[#94a3b8] font-medium'

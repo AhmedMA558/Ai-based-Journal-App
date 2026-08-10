@@ -180,7 +180,10 @@ body {
   }
 
   aside {
-    width: 100% !important;
+    /* 100% width plus its own 0.5rem margin on each side pushed the sidebar 1rem
+       wider than the viewport (a real, pre-existing horizontal-overflow bug found
+       while verifying mobile responsiveness) - subtract the margin from the width. */
+    width: calc(100% - 1rem) !important;
     height: auto !important;
     margin: 0.5rem !important;
   }

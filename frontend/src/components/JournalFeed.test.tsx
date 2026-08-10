@@ -35,6 +35,13 @@ describe('JournalFeed', () => {
     expect(screen.getByText('Stressful Week')).toBeInTheDocument();
   });
 
+  it('shows a styled error banner when journals fail to load', async () => {
+    mockedGetAllJournals.mockRejectedValue(new Error('network down'));
+    render(<JournalFeed onNewJournal={vi.fn()} onEditJournal={vi.fn()} />);
+
+    expect(await screen.findByText('Could not load your journals. Please try refreshing.')).toBeInTheDocument();
+  });
+
   it('shows the empty state when there are no journals', async () => {
     mockedGetAllJournals.mockResolvedValue([]);
     render(<JournalFeed onNewJournal={vi.fn()} onEditJournal={vi.fn()} />);

@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { BookOpen, Plus, Download, Edit3, Trash2, LayoutGrid, List, Filter } from 'lucide-react';
+import { BookOpen, Plus, Download, Edit3, Trash2, LayoutGrid, List, Filter, AlertCircle } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
 import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
@@ -39,6 +39,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
   const [journals, setJournals] = useState<Journal[]>([]);
   const [filteredJournals, setFilteredJournals] = useState<Journal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedMoodFilter, setSelectedMoodFilter] = useState<MoodFilter>('ALL');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
@@ -48,6 +49,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
 
   const fetchJournals = async () => {
     setLoading(true);
+    setError('');
     try {
       const list = await journalService.getAllJournals();
       const arr: Journal[] = Array.isArray(list) ? list : [];
@@ -55,6 +57,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
       setFilteredJournals(arr);
     } catch (err) {
       console.error('Failed to load journals:', err);
+      setError('Could not load your journals. Please try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -112,7 +115,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
   };
 
   return (
-    <div className="p-8 max-w-[1200px] mx-auto flex flex-col gap-7">
+    <div className="p-8 max-w-[1200px] mx-auto flex flex-col gap-7 animate-fade-in">
       {/* Feed Header Bar */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
@@ -180,8 +183,13 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
       </div>
 
       {/* Journal Cards Feed */}
-      {loading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
+      {error ? (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6">
           {[1, 2, 3].map((n) => (
             <div key={n} className="glass-panel skeleton-pulse h-[220px] rounded-[20px]" />
           ))}
@@ -196,7 +204,7 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
           </button>
         </div>
       ) : (
-        <div className={cn('gap-6', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))]' : 'flex flex-col')}>
+        <div className={cn('gap-6', viewMode === 'grid' ? 'grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))]' : 'flex flex-col')}>
           {filteredJournals.map((journal) => (
             <div key={journal.id} className="glass-panel p-6 flex flex-col gap-[0.85rem] relative">
               <div className="flex items-center justify-between">

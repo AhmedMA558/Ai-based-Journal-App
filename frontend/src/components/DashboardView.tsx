@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw } from 'lucide-react';
+import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { aiService } from '@/services/aiService';
 import { MOOD_META, type Mood } from '@/lib/moods';
@@ -41,6 +41,7 @@ function getMoodBadgeStyle(mood?: string): MoodBadgeStyle {
 export default function DashboardView({ onNewJournal, onSelectJournal, showToast }: DashboardViewProps) {
   const [journals, setJournals] = useState<Journal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [recommendation, setRecommendation] = useState('Take 5 deep breaths and reflect on 3 good things today.');
   const username = localStorage.getItem('user_name') || 'Journaler';
 
@@ -50,6 +51,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
 
   const fetchDashboardData = async () => {
     setLoading(true);
+    setError('');
     try {
       const list = await journalService.getAllJournals();
       setJournals(Array.isArray(list) ? list : []);
@@ -64,6 +66,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
       }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
+      setError('Could not load your dashboard. Please try refreshing.');
     } finally {
       setLoading(false);
     }
@@ -150,8 +153,13 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
       </div>
 
       {/* Recent Entries Feed */}
-      {loading ? (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
+      {error ? (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6">
           {[1, 2, 3].map((n) => (
             <div key={n} className="glass-panel skeleton-pulse h-[200px] rounded-[20px]" />
           ))}
@@ -167,7 +175,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6">
           {journals.slice(0, 6).map((journal) => (
             <DashboardJournalCard
               key={journal.id}

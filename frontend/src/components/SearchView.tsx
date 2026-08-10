@@ -65,7 +65,7 @@ export default function SearchView() {
   });
 
   return (
-    <div className="p-8 max-w-[1100px] mx-auto flex flex-col gap-6">
+    <div className="p-8 max-w-[1100px] mx-auto flex flex-col gap-6 animate-fade-in">
       {/* Search Header */}
       <div>
         <h1 className="text-[2rem] font-extrabold flex items-center gap-[0.6rem]">
@@ -145,7 +145,7 @@ export default function SearchView() {
           <p className="text-[#94a3b8]">Try adjusting your search query or mood filters.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-6">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-6">
           {sortedResults.map((j) => (
             <div key={j.id} className="glass-panel p-6 flex flex-col gap-3">
               <div className="flex items-center justify-between">

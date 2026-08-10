@@ -70,7 +70,7 @@ export default function AIChatView() {
   };
 
   return (
-    <div className="p-8 max-w-[1000px] mx-auto flex flex-col h-[calc(100vh-120px)]">
+    <div className="p-8 max-w-[1000px] mx-auto flex flex-col h-[calc(100vh-120px)] animate-fade-in">
       {/* Top Header */}
       <div className="flex items-center justify-between mb-4">
         <div>

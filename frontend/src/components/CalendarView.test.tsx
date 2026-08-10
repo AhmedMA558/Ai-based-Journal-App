@@ -21,7 +21,7 @@ describe('CalendarView', () => {
     mockedGetAllJournals.mockResolvedValue([]);
     render(<CalendarView onSelectJournal={vi.fn()} />);
 
-    expect(screen.getByText('Sun')).toBeInTheDocument();
+    expect(await screen.findByText('Sun')).toBeInTheDocument();
     expect(screen.getByText('Sat')).toBeInTheDocument();
 
     const now = new Date();
@@ -46,6 +46,13 @@ describe('CalendarView', () => {
     await waitFor(() => {
       expect(screen.getByText(`${monthNames[nextExpected.getMonth()]} ${nextExpected.getFullYear()}`)).toBeInTheDocument();
     });
+  });
+
+  it('shows a styled error banner when journals fail to load', async () => {
+    mockedGetAllJournals.mockRejectedValue(new Error('network down'));
+    render(<CalendarView onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('Could not load your calendar. Please try again.')).toBeInTheDocument();
   });
 
   it('renders a mood emoji on a day with a journal entry and calls onSelectJournal when clicked', async () => {
