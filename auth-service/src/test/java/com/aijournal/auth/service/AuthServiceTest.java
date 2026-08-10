@@ -90,7 +90,7 @@ class AuthServiceTest {
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
 
-        AuthResponse response = authService.login(request);
+        AuthResponse response = (AuthResponse) authService.login(request);
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
