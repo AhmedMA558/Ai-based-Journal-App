@@ -159,6 +159,42 @@ services:
       - elasticsearch
       - rabbitmq
 
+  recommendation-service:
+    build: ./recommendation-service
+    container_name: recommendation-service-prod
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+
+  notification-service:
+    build: ./notification-service
+    container_name: notification-service-prod
+    restart: always
+    ports:
+      - "8087:8087"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service-prod
+    restart: always
+    ports:
+      - "8088:8088"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+
+  file-service:
+    build: ./file-service
+    container_name: file-service-prod
+    restart: always
+    ports:
+      - "8089:8089"
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+
   frontend:
     build: ./frontend
     container_name: journal-frontend-prod
