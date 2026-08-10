@@ -43,6 +43,14 @@ public class User {
     @Column(name = "provider_id")
     private String providerId;
 
+    @Column(name = "mfa_enabled", nullable = false)
+    private Boolean mfaEnabled = false;
+
+    // AES/GCM-encrypted ciphertext (see TotpEncryptionService) - never stored or
+    // read as plaintext.
+    @Column(name = "totp_secret")
+    private String totpSecret;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
@@ -98,6 +106,7 @@ public class User {
         if (this.accountNonLocked == null) this.accountNonLocked = true;
         if (this.isDeleted == null) this.isDeleted = false;
         if (this.provider == null) this.provider = AuthProvider.LOCAL;
+        if (this.mfaEnabled == null) this.mfaEnabled = false;
     }
 
     @PreUpdate
@@ -123,6 +132,10 @@ public class User {
     public void setProvider(AuthProvider provider) { this.provider = provider; }
     public String getProviderId() { return providerId; }
     public void setProviderId(String providerId) { this.providerId = providerId; }
+    public Boolean getMfaEnabled() { return mfaEnabled; }
+    public void setMfaEnabled(Boolean mfaEnabled) { this.mfaEnabled = mfaEnabled; }
+    public String getTotpSecret() { return totpSecret; }
+    public void setTotpSecret(String totpSecret) { this.totpSecret = totpSecret; }
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
     public LocalDateTime getCreatedAt() { return createdAt; }
