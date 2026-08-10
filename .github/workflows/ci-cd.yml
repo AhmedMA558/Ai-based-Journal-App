@@ -1,0 +1,173 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  backend-test:
+    name: Build & Test Spring Boot Reactor
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=5
+
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Package all modules
+        run: mvn -B clean install -DskipTests
+
+      - name: Run unit & integration tests
+        run: mvn -B test
+
+      - name: Upload service jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-jars
+          path: |
+            */target/*.jar
+            !common-library/target/*.jar
+          retention-days: 1
+
+  frontend-test:
+    name: Build & Test React Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run tests
+        working-directory: frontend
+        run: npm run test
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+
+  python-smoke-test:
+    name: Verify Python Flask AI Microservice
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install & smoke-test AI engine
+        working-directory: python-ai-service
+        run: |
+          pip install -r requirements.txt
+          python -c "import app; print('AI Engine Initialized Cleanly')"
+
+  docker-build-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, python-smoke-test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 12 Java Spring Boot services - each needs a pre-built jar from backend-test
+          - service: config-server
+            needs_jar: true
+          - service: discovery-server
+            needs_jar: true
+          - service: gateway-service
+            needs_jar: true
+          - service: auth-service
+            needs_jar: true
+          - service: user-service
+            needs_jar: true
+          - service: journal-service
+            needs_jar: true
+          - service: ai-service
+            needs_jar: true
+          - service: search-service
+            needs_jar: true
+          - service: recommendation-service
+            needs_jar: true
+          - service: notification-service
+            needs_jar: true
+          - service: analytics-service
+            needs_jar: true
+          - service: file-service
+            needs_jar: true
+          # Frontend and Python AI service build from source, no jar needed
+          - service: frontend
+            needs_jar: false
+          - service: python-ai-service
+            needs_jar: false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download service jars
+        if: matrix.needs_jar
+        uses: actions/download-artifact@v4
+        with:
+          name: service-jars
+
+      - name: Build image
+        run: |
+          docker build \
+            -t ahmedma558/ai-journal-${{ matrix.service }}:${{ github.sha }} \
+            -t ahmedma558/ai-journal-${{ matrix.service }}:latest \
+            ./${{ matrix.service }}
+
+      # Docker Hub push requires DOCKERHUB_USERNAME/DOCKERHUB_TOKEN repo secrets
+      # (Settings -> Secrets and variables -> Actions). Until those are configured,
+      # this step is silently skipped - the build above still runs and validates
+      # every Dockerfile on every push/PR without needing any secrets.
+      - name: Check registry credentials configured
+        id: creds
+        run: |
+          if [ -n "${{ secrets.DOCKERHUB_USERNAME }}" ] && [ -n "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Log in to Docker Hub
+        if: steps.creds.outputs.configured == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image
+        if: steps.creds.outputs.configured == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker push ahmedma558/ai-journal-${{ matrix.service }}:${{ github.sha }}
+          docker push ahmedma558/ai-journal-${{ matrix.service }}:latest
