@@ -65,8 +65,10 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
         )}
       </div>
 
-      {/* Navigation Items */}
-      <nav className="flex flex-col gap-2 flex-1">
+      {/* Navigation Items - below the global lg: (1024px) breakpoint the sidebar itself
+          becomes a full-width block (see index.css); turn the item list into a compact
+          horizontal scrollable row here instead of a tall stacked list pushing content down. */}
+      <nav className="flex flex-col gap-2 flex-1 max-lg:flex-row max-lg:flex-none max-lg:overflow-x-auto max-lg:gap-1 max-lg:pb-1">
         <NavItem
           icon={<LayoutDashboard size={20} />}
           label="Dashboard"
@@ -175,7 +177,7 @@ function NavItem({ icon, label, active, badge, collapsed, onClick }: NavItemProp
       onClick={onClick}
       title={collapsed ? label : ''}
       className={cn(
-        'flex items-center gap-[0.85rem] rounded-xl border-0 text-[0.95rem] cursor-pointer w-full transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] relative',
+        'flex items-center gap-[0.85rem] rounded-xl border-0 text-[0.95rem] cursor-pointer w-full max-lg:w-auto max-lg:shrink-0 transition-all duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] relative',
         collapsed ? 'py-3 justify-center' : 'py-[0.85rem] px-4 justify-start',
         active
           ? 'bg-[linear-gradient(135deg,rgba(99,102,241,0.25),rgba(168,85,247,0.15))] text-white font-semibold'

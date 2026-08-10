@@ -9,7 +9,6 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -69,7 +68,7 @@ class LocalFileStorageStrategyTest {
     void storeFile_TransferThrowsIOException_ThrowsBadRequestException() throws IOException {
         MultipartFile file = Mockito.mock(MultipartFile.class);
         when(file.getOriginalFilename()).thenReturn("photo.jpg");
-        doThrow(new IOException("disk full")).when(file).transferTo(any(File.class));
+        doThrow(new IOException("disk full")).when(file).transferTo(any(Path.class));
 
         assertThatThrownBy(() -> strategy.storeFile(file, "user-4"))
                 .isInstanceOf(BadRequestException.class);

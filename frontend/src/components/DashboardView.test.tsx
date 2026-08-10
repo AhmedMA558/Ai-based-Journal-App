@@ -106,6 +106,14 @@ describe('DashboardView', () => {
     expect(showToast).toHaveBeenCalledWith('Journal entry deleted.', 'info');
   });
 
+  it('shows a styled error banner when journals fail to load', async () => {
+    mockedGetAllJournals.mockRejectedValue(new Error('network down'));
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    expect(await screen.findByText('Could not load your dashboard. Please try refreshing.')).toBeInTheDocument();
+    expect(screen.queryByText('No Journal Entries Yet')).not.toBeInTheDocument();
+  });
+
   it('re-fetches journals when the refresh button is clicked', async () => {
     mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
     const user = userEvent.setup();

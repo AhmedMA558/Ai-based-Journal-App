@@ -1,8 +1,16 @@
+import axios from 'axios';
 import api from './api';
 import Cookies from 'js-cookie';
 
 const SESSION_DURATION_MS = 10 * 60 * 1000; // 10 Minutes in milliseconds
 const COOKIE_EXPIRES_DAYS = 10 / (24 * 60); // 10 Minutes in days (10/1440)
+
+// Dedicated axios instance for the refresh call - deliberately bypasses api.js's
+// interceptors so a refresh failure can't recursively trigger another refresh attempt.
+const refreshClient = axios.create({
+  baseURL: api.defaults.baseURL,
+  headers: { 'Content-Type': 'application/json' },
+});
 
 export const authService = {
   // Login user and set 10-minute session expiry
@@ -10,7 +18,7 @@ export const authService = {
     const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
     const authData = res?.data?.data;
     if (authData?.accessToken) {
-      authService.setSession(authData.accessToken, authData.userId, authData.username || usernameOrEmail);
+      authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username || usernameOrEmail);
     }
     return res;
   },
@@ -20,7 +28,7 @@ export const authService = {
     const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
     const authData = res?.data?.data;
     if (authData?.accessToken) {
-      authService.setSession(authData.accessToken, authData.userId, authData.username || username);
+      authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username || username);
     }
     return res;
   },
@@ -31,9 +39,26 @@ export const authService = {
     const res = await api.post('/api/v1/auth/mfa/verify', { challengeToken, code, recoveryCode });
     const authData = res?.data?.data;
     if (authData?.accessToken) {
-      authService.setSession(authData.accessToken, authData.userId, authData.username);
+      authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username);
     }
     return res;
+  },
+
+  // Exchanges the stored (single-use) refresh token for a new access/refresh pair.
+  // Throws if the refresh token is missing, expired, or already revoked - callers
+  // should treat a throw here as "the session is over, log out."
+  refreshAccessToken: async () => {
+    const refreshToken = localStorage.getItem('jwt_refresh_token');
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    const res = await refreshClient.post('/api/v1/auth/refresh', { refreshToken });
+    const authData = res?.data?.data;
+    if (!authData?.accessToken) {
+      throw new Error('Refresh response missing an access token');
+    }
+    authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username);
+    return authData.accessToken;
   },
 
   // Get the authenticated user's real identity (username/email/fullName) -
@@ -56,13 +81,21 @@ export const authService = {
   disableMfa: async (password, code) =>
     (await api.post('/api/v1/auth/mfa/disable', { password, code }))?.data?.data,
 
-  // Set active session tokens with strict 10-minute expiration
-  setSession: (token, userId, username) => {
+  // Set active session tokens with strict 10-minute (client-side, activity-driven)
+  // expiration. refreshToken is the single-use rotating token used by
+  // refreshAccessToken() - the access token itself expires server-side after 15
+  // minutes regardless of client activity, so a session that stays "valid" locally
+  // for longer than that relies on the response interceptor in api.js calling
+  // refreshAccessToken() transparently on a 401, not on this expiry alone.
+  setSession: (token, refreshToken, userId, username) => {
     const expiryTime = Date.now() + SESSION_DURATION_MS;
     Cookies.set('jwt_token', token, { expires: COOKIE_EXPIRES_DAYS, sameSite: 'Lax' });
     localStorage.setItem('jwt_token', token);
+    if (refreshToken) {
+      localStorage.setItem('jwt_refresh_token', refreshToken);
+    }
     localStorage.setItem('user_id', String(userId || '1'));
-    localStorage.setItem('user_name', username || 'Journaler');
+    localStorage.setItem('user_name', username || localStorage.getItem('user_name') || 'Journaler');
     localStorage.setItem('session_expiry', String(expiryTime));
   },
 
@@ -79,10 +112,16 @@ export const authService = {
     }
   },
 
-  // Logout user and clear tokens
+  // Logout user and clear tokens. Best-effort revokes the refresh token server-side
+  // (fire-and-forget - local state is cleared regardless of whether this succeeds).
   logout: () => {
+    const refreshToken = localStorage.getItem('jwt_refresh_token');
+    if (refreshToken) {
+      refreshClient.post('/api/v1/auth/logout', { refreshToken }).catch(() => {});
+    }
     Cookies.remove('jwt_token');
     localStorage.removeItem('jwt_token');
+    localStorage.removeItem('jwt_refresh_token');
     localStorage.removeItem('user_id');
     localStorage.removeItem('user_name');
     localStorage.removeItem('session_expiry');

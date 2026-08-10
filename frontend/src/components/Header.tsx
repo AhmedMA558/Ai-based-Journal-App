@@ -20,11 +20,11 @@ export default function Header({
   const username = localStorage.getItem('user_name') || 'Journaler';
 
   return (
-    <header className="glass-panel mx-4 mt-4 mb-0 py-[0.85rem] px-6 flex items-center justify-between z-10">
+    <header className="glass-panel mx-4 mt-4 mb-0 py-[0.85rem] px-6 flex flex-wrap items-center justify-between gap-3 z-10">
       {/* Search Bar / Raycast Command Palette Launcher */}
       <button
         onClick={onOpenCommandPalette}
-        className="flex items-center gap-3 bg-white/5 border border-white/10 py-2 px-4 rounded-xl text-[var(--text-secondary,#94a3b8)] text-[0.9rem] cursor-pointer w-[320px] max-w-full transition-all duration-200"
+        className="flex items-center gap-3 bg-white/5 border border-white/10 py-2 px-4 rounded-xl text-[var(--text-secondary,#94a3b8)] text-[0.9rem] cursor-pointer w-full sm:w-[320px] max-w-full transition-all duration-200"
       >
         <Search size={16} color="var(--accent-indigo, #6366f1)" />
         <span className="flex-1 text-left">Search commands, actions...</span>
@@ -35,10 +35,10 @@ export default function Header({
 
       {/* Right Controls Suite */}
       <div className="flex items-center gap-[0.85rem]">
-        {/* 10-Min Active Session Security Badge */}
+        {/* 10-Min Active Session Security Badge - text label hidden below sm: to avoid clipping */}
         <div className="flex items-center gap-[0.4rem] bg-[rgba(99,102,241,0.12)] border border-[rgba(99,102,241,0.25)] py-[0.4rem] px-3 rounded-xl text-xs text-[#38bdf8] font-semibold">
           <ShieldCheck size={14} color="#38bdf8" />
-          <span>10-Min Session Active</span>
+          <span className="hidden sm:inline">10-Min Session Active</span>
         </div>
 
         {/* Notifications Drawer Button */}

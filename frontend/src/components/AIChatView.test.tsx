@@ -39,7 +39,7 @@ describe('AIChatView', () => {
   });
 
   it('sends a typed message and displays the AI reply', async () => {
-    mockedChat.mockResolvedValue({ data: { response: 'Here is a helpful reply.' } } as any);
+    mockedChat.mockResolvedValue({ data: { data: 'Here is a helpful reply.' } } as any);
     const user = userEvent.setup();
     render(<AIChatView />);
 
@@ -52,7 +52,7 @@ describe('AIChatView', () => {
   });
 
   it('sends a preset prompt when clicked', async () => {
-    mockedChat.mockResolvedValue({ data: { response: 'Sure, here are some prompts.' } } as any);
+    mockedChat.mockResolvedValue({ data: { data: 'Sure, here are some prompts.' } } as any);
     const user = userEvent.setup();
     render(<AIChatView />);
 

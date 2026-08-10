@@ -44,7 +44,7 @@ export default function AIChatView() {
 
     try {
       const res = await aiService.chat(query);
-      const reply = res?.data?.response || res?.data || 'I am here to support your journaling journey.';
+      const reply = res?.data?.data || 'I am here to support your journaling journey.';
       setMessages((prev) => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', text: reply }]);
     } catch (err) {
       console.error('AI chat error:', err);
@@ -70,7 +70,7 @@ export default function AIChatView() {
   };
 
   return (
-    <div className="p-8 max-w-[1000px] mx-auto flex flex-col h-[calc(100vh-120px)]">
+    <div className="p-8 max-w-[1000px] mx-auto flex flex-col h-[calc(100vh-120px)] animate-fade-in">
       {/* Top Header */}
       <div className="flex items-center justify-between mb-4">
         <div>

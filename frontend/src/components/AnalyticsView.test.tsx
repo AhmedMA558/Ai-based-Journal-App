@@ -17,24 +17,34 @@ describe('AnalyticsView', () => {
     mockedGetAllJournals.mockReset();
   });
 
-  it('renders the header and chart section titles', async () => {
-    mockedGetAllJournals.mockResolvedValue([]);
+  it('renders the header and chart section titles once there is real data', async () => {
+    mockedGetAllJournals.mockResolvedValue([{ id: 1, mood: 'HAPPY' }] as any);
     render(<AnalyticsView />);
 
     expect(screen.getByText('Real-Time Data Analytics')).toBeInTheDocument();
-    expect(await screen.findByText('0 Entries')).toBeInTheDocument();
+    expect(await screen.findByText('1 Entries')).toBeInTheDocument();
     expect(screen.getByText('Live Positivity Stream')).toBeInTheDocument();
     expect(screen.getByText('Emotional Balance Radar Wheel')).toBeInTheDocument();
     expect(screen.getByText('Real-Time Mood Frequency Breakdown')).toBeInTheDocument();
   });
 
-  it('shows 100% positivity and HAPPY as dominant mood with no entries', async () => {
+  it('shows a real empty state instead of fabricated chart data with no entries', async () => {
     mockedGetAllJournals.mockResolvedValue([]);
     render(<AnalyticsView />);
 
     await screen.findByText('0 Entries');
     expect(screen.getByText('100%')).toBeInTheDocument();
-    expect(screen.getByText(/HAPPY/)).toBeInTheDocument();
+    expect(screen.getByText('No data yet')).toBeInTheDocument();
+    expect(screen.getByText('No Data to Analyze Yet')).toBeInTheDocument();
+    expect(screen.queryByText('Live Positivity Stream')).not.toBeInTheDocument();
+    expect(screen.queryByText('Emotional Balance Radar Wheel')).not.toBeInTheDocument();
+  });
+
+  it('shows a styled error banner when analytics fail to load', async () => {
+    mockedGetAllJournals.mockRejectedValue(new Error('network down'));
+    render(<AnalyticsView />);
+
+    expect(await screen.findByText('Could not load analytics data. Please try refreshing.')).toBeInTheDocument();
   });
 
   it('computes totals and positivity rate from loaded journals', async () => {
