@@ -11,6 +11,7 @@ public class AuthResponse {
     private String username;
     private String email;
     private List<String> roles;
+    private boolean mfaRequired = false;
 
     public AuthResponse() {
     }
@@ -39,4 +40,6 @@ public class AuthResponse {
     public void setEmail(String email) { this.email = email; }
     public List<String> getRoles() { return roles; }
     public void setRoles(List<String> roles) { this.roles = roles; }
+    public boolean isMfaRequired() { return mfaRequired; }
+    public void setMfaRequired(boolean mfaRequired) { this.mfaRequired = mfaRequired; }
 }

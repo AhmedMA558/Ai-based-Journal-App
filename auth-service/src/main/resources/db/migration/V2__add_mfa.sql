@@ -1,0 +1,24 @@
+ALTER TABLE users
+    ADD COLUMN mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN totp_secret VARCHAR(255) NULL;
+
+CREATE TABLE IF NOT EXISTS mfa_recovery_codes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    used_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_mrc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_mrc_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mfa_challenges (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    challenge_token VARCHAR(255) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_mc_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_mc_token (challenge_token)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

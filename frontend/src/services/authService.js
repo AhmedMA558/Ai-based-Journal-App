@@ -25,6 +25,37 @@ export const authService = {
     return res;
   },
 
+  // Complete a login that returned an MFA challenge - send either a 6-digit
+  // TOTP code or a recovery code, not both.
+  verifyMfa: async (challengeToken, code, recoveryCode) => {
+    const res = await api.post('/api/v1/auth/mfa/verify', { challengeToken, code, recoveryCode });
+    const authData = res?.data?.data;
+    if (authData?.accessToken) {
+      authService.setSession(authData.accessToken, authData.userId, authData.username);
+    }
+    return res;
+  },
+
+  // Get the authenticated user's real identity (username/email/fullName) -
+  // the source of truth, since user-service's profile has no email field.
+  getCurrentUser: async () => (await api.get('/api/v1/auth/me'))?.data?.data,
+
+  changePassword: async (currentPassword, newPassword) =>
+    (await api.put('/api/v1/auth/password', { currentPassword, newPassword }))?.data?.data,
+
+  getMfaStatus: async () => (await api.get('/api/v1/auth/mfa/status'))?.data?.data,
+
+  // Generates (and persists, but does not yet enable) a new TOTP secret -
+  // returns {secret, otpAuthUri} for QR code rendering.
+  setupMfa: async () => (await api.post('/api/v1/auth/mfa/setup'))?.data?.data,
+
+  // Confirms enrollment with a 6-digit code - returns {mfaEnabled, recoveryCodes}.
+  // recoveryCodes are plaintext and shown exactly once.
+  enableMfa: async (code) => (await api.post('/api/v1/auth/mfa/enable', { code }))?.data?.data,
+
+  disableMfa: async (password, code) =>
+    (await api.post('/api/v1/auth/mfa/disable', { password, code }))?.data?.data,
+
   // Set active session tokens with strict 10-minute expiration
   setSession: (token, userId, username) => {
     const expiryTime = Date.now() + SESSION_DURATION_MS;

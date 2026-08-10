@@ -66,6 +66,10 @@
             <scope>runtime</scope>
         </dependency>
         <dependency>
+            <groupId>dev.samstevens.totp</groupId>
+            <artifactId>totp</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>

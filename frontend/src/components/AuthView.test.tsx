@@ -8,16 +8,19 @@ vi.mock('@/services/authService', () => ({
   authService: {
     login: vi.fn(),
     register: vi.fn(),
+    verifyMfa: vi.fn(),
   },
 }));
 
 const mockedLogin = vi.mocked(authService.login);
 const mockedRegister = vi.mocked(authService.register);
+const mockedVerifyMfa = vi.mocked(authService.verifyMfa);
 
 describe('AuthView', () => {
   beforeEach(() => {
     mockedLogin.mockReset();
     mockedRegister.mockReset();
+    mockedVerifyMfa.mockReset();
   });
 
   it('shows the login form by default', () => {
@@ -39,7 +42,7 @@ describe('AuthView', () => {
   });
 
   it('logs in with the entered credentials and calls onLoginSuccess', async () => {
-    mockedLogin.mockResolvedValue({ data: { accessToken: 'tok' } } as any);
+    mockedLogin.mockResolvedValue({ data: { data: { accessToken: 'tok', mfaRequired: false } } } as any);
     const user = userEvent.setup();
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
@@ -67,7 +70,7 @@ describe('AuthView', () => {
   });
 
   it('registers with all four fields when in register mode', async () => {
-    mockedRegister.mockResolvedValue({ data: { accessToken: 'tok' } } as any);
+    mockedRegister.mockResolvedValue({ data: { data: { accessToken: 'tok', mfaRequired: false } } } as any);
     const user = userEvent.setup();
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
@@ -81,5 +84,101 @@ describe('AuthView', () => {
 
     expect(mockedRegister).toHaveBeenCalledWith('alex_dev', 'alex@example.com', 'hunter2', 'Alex Example');
     expect(onLoginSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('switches to the MFA challenge step when login requires it, without calling onLoginSuccess', async () => {
+    mockedLogin.mockResolvedValue({
+      data: { data: { mfaRequired: true, challengeToken: 'challenge-123' } },
+    } as any);
+    const user = userEvent.setup();
+    const onLoginSuccess = vi.fn();
+    render(<AuthView onLoginSuccess={onLoginSuccess} />);
+
+    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.click(screen.getByRole('button', { name: /Sign In/ }));
+
+    expect(await screen.findByText('Two-Factor Verification')).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  });
+
+  it('verifies a TOTP code and calls onLoginSuccess', async () => {
+    mockedLogin.mockResolvedValue({
+      data: { data: { mfaRequired: true, challengeToken: 'challenge-123' } },
+    } as any);
+    mockedVerifyMfa.mockResolvedValue({ data: { data: { accessToken: 'tok' } } } as any);
+    const user = userEvent.setup();
+    const onLoginSuccess = vi.fn();
+    render(<AuthView onLoginSuccess={onLoginSuccess} />);
+
+    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.click(screen.getByRole('button', { name: /Sign In/ }));
+    await screen.findByText('Two-Factor Verification');
+
+    await user.type(screen.getByPlaceholderText('123456'), '654321');
+    await user.click(screen.getByRole('button', { name: /Verify/ }));
+
+    expect(mockedVerifyMfa).toHaveBeenCalledWith('challenge-123', '654321', undefined);
+    expect(onLoginSuccess).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows an error and stays on the MFA step when the code is invalid', async () => {
+    mockedLogin.mockResolvedValue({
+      data: { data: { mfaRequired: true, challengeToken: 'challenge-123' } },
+    } as any);
+    mockedVerifyMfa.mockRejectedValue(new Error('Invalid verification code'));
+    const user = userEvent.setup();
+    const onLoginSuccess = vi.fn();
+    render(<AuthView onLoginSuccess={onLoginSuccess} />);
+
+    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.click(screen.getByRole('button', { name: /Sign In/ }));
+    await screen.findByText('Two-Factor Verification');
+
+    await user.type(screen.getByPlaceholderText('123456'), '000000');
+    await user.click(screen.getByRole('button', { name: /Verify/ }));
+
+    expect(await screen.findByText('Invalid verification code')).toBeInTheDocument();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+    expect(screen.getByText('Two-Factor Verification')).toBeInTheDocument();
+  });
+
+  it('switches to recovery-code entry and sends it as recoveryCode', async () => {
+    mockedLogin.mockResolvedValue({
+      data: { data: { mfaRequired: true, challengeToken: 'challenge-123' } },
+    } as any);
+    mockedVerifyMfa.mockResolvedValue({ data: { data: { accessToken: 'tok' } } } as any);
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.click(screen.getByRole('button', { name: /Sign In/ }));
+    await screen.findByText('Two-Factor Verification');
+
+    await user.click(screen.getByText('Use a recovery code instead'));
+    await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'ABCDE-12345');
+    await user.click(screen.getByRole('button', { name: /Verify/ }));
+
+    expect(mockedVerifyMfa).toHaveBeenCalledWith('challenge-123', undefined, 'ABCDE-12345');
+  });
+
+  it('returns to the credentials step from the MFA challenge', async () => {
+    mockedLogin.mockResolvedValue({
+      data: { data: { mfaRequired: true, challengeToken: 'challenge-123' } },
+    } as any);
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.click(screen.getByRole('button', { name: /Sign In/ }));
+    await screen.findByText('Two-Factor Verification');
+
+    await user.click(screen.getByText('Back to Sign In'));
+
+    expect(screen.getByText('Welcome Back to AURA')).toBeInTheDocument();
   });
 });
