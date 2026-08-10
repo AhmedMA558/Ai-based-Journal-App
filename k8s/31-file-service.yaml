@@ -1,0 +1,82 @@
+# replicas: 1 (not 2 like the other services) - file-service writes uploads
+# to local disk (storage.local.dir: ./uploads, i.e. /app/uploads given the
+# Dockerfile's WORKDIR /app). Running multiple replicas behind one Service
+# would non-deterministically 404 on files uploaded to a different pod's
+# disk. The PVC below is a stopgap to at least survive pod restarts, not a
+# fix for the underlying single-replica limitation - a real fix means
+# object storage (S3-compatible), which is a separate scope decision.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: file-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: file-service
+  template:
+    metadata:
+      labels:
+        app: file-service
+    spec:
+      containers:
+      - name: file-service
+        image: ahmedma558/ai-journal-file-service:latest
+        ports:
+        - containerPort: 8089
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        volumeMounts:
+        - name: uploads
+          mountPath: /app/uploads
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8089
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8089
+          initialDelaySeconds: 45
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 768Mi
+      volumes:
+      - name: uploads
+        persistentVolumeClaim:
+          claimName: file-service-uploads
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: file-service-uploads
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: file-service
+spec:
+  ports:
+  - port: 8089
+    targetPort: 8089
+  selector:
+    app: file-service

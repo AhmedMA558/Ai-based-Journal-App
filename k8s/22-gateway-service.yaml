@@ -1,0 +1,64 @@
+# Note: gateway-service's application.yml hardcodes its Eureka defaultZone
+# with no ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:...} override support
+# (unlike the other 9 Eureka-registering services) - that env var from
+# app-config is harmless here but ineffective. Out of scope for this
+# manifest set; the hardcoded value already matches this Service's name
+# (discovery-server), so it still resolves correctly.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+    spec:
+      containers:
+      - name: gateway-service
+        image: ahmedma558/ai-journal-gateway-service:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - configMapRef:
+            name: app-config
+        env:
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET
+        readinessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /actuator/health
+            port: 8080
+          initialDelaySeconds: 45
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: 500m
+            memory: 768Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: gateway-service
