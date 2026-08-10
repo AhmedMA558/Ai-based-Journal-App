@@ -14,6 +14,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
@@ -29,7 +30,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String HEADER_USER_ID = "X-User-Id";
 
-    private static final List<String> PUBLIC_PATHS = List.of(
+    private static final List<String> BASE_PUBLIC_PATHS = List.of(
             "/v3/api-docs/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
@@ -37,16 +38,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     );
 
     private final String jwtSecret;
+    private final List<String> publicPaths;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public JwtAuthenticationFilter(String jwtSecret) {
+        this(jwtSecret, List.of());
+    }
+
+    // additionalPublicPaths lets a consumer add its own genuinely-public endpoints
+    // (e.g. auth-service's /login, /register) on top of the shared defaults above -
+    // this filter's own gate is independent of whatever a consumer's SecurityConfig
+    // permits via authorizeHttpRequests, since the filter runs before that
+    // authorization decision and would otherwise reject those paths regardless.
+    public JwtAuthenticationFilter(String jwtSecret, List<String> additionalPublicPaths) {
         this.jwtSecret = jwtSecret;
+        List<String> merged = new ArrayList<>(BASE_PUBLIC_PATHS);
+        merged.addAll(additionalPublicPaths);
+        this.publicPaths = merged;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return PUBLIC_PATHS.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
+        return publicPaths.stream().anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
     @Override

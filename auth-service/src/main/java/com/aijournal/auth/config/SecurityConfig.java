@@ -14,9 +14,24 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 
+import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
+
+    // Kept as a single list so the filter's own gate (below) and Spring Security's
+    // authorizeHttpRequests permitAll (further below) can't drift apart - the filter
+    // runs before Spring Security's authorization decision and would otherwise reject
+    // these paths outright regardless of what authorizeHttpRequests says.
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/api/v1/auth/register",
+            "/api/v1/auth/login",
+            "/api/v1/auth/refresh",
+            "/api/v1/auth/logout",
+            "/api/v1/auth/mfa/verify",
+            "/error"
+    );
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -32,7 +47,7 @@ public class SecurityConfig {
     // it needs the filter wired in explicitly.
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(@Value("${jwt.secret}") String jwtSecret) {
-        return new JwtAuthenticationFilter(jwtSecret);
+        return new JwtAuthenticationFilter(jwtSecret, PUBLIC_PATHS);
     }
 
     @Bean
