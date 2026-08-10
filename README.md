@@ -1,10 +1,10 @@
-# 🚀 AI-Powered Journaling SaaS Platform
+# AI Journaling Platform
 
-An enterprise-grade, polyglot microservices AI journaling platform engineered with **Java Spring Boot 3**, **Spring Cloud Gateway**, **Python Flask AI / Hugging Face NLP**, **Elasticsearch 8.x**, **RabbitMQ**, and a modern **React 19 + Vite** frontend.
+A polyglot microservices AI journaling platform: **Java Spring Boot 3** services behind a **Spring Cloud Gateway**, a **Python Flask** AI microservice, **Elasticsearch** for search, **RabbitMQ** for the journal-indexing pipeline, and a **React 19 + TypeScript + Vite** frontend.
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
@@ -12,66 +12,114 @@ graph TD
     Gateway --> AuthSvc[Auth Service :8081]
     Gateway --> UserSvc[User Service :8082]
     Gateway --> JournalSvc[Journal Service :8083]
-    Gateway --> AISvc[Java AI Service Proxy :8084]
+    Gateway --> AISvc[AI Service Proxy :8084]
     Gateway --> SearchSvc[Elasticsearch Search Service :8085]
     Gateway --> RecSvc[Recommendation Service :8086]
     Gateway --> NotifSvc[Notification Service :8087]
     Gateway --> AnalyticsSvc[Analytics Service :8088]
+    Gateway --> FileSvc[File Service :8089]
 
     AISvc --> PythonAI[Python Flask AI Microservice :5000]
     JournalSvc --> RabbitMQ[(RabbitMQ Event Broker)]
     RabbitMQ --> SearchSvc
-    RabbitMQ --> AnalyticsSvc
 
     AuthSvc & UserSvc & JournalSvc --> MySQL[(MySQL 8.0 Database)]
     SearchSvc --> ES[(Elasticsearch 8.x Cluster)]
 ```
 
----
-
-## ✨ Features Suite
-
-- **⚡ Raycast Command Palette (`Cmd+K` / `Ctrl+K`)**: Instant action launcher for commands, writing tools, and theme toggling.
-- **✍️ Real-Time 0ms Keystroke Mood Engine**: Classifies sentiment across 7 categories (`HAPPY 😊`, `EXCITED 🤩`, `RELAXED 😌`, `STRESSED 😰`, `SAD 🥺`, `GRATEFUL 🙏`, `ANGRY 😠`).
-- **🛠️ AI Writing Assistant Suite**: Includes AI Rephrase, Fix Grammar & Spelling, AI Continue Writing, Auto-Tags, and Text Summarizer.
-- **📊 Recharts Emotional Balance Radar Wheel**: 7-axis sentiment radar wheel and live positivity stream area charts.
-- **🔍 Deep Elasticsearch Type-Ahead Search**: Instant keyword search filtered by mood, tags, and titles.
-- **📥 Multi-Format Library Exporter**: Export journal entries to Markdown (`.md`), JSON (`.json`), and CSV (`.csv`).
-- **🛡️ 10-Minute Active Session Security**: Active background session watcher enforcing 10-minute session expiration.
+Only `journal-service` (producer) and `search-service` (consumer) are actually wired to RabbitMQ today - `notification-service` and `analytics-service` are plain synchronous REST services with no broker involvement, despite an earlier version of this diagram implying otherwise. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full service/dependency table and design-pattern notes, and [docs/ER_DIAGRAM.md](docs/ER_DIAGRAM.md) for the database schema.
 
 ---
 
-## 💻 Microservices Directory
+## Features
 
-| Microservice | Port | Tech Stack | Purpose |
+- **Command palette** (`Cmd+K` / `Ctrl+K`) for quick navigation and actions.
+- **Mood detection** across 7 categories (`HAPPY`, `EXCITED`, `RELAXED`, `STRESSED`, `SAD`, `GRATEFUL`, `ANGRY`), computed via `python-ai-service` and proxied through `ai-service`.
+- **AI writing assistant**: rephrase, grammar fix, continue-writing, auto-tags, summarization.
+- **Analytics dashboard**: mood radar chart, real consecutive-day streak, AI-level tiering based on entry count.
+- **Elasticsearch-backed search**: full-text + mood/tag filtering, real relevance ranking (not client-side filtering).
+- **TOTP-based two-factor authentication** with recovery codes (in progress - see `feature/enterprise-settings-2fa`, not yet merged).
+- **10-minute active session expiry**, JWT access/refresh tokens, gateway- and service-level auth enforcement.
+
+---
+
+## Microservices Directory
+
+| Service | Port | Depends on | Purpose |
 | :--- | :---: | :--- | :--- |
-| `gateway-service` | `8080` | Spring Cloud Gateway | API Routing & JWT Auth Filter |
-| `auth-service` | `8081` | Spring Boot, JPA | User Registration & JWT Authentication |
-| `user-service` | `8082` | Spring Boot, JPA | User Profiles & Settings Management |
-| `journal-service` | `8083` | Spring Boot, RabbitMQ | Journal CRUD & Event Broadcasting |
-| `ai-service` | `8084` | Spring Boot, RestTemplate | Java AI Proxy & Routing |
-| `search-service` | `8085` | Spring Boot, Elasticsearch | Full-Text Search Indexing |
-| `recommendation-service` | `8086` | Spring Boot | AI Wellness Recommendations |
-| `notification-service` | `8087` | Spring Boot, RabbitMQ | Event-Driven Notifications |
-| `analytics-service` | `8088` | Spring Boot, RabbitMQ | Real-Time Sentiment Metrics |
-| `python-ai-service` | `5000` | Python 3.11, Flask, Hugging Face | Sentiment Classification & NLP Suite |
+| `gateway-service` | 8080 | Eureka | API routing, CORS, JWT verification at the edge |
+| `auth-service` | 8081 | MySQL (`auth_db`), Eureka | Registration, login, JWT issuance, 2FA (unmerged branch) |
+| `user-service` | 8082 | MySQL (`user_db`), Eureka | Profile & preferences |
+| `journal-service` | 8083 | MySQL (`journal_db`), RabbitMQ, Eureka | Journal CRUD, publishes create/update events |
+| `ai-service` | 8084 | MySQL (`ai_db`), `python-ai-service`, Eureka | Proxies AI features to the Flask service |
+| `search-service` | 8085 | Elasticsearch, RabbitMQ, Eureka | Full-text/mood/tag search, indexes journal events |
+| `recommendation-service` | 8086 | Eureka | Curated prompts/books/exercises (static content today) |
+| `notification-service` | 8087 | Eureka | Logs email/push notification intents (no real provider wired up yet) |
+| `analytics-service` | 8088 | Eureka | Journal insights (hardcoded data today, not yet computed from real entries) |
+| `file-service` | 8089 | Local disk, Eureka | Attachment upload/download |
+| `python-ai-service` | 5000 | Flask, Hugging Face (optional) | Mood/summarize/rephrase/grammar NLP |
+| `config-server` | 8888 | - | Spring Cloud Config source |
+| `discovery-server` | 8761 | - | Eureka registry |
+
+Each service has its own README with its full endpoint list - see the links in the table above's row, or browse each service directory directly (e.g. [auth-service/README.md](auth-service/README.md)).
 
 ---
 
-## ⚡ Quick Start (Docker Compose)
+## Quick Start (Docker Compose)
+
+**Prerequisites:** Docker + Docker Compose, and a `.env` file at the repo root (copy [.env.example](.env.example) and fill in `JWT_SECRET` - generate one with `openssl rand -base64 64`).
 
 ```bash
-# 1. Package backend microservices
+# 1. Package backend services (skip tests for a faster first build)
 mvn clean package -DskipTests
 
-# 2. Launch Docker Compose stack
-docker-compose up --build -d
+# 2. Launch the full stack
+docker compose up --build -d
 ```
-Access the application in your browser: **`http://localhost:3000`**
+
+Frontend: `http://localhost:3000`. Gateway: `http://localhost:8080`. RabbitMQ management UI: `http://localhost:15672` (guest/guest). Every service also exposes Swagger UI at `http://localhost:<port>/swagger-ui.html` and a raw OpenAPI spec at `/v3/api-docs`.
+
+Without `.env`/`JWT_SECRET` set, every backend service fails to start on purpose (`${JWT_SECRET:?...}` in `docker-compose.yml`) - this is a deliberate fail-fast, not a bug.
+
+## Local Development (without Docker)
+
+Backend (per service, from its own directory or via `-pl`):
+```bash
+mvn -pl auth-service -am spring-boot:run
+```
+Needs a local MySQL instance per service's `application.yml` datasource (or point `SPRING_DATASOURCE_URL`/`SPRING_DATASOURCE_USERNAME`/`SPRING_DATASOURCE_PASSWORD` env vars at one), plus `JWT_SECRET`. `search-service` additionally needs a reachable Elasticsearch; `journal-service`/`search-service` need RabbitMQ.
+
+Frontend:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+The dev server proxies `/api/**` to `http://localhost:8080` (see `frontend/vite.config.js`) - no frontend env var is needed, just have the gateway running.
+
+## Testing
+
+```bash
+# Backend - full reactor, all modules with tests
+mvn test
+
+# Frontend
+cd frontend
+npm run test        # Vitest
+npm run typecheck    # tsc --noEmit
+npm run lint         # oxlint
+```
+
+Some backend tests (journal-service's repository/messaging tests, user-service's repository test, search-service's Rabbit integration test) use Testcontainers and need a working Docker daemon reachable from the JVM.
 
 ---
 
-## 📦 Client Delivery Package
-A standalone client delivery package is available at:
-`AI_Journal_Platform_Client_Package.zip`
-Includes 1-click launch scripts (`start_app.bat` & `start_app.sh`) and `CLIENT_HANDOFF_GUIDE.md`.
+## Repo layout
+
+- `common-library/` - shared JWT filter/utils, `ApiResponse`/`PagedResponse` envelopes, RabbitMQ message-converter auto-config, used by every Java service.
+- `<service>/` - one directory per Java microservice (see table above), each independently deployable.
+- `python-ai-service/` - Flask NLP service, called by `ai-service`.
+- `frontend/` - React 19 + TypeScript + Tailwind v4 SPA.
+- `k8s/` - Kubernetes manifests (in progress on an unmerged branch).
+- `docs/` - architecture and ER diagrams.
+- `CLIENT_HANDOFF_GUIDE.md` - a feature walkthrough/demo script, not developer documentation.
