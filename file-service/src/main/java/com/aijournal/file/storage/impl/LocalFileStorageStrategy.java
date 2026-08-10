@@ -31,7 +31,12 @@ public class LocalFileStorageStrategy implements FileStorageStrategy {
             String fileName = UUID.randomUUID() + fileExtension;
             Path filePath = targetDir.resolve(fileName);
 
-            file.transferTo(filePath.toFile());
+            // transferTo(Path), not transferTo(File) - the File overload resolves relative
+            // to the servlet container's internal multipart temp location on some Tomcat
+            // versions and silently fails for a destination outside it (target directory
+            // gets created, but the file itself never gets written). The Path overload
+            // copies via the part's InputStream instead, which works for any destination.
+            file.transferTo(filePath);
             return subPath + "/" + fileName;
 
         } catch (IOException e) {
