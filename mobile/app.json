@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Mindora",
+    "slug": "mindora",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090d16",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ai.mindora.app"
+    },
+    "android": {
+      "package": "ai.mindora.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#090d16",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "tagline": "Your thoughts. Your story. Your AI companion."
+    },
+    "plugins": [
+      [
+        "expo-secure-store"
+      ]
+    ]
+  }
+}
