@@ -98,3 +98,14 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
+  health:
+    redis:
+      # spring-boot-starter-data-redis-reactive is on the classpath (for a rate
+      # limiter that was never actually wired up), so Spring Boot auto-enables a
+      # Redis health contributor that defaults to localhost:6379 - unreachable
+      # from inside the container, so /actuator/health always reported DOWN even
+      # though nothing here depends on Redis. That silently broke the k8s
+      # readiness/liveness probes in k8s/22-gateway-service.yaml (pod would never
+      # become Ready). Disabled rather than pointed at a real host, since Redis
+      # isn't actually used by any request path.
+      enabled: false
