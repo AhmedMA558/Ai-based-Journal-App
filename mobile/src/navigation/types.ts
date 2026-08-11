@@ -1,4 +1,4 @@
-import type { Journal } from '@/types';
+import type { JournalRef } from '@/types';
 
 export type AuthStackParamList = {
   Login: undefined;
@@ -10,9 +10,10 @@ export type MainTabParamList = {
   Dashboard: undefined;
   Journals: undefined;
   Calendar: undefined;
+  Search: undefined;
 };
 
 export type MainStackParamList = {
   Tabs: undefined;
-  JournalEditor: { journal?: Journal } | undefined;
+  JournalEditor: { journal?: JournalRef } | undefined;
 };

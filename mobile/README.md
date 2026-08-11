@@ -7,7 +7,7 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-A Calendar view was added after the initial slice. Search, AI Chat, Analytics, Settings/2FA management, Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+Calendar and Search were added after the initial slice. AI Chat, Analytics, Settings/2FA management, Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
 
 ## Tech stack
 
@@ -41,12 +41,14 @@ Two env vars (read via `src/config/env.ts`, `EXPO_PUBLIC_*` prefix required by E
 
 ```
 src/
-  screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor, Calendar
+  screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor,
+                   Calendar, Search
   navigation/     RootNavigator.tsx (AuthStack / MainTabs / modal JournalEditor), types.ts
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
-  services/        real axios-backed authService/journalService/aiService/api/session,
-                   plus index.ts - the one file that switches between real and mocks/
+  services/        real axios-backed authService/journalService/aiService/searchService/
+                   api/session, plus index.ts - the one file that switches between real
+                   and mocks/
   mocks/           fixtures.ts (seed users + journals), mock{Auth,Journal,Ai}Service.ts -
                    same function signatures as services/*.ts, used for Pass A
   components/      MoodWheel.tsx, ErrorBanner.tsx, ui/ (GlassPanel, GlassInput,

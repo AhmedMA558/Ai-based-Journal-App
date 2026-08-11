@@ -12,8 +12,9 @@ import MoodWheel from '@/components/MoodWheel';
 import { MOOD_META, type Mood } from '@/lib/moods';
 import { journalService, aiService } from '@/services';
 import type { MainStackParamList } from '@/navigation/types';
+import type { JournalRef } from '@/types';
 
-type RouteProps = { params?: { journal?: { id?: string | number; title?: string; content?: string; mood?: string; tags?: string[] } } };
+type RouteProps = { params?: { journal?: JournalRef } };
 
 // Standardize free-form/AI-returned mood text into a known mood key - same
 // normalization JournalEditor.tsx applies on the web.
