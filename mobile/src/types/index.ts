@@ -11,6 +11,16 @@ export interface Journal {
 
 export type JournalInput = Pick<Journal, 'title' | 'content' | 'mood' | 'tags'>;
 
+// Permissive shape for navigating to JournalEditorScreen - both a full Journal
+// and a SearchResult (optional mood/tags) satisfy this without a cast.
+export interface JournalRef {
+  id?: string | number;
+  title?: string;
+  content?: string;
+  mood?: string;
+  tags?: string[];
+}
+
 export interface AuthResult {
   accessToken?: string;
   refreshToken?: string;
@@ -30,4 +40,13 @@ export interface CurrentUser {
 export interface MoodDetectionResult {
   primaryMood: string;
   emoji?: string;
+}
+
+export interface SearchResult {
+  id: string | number;
+  title?: string;
+  content?: string;
+  mood?: string;
+  tags?: string[];
+  createdAt?: string;
 }

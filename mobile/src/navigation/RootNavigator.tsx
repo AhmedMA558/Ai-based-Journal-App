@@ -2,7 +2,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, BookOpen, CalendarDays } from 'lucide-react-native';
+import { LayoutDashboard, BookOpen, CalendarDays, Search } from 'lucide-react-native';
 import { useAuthContext } from '@/context/AuthContext';
 import type { AuthStackParamList, MainStackParamList, MainTabParamList } from './types';
 
@@ -13,6 +13,7 @@ import DashboardScreen from '@/screens/DashboardScreen';
 import JournalListScreen from '@/screens/JournalListScreen';
 import JournalEditorScreen from '@/screens/JournalEditorScreen';
 import CalendarScreen from '@/screens/CalendarScreen';
+import SearchScreen from '@/screens/SearchScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -64,6 +65,11 @@ function MainTabs() {
         name="Calendar"
         component={CalendarScreen}
         options={{ tabBarIcon: ({ color, size }) => <CalendarDays color={color} size={size} /> }}
+      />
+      <Tab.Screen
+        name="Search"
+        component={SearchScreen}
+        options={{ tabBarIcon: ({ color, size }) => <Search color={color} size={size} /> }}
       />
     </Tab.Navigator>
   );
