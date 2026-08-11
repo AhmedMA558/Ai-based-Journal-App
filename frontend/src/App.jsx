@@ -92,7 +92,7 @@ export default function App() {
       const valid = authService.isAuthenticated();
       if (!valid) {
         setIsAuthenticated(false);
-        showToast('Session expired after 10 minutes. Please log in again.', 'warning');
+        showToast('Session expired. Please log in again.', 'warning');
       }
     }, 10000);
 
@@ -110,7 +110,7 @@ export default function App() {
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     navigate('/dashboard');
-    showToast('Logged in successfully! 10-Minute Session Active.', 'success');
+    showToast('Logged in successfully!', 'success');
   };
 
   const handleLogout = () => {
