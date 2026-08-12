@@ -50,3 +50,21 @@ export interface SearchResult {
   tags?: string[];
   createdAt?: string;
 }
+
+export interface ProfileData {
+  bio?: string;
+  avatarUrl?: string;
+  phoneNumber?: string;
+  country?: string;
+  city?: string;
+}
+
+export interface MfaSetupData {
+  secret: string;
+  otpAuthUri: string;
+}
+
+export interface MfaEnableResult {
+  mfaEnabled: boolean;
+  recoveryCodes: string[];
+}

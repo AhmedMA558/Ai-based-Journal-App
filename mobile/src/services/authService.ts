@@ -2,7 +2,7 @@ import axios from 'axios';
 import api from './api';
 import { session } from './session';
 import { API_BASE_URL } from '@/config/env';
-import type { AuthResult, CurrentUser } from '@/types';
+import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult } from '@/types';
 
 // Dedicated instance for the refresh call - bypasses api.ts's interceptors so a
 // refresh failure can't recursively trigger another refresh attempt, matching
@@ -57,6 +57,33 @@ export const authService = {
   async getCurrentUser(): Promise<CurrentUser> {
     const res = await api.get('/api/v1/auth/me');
     return res?.data?.data;
+  },
+
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await api.put('/api/v1/auth/password', { currentPassword, newPassword });
+  },
+
+  async getMfaStatus(): Promise<{ mfaEnabled: boolean }> {
+    const res = await api.get('/api/v1/auth/mfa/status');
+    return res?.data?.data || { mfaEnabled: false };
+  },
+
+  // Generates (and persists, but does not yet enable) a new TOTP secret -
+  // returns {secret, otpAuthUri} for QR code rendering.
+  async setupMfa(): Promise<MfaSetupData> {
+    const res = await api.post('/api/v1/auth/mfa/setup');
+    return res?.data?.data;
+  },
+
+  // Confirms enrollment with a 6-digit code - returns {mfaEnabled, recoveryCodes}.
+  // recoveryCodes are plaintext and shown exactly once.
+  async enableMfa(code: string): Promise<MfaEnableResult> {
+    const res = await api.post('/api/v1/auth/mfa/enable', { code });
+    return res?.data?.data;
+  },
+
+  async disableMfa(password: string, code: string): Promise<void> {
+    await api.post('/api/v1/auth/mfa/disable', { password, code });
   },
 
   async logout(): Promise<void> {
