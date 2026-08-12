@@ -7,6 +7,7 @@ import { X, Save, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ConfettiBurst } from '@/components/ui/ConfettiBurst';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import MoodWheel from '@/components/MoodWheel';
 import { MOOD_META, type Mood } from '@/lib/moods';
@@ -60,6 +61,7 @@ export default function JournalEditorScreen() {
   const [detectingMood, setDetectingMood] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const handleContentChange = (val: string) => {
     setContent(val);
@@ -84,6 +86,12 @@ export default function JournalEditorScreen() {
           const detectedKey = normalizeMood(res.primaryMood);
           setMood(detectedKey);
           setEmoji(res.emoji || MOOD_META[detectedKey].emoji);
+          // Same celebratory trigger as JournalEditor.tsx's mood-detection
+          // confetti on the web app - HAPPY/EXCITED only, nothing on save
+          // or achievement-unlock (the web app doesn't do that either).
+          if (detectedKey === 'HAPPY' || detectedKey === 'EXCITED') {
+            setShowConfetti(true);
+          }
         }
       } catch {
         // AI error fallback - keep the instant-heuristic mood already set.
@@ -128,6 +136,7 @@ export default function JournalEditorScreen() {
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      {showConfetti ? <ConfettiBurst onEnd={() => setShowConfetti(false)} /> : null}
       <SafeAreaView className="flex-1" edges={['top']}>
         <View className="flex-row items-center justify-between px-5 pt-3 pb-2">
           <Text className="text-text-primary text-xl font-extrabold">{initialData ? 'Edit Entry' : 'New Entry'}</Text>
