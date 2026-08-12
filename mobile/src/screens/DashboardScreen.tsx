@@ -8,9 +8,11 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { journalService } from '@/services';
 import { session } from '@/services/session';
+import { getPendingCount } from '@/lib/offlineQueue';
 import { useAuthContext } from '@/context/AuthContext';
 import { MOOD_META, type Mood } from '@/lib/moods';
 import { calculateStreak } from '@/lib/journalStats';
@@ -31,6 +33,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [pendingCount, setPendingCount] = useState(0);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -46,6 +49,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+    setPendingCount(await getPendingCount());
   }, []);
 
   useEffect(() => {
@@ -98,6 +102,8 @@ export default function DashboardScreen() {
                 </Pressable>
               </View>
             </View>
+
+            <OfflineBanner pendingCount={pendingCount} />
 
             <View className="flex-row gap-3 mb-5">
               <GlassPanel className="flex-1 p-4 items-start">
