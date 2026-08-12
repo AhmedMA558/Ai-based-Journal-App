@@ -8,8 +8,10 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
+import { OfflineBanner } from '@/components/OfflineBanner';
 import { cn } from '@/lib/utils';
 import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
+import { getPendingCount } from '@/lib/offlineQueue';
 import { journalService } from '@/services';
 import type { MainStackParamList } from '@/navigation/types';
 import type { Journal } from '@/types';
@@ -25,6 +27,7 @@ export default function JournalListScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [pendingCount, setPendingCount] = useState(0);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -39,6 +42,7 @@ export default function JournalListScreen() {
       setLoading(false);
       setRefreshing(false);
     }
+    setPendingCount(await getPendingCount());
   }, []);
 
   useEffect(() => {
@@ -55,6 +59,7 @@ export default function JournalListScreen() {
     try {
       await journalService.deleteJournal(id);
       setJournals((prev) => prev.filter((j) => j.id !== id));
+      setPendingCount(await getPendingCount());
     } catch {
       // Delete failure - list simply stays as-is, matching the web app's silent-catch here.
     }
@@ -75,6 +80,10 @@ export default function JournalListScreen() {
         >
           <Plus size={20} color="#ffffff" />
         </Pressable>
+      </View>
+
+      <View className="px-5">
+        <OfflineBanner pendingCount={pendingCount} />
       </View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 mb-3" contentContainerStyle={{ gap: 8 }}>
