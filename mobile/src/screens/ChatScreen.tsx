@@ -6,6 +6,7 @@ import * as Clipboard from 'expo-clipboard';
 import { Send, User, Bot, Copy, Check, Trash2 } from 'lucide-react-native';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { aiService } from '@/services';
+import { markAiUsed } from '@/lib/achievementTracking';
 
 interface ChatMessage {
   id: string;
@@ -43,6 +44,7 @@ export default function ChatScreen() {
 
     try {
       const reply = await aiService.chat(query);
+      markAiUsed();
       setMessages((prev) => [
         ...prev,
         { id: `ai-${Date.now()}`, sender: 'ai', text: reply || 'I am here to support your journaling journey.' },

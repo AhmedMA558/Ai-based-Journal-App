@@ -19,4 +19,5 @@ export type MainTabParamList = {
 export type MainStackParamList = {
   Tabs: undefined;
   JournalEditor: { journal?: JournalRef } | undefined;
+  Achievements: undefined;
 };
