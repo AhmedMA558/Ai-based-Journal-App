@@ -15,6 +15,7 @@ import com.aijournal.auth.service.AuthService;
 import com.aijournal.auth.service.TotpEncryptionService;
 import com.aijournal.auth.service.TotpService;
 import com.aijournal.common.exception.BadRequestException;
+import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.common.exception.UnauthorizedException;
 
@@ -113,6 +114,10 @@ public class AuthServiceImpl implements AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new UnauthorizedException("Invalid username/email or password");
+        }
+
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            throw new ForbiddenException("This account has been disabled.");
         }
 
         if (Boolean.TRUE.equals(user.getMfaEnabled())) {

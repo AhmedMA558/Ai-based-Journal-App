@@ -13,6 +13,7 @@ import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
 import com.aijournal.auth.service.impl.AuthServiceImpl;
 import com.aijournal.common.exception.BadRequestException;
+import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.common.exception.UnauthorizedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -133,6 +134,18 @@ class AuthServiceTest {
         when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
 
         assertThrows(UnauthorizedException.class, () -> authService.login(request));
+    }
+
+    @Test
+    void login_DisabledAccount_ThrowsForbidden() {
+        LoginRequest request = new LoginRequest("testuser", "password123");
+        User user = mfaUser(false, null);
+        user.setEnabled(false);
+
+        when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
+
+        assertThrows(ForbiddenException.class, () -> authService.login(request));
     }
 
     @Test
