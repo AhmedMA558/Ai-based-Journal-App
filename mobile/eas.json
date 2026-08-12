@@ -1,0 +1,38 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_USE_MOCKS": "true"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_USE_MOCKS": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE-WITH-YOUR-DEPLOYED-GATEWAY-URL"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_USE_MOCKS": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "https://REPLACE-WITH-YOUR-DEPLOYED-GATEWAY-URL"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

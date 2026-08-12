@@ -9,10 +9,12 @@
     "backgroundColor": "#090d16",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "ai.mindora.app"
+      "bundleIdentifier": "ai.mindora.app",
+      "buildNumber": "1"
     },
     "android": {
       "package": "ai.mindora.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#090d16",
         "foregroundImage": "./assets/android-icon-foreground.png",
