@@ -11,6 +11,7 @@ export type MainTabParamList = {
   Journals: undefined;
   Calendar: undefined;
   Search: undefined;
+  Chat: undefined;
 };
 
 export type MainStackParamList = {
