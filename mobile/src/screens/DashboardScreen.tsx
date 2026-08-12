@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Flame, BookOpen, Heart, Plus, LogOut, Edit3 } from 'lucide-react-native';
+import { Flame, BookOpen, Heart, Plus, LogOut, Edit3, Award } from 'lucide-react-native';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -74,9 +74,17 @@ export default function DashboardScreen() {
                 <Text className="text-text-secondary text-sm">Hi,</Text>
                 <Text className="text-text-primary text-2xl font-extrabold">{username} 👋</Text>
               </View>
-              <Pressable onPress={logout} className="p-2 rounded-full bg-white/5 border border-white/10">
-                <LogOut size={18} color="#94a3b8" />
-              </Pressable>
+              <View className="flex-row gap-2">
+                <Pressable
+                  onPress={() => navigation.navigate('Achievements')}
+                  className="p-2 rounded-full bg-white/5 border border-white/10"
+                >
+                  <Award size={18} color="#fde047" />
+                </Pressable>
+                <Pressable onPress={logout} className="p-2 rounded-full bg-white/5 border border-white/10">
+                  <LogOut size={18} color="#94a3b8" />
+                </Pressable>
+              </View>
             </View>
 
             <View className="flex-row gap-3 mb-5">
