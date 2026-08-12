@@ -19,6 +19,7 @@ import AnalyticsScreen from '@/screens/AnalyticsScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 import AchievementsScreen from '@/screens/AchievementsScreen';
 import NotificationsScreen from '@/screens/NotificationsScreen';
+import CommandPaletteScreen from '@/screens/CommandPaletteScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -114,6 +115,11 @@ function MainNavigator() {
       <MainStack.Screen
         name="Notifications"
         component={NotificationsScreen}
+        options={{ presentation: 'modal' }}
+      />
+      <MainStack.Screen
+        name="CommandPalette"
+        component={CommandPaletteScreen}
         options={{ presentation: 'modal' }}
       />
     </MainStack.Navigator>

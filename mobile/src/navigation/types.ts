@@ -1,3 +1,4 @@
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { JournalRef } from '@/types';
 
 export type AuthStackParamList = {
@@ -17,8 +18,9 @@ export type MainTabParamList = {
 };
 
 export type MainStackParamList = {
-  Tabs: undefined;
+  Tabs: NavigatorScreenParams<MainTabParamList> | undefined;
   JournalEditor: { journal?: JournalRef } | undefined;
   Achievements: undefined;
   Notifications: undefined;
+  CommandPalette: undefined;
 };
