@@ -7,12 +7,14 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-Calendar, Search, AI Chat, and Settings/2FA management were added after the initial slice. Analytics, Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+Calendar, Search, AI Chat, Settings/2FA management, and Analytics were added after the initial slice. Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+
+Analytics deliberately doesn't pull in a charting library - the web app's recharts-based radar/area charts are replaced with plain `View`-based bar visualizations (mood-frequency bars, a 7-day entry-count mini-chart). Given how much friction this phase already hit from native-module/Expo-SDK version mismatches, adding another native-adjacent dependency for one screen wasn't worth the risk; the metric cards and mood-breakdown bars carry the same information as the radar wheel/positivity-stream charts, just not as a literal radar/line chart.
 
 ## Tech stack
 
 - **Expo** (managed workflow, SDK 54 - runs directly in the published Expo Go app, no custom dev client needed; every native module used here - `expo-secure-store`, `react-native-svg`, `expo-linear-gradient`, etc. - is one Expo Go already bundles for this SDK version)
-- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Settings) with a modal `JournalEditor` screen
+- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Analytics/Settings, icon-only past 6 tabs) with a modal `JournalEditor` screen
 - **expo-clipboard** for the AI Chat "copy message" button
 - **react-native-qrcode-svg** for the 2FA setup QR code (pure JS, built on the already-installed `react-native-svg`)
 - **NativeWind v4** (Tailwind classNames on native components) - theme tokens in `tailwind.config.js` are ported from `frontend/src/index.css`'s `:root` block, same dark glassmorphism palette as the web app
@@ -44,7 +46,7 @@ Two env vars (read via `src/config/env.ts`, `EXPO_PUBLIC_*` prefix required by E
 ```
 src/
   screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor,
-                   Calendar, Search, Chat, Settings
+                   Calendar, Search, Chat, Analytics, Settings
   navigation/     RootNavigator.tsx (AuthStack / MainTabs / modal JournalEditor), types.ts
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()

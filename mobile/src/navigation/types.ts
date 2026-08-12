@@ -12,6 +12,7 @@ export type MainTabParamList = {
   Calendar: undefined;
   Search: undefined;
   Chat: undefined;
+  Analytics: undefined;
   Settings: undefined;
 };
 

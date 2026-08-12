@@ -2,7 +2,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, BookOpen, CalendarDays, Search, MessageCircle, Settings as SettingsIcon } from 'lucide-react-native';
+import { LayoutDashboard, BookOpen, CalendarDays, Search, MessageCircle, BarChart3, Settings as SettingsIcon } from 'lucide-react-native';
 import { useAuthContext } from '@/context/AuthContext';
 import type { AuthStackParamList, MainStackParamList, MainTabParamList } from './types';
 
@@ -15,6 +15,7 @@ import JournalEditorScreen from '@/screens/JournalEditorScreen';
 import CalendarScreen from '@/screens/CalendarScreen';
 import SearchScreen from '@/screens/SearchScreen';
 import ChatScreen from '@/screens/ChatScreen';
+import AnalyticsScreen from '@/screens/AnalyticsScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
@@ -48,6 +49,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
+        // Icon-only past 6 tabs - labels would get cramped/truncated at 7.
+        tabBarShowLabel: false,
         tabBarStyle: { backgroundColor: '#0f172a', borderTopColor: 'rgba(255,255,255,0.08)' },
         tabBarActiveTintColor: '#818cf8',
         tabBarInactiveTintColor: '#64748b',
@@ -77,6 +80,11 @@ function MainTabs() {
         name="Chat"
         component={ChatScreen}
         options={{ tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size} /> }}
+      />
+      <Tab.Screen
+        name="Analytics"
+        component={AnalyticsScreen}
+        options={{ tabBarIcon: ({ color, size }) => <BarChart3 color={color} size={size} /> }}
       />
       <Tab.Screen
         name="Settings"
