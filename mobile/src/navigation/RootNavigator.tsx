@@ -18,6 +18,7 @@ import ChatScreen from '@/screens/ChatScreen';
 import AnalyticsScreen from '@/screens/AnalyticsScreen';
 import SettingsScreen from '@/screens/SettingsScreen';
 import AchievementsScreen from '@/screens/AchievementsScreen';
+import NotificationsScreen from '@/screens/NotificationsScreen';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
@@ -108,6 +109,11 @@ function MainNavigator() {
       <MainStack.Screen
         name="Achievements"
         component={AchievementsScreen}
+        options={{ presentation: 'modal' }}
+      />
+      <MainStack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
         options={{ presentation: 'modal' }}
       />
     </MainStack.Navigator>

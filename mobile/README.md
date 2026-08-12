@@ -7,7 +7,9 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-Calendar, Search, AI Chat, Settings/2FA management, Analytics, and Achievements were added after the initial slice. Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+Calendar, Search, AI Chat, Settings/2FA management, Analytics, Achievements, and Notifications were added after the initial slice. Command Palette, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+
+Notifications (reached from a bell-icon button on the Dashboard header, same modal pattern as Achievements) keeps the same static/decorative three-item list as `frontend/src/components/NotificationsDrawer.tsx` - there's no notifications backend anywhere in this platform, on either client. One thing it doesn't copy: the web version's "Mark all as read" is a complete no-op (fires a toast, touches no state at all); this one actually tracks read/unread locally and dims read items, since a fake backend and a fake button press are different kinds of dishonest.
 
 Achievements is reached from an award-icon button on the Dashboard header (a modal-presented screen, like `JournalEditor`) rather than an 8th bottom tab - matches how the web app treats it (a modal triggered from the sidebar, not a permanent nav destination) and avoids crowding the tab bar further. Its four badges are computed from real journal data (`journalService`/`journalStats.calculateStreak`/distinct mood count) and real AI-chat usage this session (`lib/achievementTracking.ts`) - **not** ported from the web version's logic, because the web `AchievementsModal.tsx` has a real bug: `App.jsx` never passes it a `journalCount` prop, so it silently falls back to a hardcoded default of 5, meaning 3 of its 4 badges always show "unlocked" regardless of the user's actual progress. Also fixes a second logic bug in the same file while at it: "Emotional Master" is described as "5 distinct mood categories" but the web code checks `journalCount >= 5` (total entries, not distinct moods) - this port checks the actual distinct-mood count.
 
@@ -16,7 +18,7 @@ Analytics deliberately doesn't pull in a charting library - the web app's rechar
 ## Tech stack
 
 - **Expo** (managed workflow, SDK 54 - runs directly in the published Expo Go app, no custom dev client needed; every native module used here - `expo-secure-store`, `react-native-svg`, `expo-linear-gradient`, etc. - is one Expo Go already bundles for this SDK version)
-- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Analytics/Settings, icon-only past 6 tabs), plus modal `JournalEditor`/`Achievements` screens on the stack above the tabs
+- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Analytics/Settings, icon-only past 6 tabs), plus modal `JournalEditor`/`Achievements`/`Notifications` screens on the stack above the tabs
 - **expo-clipboard** for the AI Chat "copy message" button
 - **react-native-qrcode-svg** for the 2FA setup QR code (pure JS, built on the already-installed `react-native-svg`)
 - **NativeWind v4** (Tailwind classNames on native components) - theme tokens in `tailwind.config.js` are ported from `frontend/src/index.css`'s `:root` block, same dark glassmorphism palette as the web app
@@ -48,7 +50,7 @@ Two env vars (read via `src/config/env.ts`, `EXPO_PUBLIC_*` prefix required by E
 ```
 src/
   screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor,
-                   Calendar, Search, Chat, Analytics, Settings, Achievements
+                   Calendar, Search, Chat, Analytics, Settings, Achievements, Notifications
   navigation/     RootNavigator.tsx (AuthStack / MainTabs / modal JournalEditor), types.ts
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
