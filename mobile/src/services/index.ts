@@ -4,11 +4,13 @@ import { journalService as realJournalService } from './journalService';
 import { aiService as realAiService } from './aiService';
 import { searchService as realSearchService } from './searchService';
 import { userService as realUserService } from './userService';
+import { notificationService as realNotificationService } from './notificationService';
 import { mockAuthService } from '@/mocks/mockAuthService';
 import { mockJournalService } from '@/mocks/mockJournalService';
 import { mockAiService } from '@/mocks/mockAiService';
 import { mockSearchService } from '@/mocks/mockSearchService';
 import { mockUserService } from '@/mocks/mockUserService';
+import { mockNotificationService } from '@/mocks/mockNotificationService';
 
 // The one file that changes between Pass A (prototype, mocks) and Pass B (real
 // integration) - every screen imports authService/journalService/aiService/
@@ -19,3 +21,4 @@ export const journalService = USE_MOCKS ? mockJournalService : realJournalServic
 export const aiService = USE_MOCKS ? mockAiService : realAiService;
 export const searchService = USE_MOCKS ? mockSearchService : realSearchService;
 export const userService = USE_MOCKS ? mockUserService : realUserService;
+export const notificationService = USE_MOCKS ? mockNotificationService : realNotificationService;

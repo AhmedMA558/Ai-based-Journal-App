@@ -32,6 +32,13 @@
     "plugins": [
       [
         "expo-secure-store"
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#818cf8",
+          "defaultChannel": "default"
+        }
       ]
     ]
   }

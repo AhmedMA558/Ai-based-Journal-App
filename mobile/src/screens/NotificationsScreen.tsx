@@ -18,9 +18,11 @@ interface NotificationItem {
 // Same static/decorative notification list as frontend/src/components/
 // NotificationsDrawer.tsx - this project's history has repeatedly found
 // "looks real but isn't" features (fake streak, fake AI level, fake email,
-// a fake 2FA badge), so worth being explicit here too: there's no
-// notifications backend anywhere in this platform, these three items are
-// hardcoded on both the web and mobile clients. Unlike the web version
+// a fake 2FA badge), so worth being explicit here too: these three items are
+// hardcoded on both the web and mobile clients, unrelated to the real push
+// notifications notification-service now sends (device-token registration,
+// a daily reminder) - this screen is a separate, still-decorative in-app
+// history list, not the OS-level push mechanism. Unlike the web version
 // though - where "Mark all as read" is a complete no-op, it only fires a
 // toast and never touches any state - this one actually tracks read/unread
 // locally, since a fake backend and a fake button press are different

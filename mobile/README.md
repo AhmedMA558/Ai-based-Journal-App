@@ -7,7 +7,19 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-Calendar, Search, AI Chat, Settings/2FA management, Analytics, Achievements, Notifications, Command Palette, a confetti moment in the journal editor, and offline support for journal CRUD were added after the initial slice. Voice dictation is still intentionally not in this app - see below and the Phase 11 plan for the full deferral list.
+Calendar, Search, AI Chat, Settings/2FA management, Analytics, Achievements, Notifications, Command Palette, a confetti moment in the journal editor, offline support for journal CRUD, and real push notifications were added after the initial slice. Voice dictation is the one item still intentionally not in this app - see below and the Phase 11 plan for the full deferral list.
+
+**Push notifications are real, not a stub - and the one Phase 11 feature that needs more than plain Expo Go.** `notification-service` now has its own MySQL database (`notification_db`, `device_tokens` table) and actually calls Expo's push API (`https://exp.host/--/api/v2/push/send`) instead of just logging; a `ReminderScheduler` sends a real daily reminder (fixed UTC time, no per-user personalization - documented simplification, not a fake feature) to every registered device. On the mobile side, `useAuth.ts` registers a real Expo push token whenever a session becomes active and unregisters it on logout, via `services/notificationService.ts` + new `lib/pushRegistration.ts`. Tapping a delivered reminder navigates straight into a new journal entry (`navigation/RootNavigator.tsx`).
+
+The catch: `Notifications.getExpoPushTokenAsync()` only returns a real token from a **custom Expo dev client** (`expo-dev-client` + `expo-notifications`), not plain Expo Go - Expo dropped remote push support from Expo Go on Android as of SDK 53 (still works in Expo Go on iOS, but Android is the platform this app has actually been tested on all session). Rather than switch the whole project off Expo Go for this one feature, `pushRegistration.ts` fails soft (returns `null`) everywhere a dev client or an EAS project ID isn't available, so **every other screen keeps working in plain Expo Go exactly as before** - only testing push itself needs the dev client. To actually test it yourself:
+```bash
+eas login                                     # your own Expo account
+eas build:configure                            # links this project, creates the EAS project ID getExpoPushTokenAsync() needs
+eas build --profile development --platform android
+# install the resulting dev-client APK on your device, then:
+npx expo start --dev-client
+```
+(Small aside: `package.json`'s `"start"` script has said `expo start --dev-client` since the original Phase 11 scaffold, even before anything actually needed it - harmless, since this session's actual workflow always called `npx expo start --port ... --clear` directly rather than via `npm start`, but worth flagging so it doesn't look like an unexplained leftover.) None of this - `eas login`/`eas build:configure`/`eas build` - was run by the agent building this feature; same policy boundary as the EAS Build phase (account login and cloud-billable actions need you directly in the loop). Real push delivery end-to-end was not verified on a physical device for the same reason; the device-token register/unregister/reminder endpoints themselves *were* verified live against a real running backend (see `notification-service/README.md`).
 
 **Voice dictation was deliberately skipped, not faked.** The web app's mic button uses the browser's Web Speech API, which has no equivalent on native. The only real on-device speech-to-text option for Expo (`expo-speech-recognition`) is a native module that requires a **custom dev client** (`expo-dev-client` + EAS/local prebuild) - it does not run in the standard Expo Go app. Every other native module this app uses today (`expo-secure-store`, `react-native-svg`, `expo-linear-gradient`, etc.) is one Expo Go already bundles for SDK 54, which is the whole reason this app can be demoed by just scanning a QR code into Expo Go with no build step. Adding real voice dictation would mean switching the entire project's dev workflow off Expo Go for one button - a bigger architectural change than this feature is worth, so there's no mic button here at all rather than one that's disabled or fakes a transcript.
 
@@ -32,6 +44,7 @@ Analytics deliberately doesn't pull in a charting library - the web app's rechar
 - **expo-clipboard** for the AI Chat "copy message" button
 - **react-native-qrcode-svg** for the 2FA setup QR code (pure JS, built on the already-installed `react-native-svg`)
 - **@react-native-community/netinfo** for offline detection - listed on Expo's own SDK reference (`docs.expo.dev/versions/latest/sdk/netinfo/`), which means Expo Go bundles it for SDK 54; needs no config plugin
+- **expo-notifications** + **expo-dev-client** for real push notifications - unlike every other dependency in this app, real push token retrieval needs a custom dev client build, not plain Expo Go (see the push notifications section above)
 - **NativeWind v4** (Tailwind classNames on native components) - theme tokens in `tailwind.config.js` are ported from `frontend/src/index.css`'s `:root` block, same dark glassmorphism palette as the web app
 - **axios**, with the same request/response-interceptor pattern as `frontend/src/services/api.js` (attach bearer token, silent refresh-and-retry-once on 401)
 - **expo-secure-store** (Keystore-backed, for the two JWTs) + **@react-native-async-storage/async-storage** (non-sensitive session fields) - see `src/services/session.ts`
@@ -67,15 +80,17 @@ src/
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
   services/        real axios-backed authService/journalService/aiService/searchService/
-                   userService/api/session, plus index.ts - the one file that switches
-                   between real and mocks/
-  mocks/           fixtures.ts (seed users + journals), mock{Auth,Journal,Ai,Search,User}
-                   Service.ts - same function signatures as services/*.ts, used for Pass A
+                   userService/notificationService/api/session, plus index.ts - the one
+                   file that switches between real and mocks/
+  mocks/           fixtures.ts (seed users + journals), mock{Auth,Journal,Ai,Search,User,
+                   Notification}Service.ts - same function signatures as services/*.ts,
+                   used for Pass A
   components/      MoodWheel.tsx, ErrorBanner.tsx, OfflineBanner.tsx, ui/ (GlassPanel,
                    GlassInput, PrimaryButton, SkeletonBlock, FadeInView, EmptyState)
   lib/             moods.ts, journalStats.ts, utils.ts (cn()) - ported near-verbatim
                    from frontend/src/lib/, pure TypeScript with no DOM dependency;
-                   offlineCache.ts + offlineQueue.ts - new, no web-app equivalent
+                   offlineCache.ts + offlineQueue.ts + pushRegistration.ts - new, no
+                   web-app equivalent
   types/           shared Journal/AuthResult/CurrentUser/ProfileData/MfaSetupData types
                    used by both real and mock services
 ```
