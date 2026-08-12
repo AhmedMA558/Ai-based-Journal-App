@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Sparkles, Send, User, Bot, Copy, Check, Trash2, Lightbulb } from 'lucide-react';
 import { aiService } from '@/services/aiService';
 import { cn } from '@/lib/utils';
+import { markAiUsed } from '@/lib/achievementTracking';
 
 interface ChatMessage {
   id: string;
@@ -45,6 +46,7 @@ export default function AIChatView() {
     try {
       const res = await aiService.chat(query);
       const reply = res?.data?.data || 'I am here to support your journaling journey.';
+      markAiUsed();
       setMessages((prev) => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', text: reply }]);
     } catch (err) {
       console.error('AI chat error:', err);
