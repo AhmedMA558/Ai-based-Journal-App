@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import * as Notifications from 'expo-notifications';
 import { LayoutDashboard, BookOpen, CalendarDays, Search, MessageCircle, BarChart3, Settings as SettingsIcon } from 'lucide-react-native';
 import { useAuthContext } from '@/context/AuthContext';
 import type { AuthStackParamList, MainStackParamList, MainTabParamList } from './types';
@@ -24,6 +26,8 @@ import CommandPaletteScreen from '@/screens/CommandPaletteScreen';
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
 const MainStack = createNativeStackNavigator<MainStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
+
+const navigationRef = createNavigationContainerRef<MainStackParamList>();
 
 const NAV_THEME = {
   ...DarkTheme,
@@ -129,6 +133,18 @@ function MainNavigator() {
 export function RootNavigator() {
   const { isAuthenticated, checking } = useAuthContext();
 
+  // Tapping a delivered reminder (see notification-service's ReminderScheduler)
+  // takes the user straight into a new journal entry - the whole point of the
+  // nudge is to get them writing, not just to open the app to the Dashboard.
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(() => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('JournalEditor', undefined);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
   if (checking) {
     return (
       <View className="flex-1 bg-bg-primary items-center justify-center">
@@ -138,7 +154,7 @@ export function RootNavigator() {
   }
 
   return (
-    <NavigationContainer theme={NAV_THEME}>
+    <NavigationContainer ref={navigationRef} theme={NAV_THEME}>
       {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );

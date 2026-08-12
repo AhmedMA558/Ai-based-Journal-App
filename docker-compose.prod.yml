@@ -184,7 +184,13 @@ services:
     ports:
       - "8087:8087"
     environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/notification_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   analytics-service:
     build: ./analytics-service
