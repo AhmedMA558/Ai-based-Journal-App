@@ -7,12 +7,13 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-Calendar and Search were added after the initial slice. AI Chat, Analytics, Settings/2FA management, Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
+Calendar, Search, and AI Chat were added after the initial slice. Analytics, Settings/2FA management, Achievements, Command Palette, Notifications, voice dictation, and confetti are still intentionally not in this app - see the Phase 11 plan for the full deferral list.
 
 ## Tech stack
 
 - **Expo** (managed workflow, SDK 54 - runs directly in the published Expo Go app, no custom dev client needed; every native module used here - `expo-secure-store`, `react-native-svg`, `expo-linear-gradient`, etc. - is one Expo Go already bundles for this SDK version)
-- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar) with a modal `JournalEditor` screen
+- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat) with a modal `JournalEditor` screen
+- **expo-clipboard** for the AI Chat "copy message" button
 - **NativeWind v4** (Tailwind classNames on native components) - theme tokens in `tailwind.config.js` are ported from `frontend/src/index.css`'s `:root` block, same dark glassmorphism palette as the web app
 - **axios**, with the same request/response-interceptor pattern as `frontend/src/services/api.js` (attach bearer token, silent refresh-and-retry-once on 401)
 - **expo-secure-store** (Keystore-backed, for the two JWTs) + **@react-native-async-storage/async-storage** (non-sensitive session fields) - see `src/services/session.ts`
@@ -42,7 +43,7 @@ Two env vars (read via `src/config/env.ts`, `EXPO_PUBLIC_*` prefix required by E
 ```
 src/
   screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor,
-                   Calendar, Search
+                   Calendar, Search, Chat
   navigation/     RootNavigator.tsx (AuthStack / MainTabs / modal JournalEditor), types.ts
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
