@@ -12,6 +12,7 @@ export type MainTabParamList = {
   Calendar: undefined;
   Search: undefined;
   Chat: undefined;
+  Settings: undefined;
 };
 
 export type MainStackParamList = {

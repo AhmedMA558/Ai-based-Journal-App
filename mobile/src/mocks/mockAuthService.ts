@@ -1,6 +1,6 @@
 import { session } from '@/services/session';
 import { mockUser, mockMfaUser, MOCK_MFA_CODE, type MockUser } from './fixtures';
-import type { AuthResult, CurrentUser } from '@/types';
+import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult } from '@/types';
 
 // Mirrors the real authService's exported function signatures exactly (see
 // services/authService.ts) so screens/services/index.ts can swap between the two
@@ -32,6 +32,29 @@ async function issueSession(user: MockUser): Promise<AuthResult> {
   };
   await session.setSession(result.accessToken!, result.refreshToken, result.userId, result.username);
   return result;
+}
+
+// Overridable MFA state for the Settings screen's setup/enable/disable flow -
+// null means "not yet touched this session", falling back to whichever
+// fixture user is currently logged in (mockMfaUser starts enabled, demo
+// starts disabled). Once setup/enable/disable runs, the override wins
+// regardless of user, so either fixture account can walk the full flow.
+let mfaEnabledOverride: boolean | null = null;
+const MOCK_MFA_SECRET = 'JBSWY3DPEHPK3PXP';
+const MOCK_RECOVERY_CODES = Array.from({ length: 10 }, (_, i) => `MOCK${(i + 1).toString().padStart(2, '0')}-RECVR`);
+
+// Test-only: resets the module-level MFA override between test cases without
+// re-requiring the module (a fresh require would re-import session.ts's
+// AsyncStorage/SecureStore native modules outside jest-expo's normal mock
+// setup and crash - session.ts itself has no per-user state to reset).
+export function __resetMfaOverrideForTests() {
+  mfaEnabledOverride = null;
+}
+
+async function effectiveMfaEnabled(): Promise<boolean> {
+  if (mfaEnabledOverride !== null) return mfaEnabledOverride;
+  const username = await session.getUserName();
+  return username === mockMfaUser.username;
 }
 
 export const mockAuthService = {
@@ -88,6 +111,52 @@ export const mockAuthService = {
     const username = await session.getUserName();
     const user = KNOWN_USERS.find((u) => u.username === username) || mockUser;
     return delay({ id: user.id, username: user.username, email: user.email, fullName: user.fullName });
+  },
+
+  async changePassword(currentPassword: string, _newPassword: string): Promise<void> {
+    if (currentPassword !== mockUser.password && currentPassword !== mockMfaUser.password) {
+      return delay(undefined).then(() => {
+        throw new Error('Current password is incorrect.');
+      });
+    }
+    return delay(undefined);
+  },
+
+  async getMfaStatus(): Promise<{ mfaEnabled: boolean }> {
+    return delay({ mfaEnabled: await effectiveMfaEnabled() });
+  },
+
+  async setupMfa(): Promise<MfaSetupData> {
+    const username = await session.getUserName();
+    return delay({
+      secret: MOCK_MFA_SECRET,
+      otpAuthUri: `otpauth://totp/Mindora:${encodeURIComponent(username)}?secret=${MOCK_MFA_SECRET}&issuer=Mindora`,
+    });
+  },
+
+  async enableMfa(code: string): Promise<MfaEnableResult> {
+    if (code !== MOCK_MFA_CODE) {
+      return delay(undefined).then(() => {
+        throw new Error('Invalid code. Please try again.');
+      });
+    }
+    mfaEnabledOverride = true;
+    return delay({ mfaEnabled: true, recoveryCodes: MOCK_RECOVERY_CODES });
+  },
+
+  async disableMfa(password: string, code: string): Promise<void> {
+    if (code !== MOCK_MFA_CODE) {
+      return delay(undefined).then(() => {
+        throw new Error('Failed to disable 2FA.');
+      });
+    }
+    if (password !== mockUser.password && password !== mockMfaUser.password) {
+      return delay(undefined).then(() => {
+        throw new Error('Failed to disable 2FA.');
+      });
+    }
+    mfaEnabledOverride = false;
+    return delay(undefined);
   },
 
   async logout(): Promise<void> {
