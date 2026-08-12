@@ -76,3 +76,21 @@ src/
 1. **Pass A (mocks, no backend needed)**: `npx expo start --dev-client`, open on a device/emulator via the Expo Dev Client. Log in as `demo` / `password123` (no MFA) or `mfa_demo` / `password123` (MFA path, code `123456`). Tap through Dashboard, Journals, create/edit/delete an entry, Calendar, Search, AI Chat, and Settings (edit profile, change password, walk the full 2FA setup/enable/disable flow - confirmation code is always `123456` in Pass A), log out.
 2. `npm run typecheck` and `npm test` (Jest - covers the pure logic in `journalStats.ts` and every mock service's CRUD/auth/search/MFA behavior).
 3. **Pass B (real backend)**: set `EXPO_PUBLIC_USE_MOCKS=false` and `EXPO_PUBLIC_API_BASE_URL` to your gateway's reachable address, repeat the same tap-through against live data.
+
+## Production build (EAS)
+
+`eas.json` defines three build profiles (`development`, `preview`, `production`) - this repo ships the config, but actually running a build requires an Expo account and can't be done by an agent on your behalf (account login/creation and any cloud-billable action are both outside what should happen without you directly in the loop). To produce a real installable build yourself:
+
+```bash
+npm install -g eas-cli        # or just use `npx eas-cli ...` for each command below
+eas login                      # your own Expo account
+eas build:configure            # links this project to your account, sets the EAS project ID
+eas build --platform android --profile preview      # internal-distribution APK, good for sharing/testing
+eas build --platform android --profile production    # app-bundle (.aab), what the Play Store wants
+```
+
+Before a real Play Store / App Store submission, two things in this repo still need real attention, not more agent work:
+
+- **`preview`/`production` profiles' `EXPO_PUBLIC_API_BASE_URL`** in `eas.json` is a placeholder (`https://REPLACE-WITH-YOUR-DEPLOYED-GATEWAY-URL`) - the backend needs to be deployed somewhere publicly reachable first (the k8s manifests in `../k8s/` are the closest existing path to that), since a build artifact can't reach `localhost`.
+- **App icon / splash / adaptive icon** (`assets/icon.png`, `assets/splash-icon.png`, `assets/android-icon-*.png`) are still Expo's default template graphics from `create-expo-app` (the generic blue chevron logo, not anything Mindora-branded) - nobody has actually designed real app icon/splash art for this app yet. `app.json` already points at the right files and the adaptive-icon background color matches the app's own dark theme (`#090d16`), so swapping in real artwork later is a drop-in asset replacement, not a config change.
+
