@@ -1,6 +1,8 @@
 # journal-service
 
-Journal entry CRUD, plus pin/favorite/archive toggles and soft/permanent delete. Publishes `JournalCreatedEvent`/`JournalUpdatedEvent` to RabbitMQ on create/update (see `common-library`'s `JournalEventRouting` for the shared exchange/routing-key constants) - `search-service` is the only current consumer, keeping its Elasticsearch index in sync.
+Journal entry CRUD, plus pin/favorite/archive toggles and soft/permanent delete. Publishes `JournalCreatedEvent`/`JournalUpdatedEvent`/`JournalDeletedEvent` to RabbitMQ on create/update/delete (see `common-library`'s `JournalEventRouting` for the shared exchange/routing-key constants) - `search-service` is the only current consumer, keeping its Elasticsearch index in sync (including removing a deleted journal from the index, not just adding/updating one).
+
+**Permanent delete is a real row removal, not a soft-delete in disguise.** `Journal` carries a class-level `@SQLDelete` that rewrites *any* `.delete(entity)` call into the same `is_deleted = true` UPDATE `softDeleteJournal` relies on for the trash action - an earlier version of `permanentDeleteJournal` called the exact same method and silently never purged a row. It now goes through `JournalRepository.hardDeleteByIdAndUserId`, a JPQL bulk `DELETE` that bypasses `@SQLDelete` entirely (that annotation only intercepts Hibernate's own managed-entity-removal SQL generation, not an explicit bulk statement).
 
 **Port:** 8083
 **Database:** MySQL, schema `journal_db` (Flyway-managed, `src/main/resources/db/migration`)

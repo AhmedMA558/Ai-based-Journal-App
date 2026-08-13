@@ -1,12 +1,18 @@
 package com.aijournal.notification.service.impl;
 
+import com.aijournal.common.dto.PagedResponse;
+import com.aijournal.notification.dto.NotificationResponse;
 import com.aijournal.notification.entity.DeviceToken;
+import com.aijournal.notification.entity.Notification;
 import com.aijournal.notification.repository.DeviceTokenRepository;
+import com.aijournal.notification.repository.NotificationRepository;
 import com.aijournal.notification.service.ExpoPushService;
 import com.aijournal.notification.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
@@ -21,15 +27,17 @@ public class NotificationServiceImpl implements NotificationService {
     private static final Logger log = LoggerFactory.getLogger(NotificationServiceImpl.class);
 
     private final DeviceTokenRepository deviceTokenRepository;
+    private final NotificationRepository notificationRepository;
     private final ExpoPushService expoPushService;
     private final JavaMailSender mailSender;
 
     @Value("${notification.mail.from:noreply@mindora.local}")
     private String fromAddress;
 
-    public NotificationServiceImpl(DeviceTokenRepository deviceTokenRepository, ExpoPushService expoPushService,
-                                    JavaMailSender mailSender) {
+    public NotificationServiceImpl(DeviceTokenRepository deviceTokenRepository, NotificationRepository notificationRepository,
+                                    ExpoPushService expoPushService, JavaMailSender mailSender) {
         this.deviceTokenRepository = deviceTokenRepository;
+        this.notificationRepository = notificationRepository;
         this.expoPushService = expoPushService;
         this.mailSender = mailSender;
     }
@@ -79,5 +87,29 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public void unregisterDeviceToken(Long userId, String expoPushToken) {
         deviceTokenRepository.deleteByUserIdAndExpoPushToken(userId, expoPushToken);
+    }
+
+    @Override
+    @Transactional
+    public void createNotification(Long userId, String type, String message) {
+        notificationRepository.save(new Notification(userId, type, message));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<NotificationResponse> listNotifications(Long userId, Pageable pageable) {
+        Page<Notification> page = notificationRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+        List<NotificationResponse> content = page.getContent().stream()
+                .map(n -> new NotificationResponse(n.getId(), n.getType(), n.getMessage(),
+                        Boolean.TRUE.equals(n.getRead()), n.getCreatedAt()))
+                .toList();
+        return new PagedResponse<>(content, page.getNumber(), page.getSize(), page.getTotalElements(),
+                page.getTotalPages(), page.isLast(), page.isFirst());
+    }
+
+    @Override
+    @Transactional
+    public void markAllAsRead(Long userId) {
+        notificationRepository.markAllAsReadForUser(userId);
     }
 }

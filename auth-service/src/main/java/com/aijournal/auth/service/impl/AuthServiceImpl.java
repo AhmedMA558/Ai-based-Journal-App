@@ -40,6 +40,8 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 public class AuthServiceImpl implements AuthService {
@@ -62,6 +64,15 @@ public class AuthServiceImpl implements AuthService {
     private final TotpService totpService;
     private final TotpEncryptionService totpEncryptionService;
     private final RestTemplate restTemplate = new RestTemplate();
+    // Fire-and-forget executor for every best-effort call into
+    // notification-service - keeping these off the calling thread means the
+    // HTTP response returns before the background network call even starts,
+    // which is what closes the forgotPassword timing side-channel (a
+    // registered vs. unregistered email used to take measurably different
+    // time to respond). Not Spring's @Async: these are private same-class
+    // methods, so AOP self-invocation would silently never intercept them.
+    // Swapped for a synchronous Runnable::run executor in tests.
+    private Executor notificationExecutor = Executors.newCachedThreadPool();
 
     @Value("${jwt.secret:defaultSecretKeyForTestingJwtTokenValidation1234567890}")
     private String jwtSecret;
@@ -120,29 +131,33 @@ public class AuthServiceImpl implements AuthService {
 
         User savedUser = userRepository.save(user);
         AuthResponse response = generateTokensForUser(savedUser);
-        sendWelcomeEmailBestEffort(savedUser, response.getAccessToken());
+        sendWelcomeEmailBestEffort(savedUser);
         return response;
     }
 
-    // Forwards the token just minted for this exact user - self-authenticating
-    // against notification-service's own JwtAuthenticationFilter, no new
-    // service-to-service auth mechanism needed. Best-effort: a failure here
-    // must never fail registration itself.
-    private void sendWelcomeEmailBestEffort(User user, String accessToken) {
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
-            Map<String, String> body = Map.of(
-                    "to", user.getEmail(),
-                    "subject", "Welcome to Mindora!",
-                    "body", "Hi " + user.getUsername() + ",\n\nWelcome to Mindora - your AI journaling companion. " +
-                            "Start writing your first entry whenever you're ready.\n\nHappy journaling!"
-            );
-            restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
-                    new HttpEntity<>(body, headers), Void.class);
-        } catch (Exception e) {
-            log.warn("Could not send welcome email to {}: {}", user.getEmail(), e.getMessage());
-        }
+    // Mints the same short-lived internal system token every other
+    // notification-service call uses (see mintSystemToken()) rather than
+    // forwarding the new user's own access token - notification-service's
+    // /send-email endpoint is now locked to ROLE_SYSTEM only, so a normal
+    // user's own JWT would no longer be accepted here anyway. Best-effort:
+    // a failure here must never fail registration itself.
+    private void sendWelcomeEmailBestEffort(User user) {
+        notificationExecutor.execute(() -> {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+                Map<String, String> body = Map.of(
+                        "to", user.getEmail(),
+                        "subject", "Welcome to Mindora!",
+                        "body", "Hi " + user.getUsername() + ",\n\nWelcome to Mindora - your AI journaling companion. " +
+                                "Start writing your first entry whenever you're ready.\n\nHappy journaling!"
+                );
+                restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
+                        new HttpEntity<>(body, headers), Void.class);
+            } catch (Exception e) {
+                log.warn("Could not send welcome email to {}: {}", user.getEmail(), e.getMessage());
+            }
+        });
     }
 
     @Override
@@ -183,6 +198,16 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = challenge.getUser();
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            // The account could have been disabled by an admin after this
+            // challenge was created but before it was completed - the same
+            // check login() already does must also apply here, otherwise a
+            // still-valid challenge would let a disabled account complete
+            // login and mint fresh tokens anyway.
+            mfaChallengeRepository.delete(challenge);
+            throw new ForbiddenException("This account has been disabled.");
+        }
+
         boolean verified;
         if (StringUtils.hasText(request.getCode())) {
             String decryptedSecret = totpEncryptionService.decrypt(user.getTotpSecret());
@@ -234,6 +259,7 @@ public class AuthServiceImpl implements AuthService {
         plainCodes.forEach(code ->
                 mfaRecoveryCodeRepository.save(new MfaRecoveryCode(null, user, passwordEncoder.encode(code))));
 
+        notifyAccountEventBestEffort(user, "Two-factor authentication was enabled on your account.");
         return new MfaEnableResponse(true, plainCodes);
     }
 
@@ -258,6 +284,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
         mfaRecoveryCodeRepository.deleteByUser(user);
         mfaChallengeRepository.deleteByUser(user);
+        notifyAccountEventBestEffort(user, "Two-factor authentication was disabled on your account.");
     }
 
     @Override
@@ -279,6 +306,7 @@ public class AuthServiceImpl implements AuthService {
         // Force re-login everywhere else - a stolen-device session shouldn't
         // survive a password change made because of suspected compromise.
         refreshTokenRepository.deleteByUser(user);
+        notifyAccountEventBestEffort(user, "Your password was changed.");
     }
 
     @Override
@@ -291,13 +319,21 @@ public class AuthServiceImpl implements AuthService {
             return;
         }
         User user = maybeUser.get();
-        // Only the most recently requested code is ever valid.
-        passwordResetTokenRepository.deleteByUser(user);
-        String code = randomPasswordResetCode();
-        PasswordResetToken token = new PasswordResetToken(null, user, code,
-                Instant.now().plus(PASSWORD_RESET_TTL_MINUTES, ChronoUnit.MINUTES));
-        passwordResetTokenRepository.save(token);
-        sendPasswordResetEmailBestEffort(user, code);
+        // Everything past this point (invalidating the old code, generating
+        // and persisting a new one, sending the email) runs off-thread, same
+        // as sendPasswordResetEmailBestEffort's own network call - the two
+        // DB writes here (delete + insert) were themselves a smaller but
+        // still measurable timing side-channel even after that first fix,
+        // since the unregistered-email branch above does neither of them.
+        notificationExecutor.execute(() -> {
+            // Only the most recently requested code is ever valid.
+            passwordResetTokenRepository.deleteByUser(user);
+            String code = randomPasswordResetCode();
+            PasswordResetToken token = new PasswordResetToken(null, user, code,
+                    Instant.now().plus(PASSWORD_RESET_TTL_MINUTES, ChronoUnit.MINUTES));
+            passwordResetTokenRepository.save(token);
+            sendPasswordResetEmailBestEffort(user, code);
+        });
     }
 
     @Override
@@ -318,6 +354,7 @@ public class AuthServiceImpl implements AuthService {
         // compromised-credential recovery path shouldn't leave old sessions alive.
         refreshTokenRepository.deleteByUser(user);
         passwordResetTokenRepository.delete(token);
+        notifyAccountEventBestEffort(user, "Your password was reset.");
     }
 
     // Unlike sendWelcomeEmailBestEffort (which forwards the freshly-registered
@@ -328,21 +365,48 @@ public class AuthServiceImpl implements AuthService {
     // and reads claims, it never checks the user exists, so this passes
     // cleanly with no new auth mechanism and no endpoint made public.
     private void sendPasswordResetEmailBestEffort(User user, String code) {
-        try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
-            Map<String, String> body = Map.of(
-                    "to", user.getEmail(),
-                    "subject", "Reset your Mindora password",
-                    "body", "Hi " + user.getUsername() + ",\n\nYour password reset code is: " + code +
-                            "\n\nThis code expires in " + PASSWORD_RESET_TTL_MINUTES + " minutes. " +
-                            "If you didn't request this, you can safely ignore this email."
-            );
-            restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
-                    new HttpEntity<>(body, headers), Void.class);
-        } catch (Exception e) {
-            log.warn("Could not send password reset email to {}: {}", user.getEmail(), e.getMessage());
-        }
+        notificationExecutor.execute(() -> {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+                Map<String, String> body = Map.of(
+                        "to", user.getEmail(),
+                        "subject", "Reset your Mindora password",
+                        "body", "Hi " + user.getUsername() + ",\n\nYour password reset code is: " + code +
+                                "\n\nThis code expires in " + PASSWORD_RESET_TTL_MINUTES + " minutes. " +
+                                "If you didn't request this, you can safely ignore this email."
+                );
+                restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
+                        new HttpEntity<>(body, headers), Void.class);
+            } catch (Exception e) {
+                log.warn("Could not send password reset email to {}: {}", user.getEmail(), e.getMessage());
+            }
+        });
+    }
+
+    // Best-effort account-security notification, logged via notification-service's
+    // real notification feed (not email) - reuses the same system-token
+    // authentication as the email sends above. Fire-and-forget: never allowed
+    // to fail the real operation (password change, MFA toggle, etc.) that
+    // triggered it, and running off-thread via notificationExecutor keeps
+    // this consistent with the timing-side-channel fix on the password-reset
+    // path even though this particular call site isn't enumeration-sensitive.
+    private void notifyAccountEventBestEffort(User user, String message) {
+        notificationExecutor.execute(() -> {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+                Map<String, Object> body = Map.of(
+                        "userId", user.getId(),
+                        "type", "SECURITY",
+                        "message", message
+                );
+                restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications",
+                        new HttpEntity<>(body, headers), Void.class);
+            } catch (Exception e) {
+                log.warn("Could not create account-event notification for user {}: {}", user.getId(), e.getMessage());
+            }
+        });
     }
 
     private String mintSystemToken() {
@@ -392,6 +456,15 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = token.getUser();
+        if (!Boolean.TRUE.equals(user.getEnabled())) {
+            // A refresh token issued before the account was disabled must
+            // stop working immediately - otherwise disabling an account
+            // wouldn't actually revoke access for as long as the token's
+            // 7-day lifetime, defeating AdminServiceImpl.updateStatus's
+            // whole point.
+            refreshTokenRepository.delete(token);
+            throw new ForbiddenException("This account has been disabled.");
+        }
         refreshTokenRepository.delete(token); // Refresh token rotation
         return generateTokensForUser(user);
     }

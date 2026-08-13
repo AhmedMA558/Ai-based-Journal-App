@@ -127,6 +127,23 @@ describe('DashboardView', () => {
     expect(showToast).toHaveBeenCalledWith('Journal entry deleted.', 'info');
   });
 
+  it('shows an error toast (not just a silent console.error) when delete fails', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    mockedDeleteJournal.mockRejectedValue(new Error('network error'));
+    const showToast = vi.fn();
+    const user = userEvent.setup();
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} showToast={showToast} />);
+
+    await screen.findByText('First Entry');
+    const deleteButtons = screen.getAllByTitle('Delete Entry');
+    await user.click(deleteButtons[0]);
+
+    expect(mockedDeleteJournal).toHaveBeenCalledWith(1);
+    expect(showToast).toHaveBeenCalledWith('Failed to delete journal entry. Please try again.', 'error');
+    // The entry must still be visible - the failed delete was never applied to local state.
+    expect(await screen.findByText('First Entry')).toBeInTheDocument();
+  });
+
   it('shows a styled error banner when journals fail to load', async () => {
     mockedGetAllJournals.mockRejectedValue(new Error('network down'));
     render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);

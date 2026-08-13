@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +87,12 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
         ReflectionTestUtils.setField(authService, "restTemplate", restTemplate);
         ReflectionTestUtils.setField(authService, "notificationServiceUrl", "http://notification-service:8087");
+        // Best-effort notification sends run on this executor in production
+        // (see notifyAccountEventBestEffort/sendWelcomeEmailBestEffort/
+        // sendPasswordResetEmailBestEffort) to close the forgotPassword
+        // timing side-channel - swapped for a same-thread executor here so
+        // every restTemplate-verification assertion below stays deterministic.
+        ReflectionTestUtils.setField(authService, "notificationExecutor", (Executor) Runnable::run);
     }
 
     private User mfaUser(boolean mfaEnabled, String encryptedSecret) {
@@ -118,7 +125,12 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_Success_TriggersWelcomeEmailWithNewlyIssuedToken() {
+    void register_Success_TriggersWelcomeEmailWithSystemToken() {
+        // notification-service's /send-email is now ROLE_SYSTEM-only (it was
+        // an open relay before - any authenticated user could hit it with
+        // their own JWT), so the welcome-email trigger must authenticate the
+        // same way sendPasswordResetEmailBestEffort already does: a minted
+        // system token, not the newly-registered user's own access token.
         RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
         when(userRepository.existsByUsername("testuser")).thenReturn(false);
         when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
@@ -135,7 +147,11 @@ class AuthServiceTest {
         verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
                 captor.capture(), eq(Void.class));
         HttpEntity<Map<String, String>> entity = captor.getValue();
-        assertEquals("Bearer " + response.getAccessToken(), entity.getHeaders().getFirst("Authorization"));
+        String authHeader = entity.getHeaders().getFirst("Authorization");
+        assertNotNull(authHeader);
+        assertTrue(authHeader.startsWith("Bearer "));
+        assertNotEquals("Bearer " + response.getAccessToken(), authHeader,
+                "welcome email must authenticate with a system token, not the new user's own access token");
         assertEquals("test@example.com", entity.getBody().get("to"));
     }
 
@@ -293,6 +309,70 @@ class AuthServiceTest {
     }
 
     @Test
+    void verifyMfa_DisabledAccount_ThrowsForbiddenAndDeletesChallenge() {
+        // A disabled account must not be able to complete a login it already
+        // started before an admin disabled it - a still-valid MfaChallenge
+        // created before disablement previously let verifyMfa mint fresh
+        // tokens regardless of the account's enabled state.
+        User user = mfaUser(true, "encryptedSecret");
+        user.setEnabled(false);
+        MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));
+        MfaVerifyRequest request = new MfaVerifyRequest();
+        request.setChallengeToken("challenge-token");
+        request.setCode("123456");
+
+        when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
+
+        assertThrows(ForbiddenException.class, () -> authService.verifyMfa(request));
+        verify(mfaChallengeRepository, times(1)).delete(challenge);
+        verify(totpService, never()).verify(anyString(), anyString());
+        verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void refreshToken_ValidToken_RotatesAndReturnsNewTokens() {
+        User user = mfaUser(false, null);
+        RefreshToken token = new RefreshToken(1L, "old-refresh-token", user, Instant.now().plusSeconds(3600), false);
+        RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
+        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(token));
+
+        AuthResponse response = authService.refreshToken(request);
+
+        assertNotNull(response);
+        assertEquals("testuser", response.getUsername());
+        verify(refreshTokenRepository, times(1)).delete(token);
+        verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refreshToken_ExpiredOrRevoked_ThrowsUnauthorized() {
+        User user = mfaUser(false, null);
+        RefreshToken token = new RefreshToken(1L, "old-refresh-token", user, Instant.now().minusSeconds(60), false);
+        RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
+        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(token));
+
+        assertThrows(UnauthorizedException.class, () -> authService.refreshToken(request));
+        verify(refreshTokenRepository, times(1)).delete(token);
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refreshToken_DisabledAccount_ThrowsForbiddenAndDeletesToken() {
+        // A refresh token issued before an account was disabled must stop
+        // working immediately - otherwise disabling an account wouldn't
+        // actually revoke access for as long as the token's full lifetime.
+        User user = mfaUser(false, null);
+        user.setEnabled(false);
+        RefreshToken token = new RefreshToken(1L, "old-refresh-token", user, Instant.now().plusSeconds(3600), false);
+        RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
+        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(token));
+
+        assertThrows(ForbiddenException.class, () -> authService.refreshToken(request));
+        verify(refreshTokenRepository, times(1)).delete(token);
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+    }
+
+    @Test
     void setupMfa_PersistsSecretAndReturnsUri() {
         User user = mfaUser(false, null);
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
@@ -408,6 +488,33 @@ class AuthServiceTest {
         verify(userRepository).save(savedUser.capture());
         assertEquals("newEncodedPassword", savedUser.getValue().getPassword());
         verify(refreshTokenRepository, times(1)).deleteByUser(user);
+    }
+
+    @Test
+    void changePassword_Success_TriggersAccountEventNotification() {
+        // Real account-security events (password change, password reset, MFA
+        // toggle, admin disable) now log a real notification instead of the
+        // web bell always showing 3 hardcoded fictional items - this is the
+        // representative case for the shared notifyAccountEventBestEffort
+        // mechanism all four call sites use identically.
+        User user = mfaUser(false, null);
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.setCurrentPassword("password123");
+        request.setNewPassword("newpassword123");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
+        when(passwordEncoder.encode("newpassword123")).thenReturn("newEncodedPassword");
+
+        authService.changePassword(1L, request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<Map<String, Object>>> captor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications"),
+                captor.capture(), eq(Void.class));
+        HttpEntity<Map<String, Object>> entity = captor.getValue();
+        assertTrue(entity.getHeaders().getFirst("Authorization").startsWith("Bearer "));
+        assertEquals(1L, entity.getBody().get("userId"));
+        assertEquals("SECURITY", entity.getBody().get("type"));
     }
 
     @Test

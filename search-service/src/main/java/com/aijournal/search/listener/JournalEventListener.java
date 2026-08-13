@@ -1,6 +1,7 @@
 package com.aijournal.search.listener;
 
 import com.aijournal.common.event.JournalCreatedEvent;
+import com.aijournal.common.event.JournalDeletedEvent;
 import com.aijournal.common.event.JournalUpdatedEvent;
 import com.aijournal.common.messaging.JournalEventRouting;
 import com.aijournal.search.document.JournalDocument;
@@ -77,6 +78,24 @@ public class JournalEventListener {
             journalSearchRepository.save(doc);
         } catch (Exception e) {
             log.error("Failed to index journal.updated event for journalId={}", event.getJournalId(), e);
+        }
+    }
+
+    // A deleted (soft- or permanently-) journal must stop being surfaced by
+    // search - without this, a "deleted" entry's plaintext title/content
+    // stayed fully searchable forever, since nothing ever removed it from
+    // the index.
+    @RabbitListener(bindings = @QueueBinding(
+            value = @Queue(name = JournalEventRouting.QUEUE_DELETED, durable = "true"),
+            exchange = @Exchange(name = JournalEventRouting.EXCHANGE_NAME, type = ExchangeTypes.TOPIC),
+            key = JournalEventRouting.ROUTING_KEY_DELETED
+    ))
+    public void handleJournalDeleted(JournalDeletedEvent event) {
+        try {
+            String id = String.valueOf(event.getJournalId());
+            journalSearchRepository.findById(id).ifPresent(journalSearchRepository::delete);
+        } catch (Exception e) {
+            log.error("Failed to remove journal.deleted event for journalId={}", event.getJournalId(), e);
         }
     }
 }

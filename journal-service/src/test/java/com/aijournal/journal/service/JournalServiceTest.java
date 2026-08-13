@@ -2,6 +2,7 @@ package com.aijournal.journal.service;
 
 import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.event.JournalCreatedEvent;
+import com.aijournal.common.event.JournalDeletedEvent;
 import com.aijournal.common.event.JournalUpdatedEvent;
 import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.common.messaging.JournalEventRouting;
@@ -317,6 +318,26 @@ class JournalServiceTest {
     }
 
     @Test
+    void updateJournal_NullContent_KeepsExistingContentInsteadOfCrashing() {
+        // Regression guard: a partial-update payload that omits content
+        // entirely (content == null) used to NPE inside
+        // journalEncryptionService.encrypt(null) - it must instead leave the
+        // existing content untouched, matching the skip-if-null convention
+        // already used for isDraft/folderId/categoryId below.
+        Journal existing = existingJournal(10L, 1L);
+        existing.setContent("original private content");
+        when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        Journal updates = new Journal();
+        updates.setTitle("New Title");
+        updates.setContent(null);
+
+        Journal result = journalService.updateJournal(1L, 10L, updates);
+
+        assertThat(result.getContent()).isEqualTo("original private content");
+        assertThat(result.getTitle()).isEqualTo("New Title");
+    }
+
+    @Test
     void updateJournal_NullTags_DefaultsToEmptySet() {
         Journal existing = existingJournal(10L, 1L);
         when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
@@ -435,12 +456,33 @@ class JournalServiceTest {
 
     @Test
     void softDeleteJournal_OwnedJournal_DeletesIt() {
+        // journalRepository.delete(...) is intercepted by Journal's own
+        // @SQLDelete into a soft-delete UPDATE - that's the correct mechanism
+        // for a "trash" action, unlike permanentDeleteJournal below which
+        // must bypass it for a real row removal.
         Journal existing = existingJournal(1L, 1L);
         when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
 
         journalService.softDeleteJournal(1L, 1L);
 
         verify(journalRepository).delete(existing);
+        verify(journalRepository, never()).hardDeleteByIdAndUserId(any(), any());
+    }
+
+    @Test
+    void softDeleteJournal_PublishesJournalDeletedEvent() {
+        // A soft-deleted (trashed) journal must stop being surfaced by
+        // search too - search-service's listener removes it from the index
+        // on this event.
+        Journal existing = existingJournal(1L, 1L);
+        when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
+
+        journalService.softDeleteJournal(1L, 1L);
+
+        ArgumentCaptor<JournalDeletedEvent> captor = ArgumentCaptor.forClass(JournalDeletedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(JournalEventRouting.EXCHANGE_NAME), eq(JournalEventRouting.ROUTING_KEY_DELETED), captor.capture());
+        assertThat(captor.getValue().getJournalId()).isEqualTo(1L);
+        assertThat(captor.getValue().getUserId()).isEqualTo(1L);
     }
 
     @Test
@@ -450,16 +492,36 @@ class JournalServiceTest {
         assertThatThrownBy(() -> journalService.permanentDeleteJournal(2L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class);
         verify(journalRepository, never()).delete(any(Journal.class));
-        verify(journalRepository, never()).deleteById(any(Long.class));
+        verify(journalRepository, never()).hardDeleteByIdAndUserId(any(), any());
+        verifyNoInteractions(rabbitTemplate);
     }
 
     @Test
-    void permanentDeleteJournal_OwnedByCaller_DeletesIt() {
+    void permanentDeleteJournal_OwnedByCaller_ReallyDeletesIt_NotJustSoftDelete() {
+        // Regression guard for the specific bug this fix exists for: a plain
+        // journalRepository.delete(journal) call gets silently rewritten by
+        // Journal's @SQLDelete into the same soft-delete UPDATE
+        // softDeleteJournal relies on - "permanent" delete must instead go
+        // through the JPQL bulk-delete method that bypasses that annotation.
         Journal existing = existingJournal(1L, 1L);
         when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
 
         journalService.permanentDeleteJournal(1L, 1L);
 
-        verify(journalRepository).delete(existing);
+        verify(journalRepository).hardDeleteByIdAndUserId(1L, 1L);
+        verify(journalRepository, never()).delete(any(Journal.class));
+    }
+
+    @Test
+    void permanentDeleteJournal_PublishesJournalDeletedEvent() {
+        Journal existing = existingJournal(1L, 1L);
+        when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
+
+        journalService.permanentDeleteJournal(1L, 1L);
+
+        ArgumentCaptor<JournalDeletedEvent> captor = ArgumentCaptor.forClass(JournalDeletedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(JournalEventRouting.EXCHANGE_NAME), eq(JournalEventRouting.ROUTING_KEY_DELETED), captor.capture());
+        assertThat(captor.getValue().getJournalId()).isEqualTo(1L);
+        assertThat(captor.getValue().getUserId()).isEqualTo(1L);
     }
 }

@@ -9,8 +9,10 @@ public final class JournalEventRouting {
     public static final String EXCHANGE_NAME = "journal.exchange";
     public static final String QUEUE_CREATED = "journal.created.queue";
     public static final String QUEUE_UPDATED = "journal.updated.queue";
+    public static final String QUEUE_DELETED = "journal.deleted.queue";
     public static final String ROUTING_KEY_CREATED = "journal.created";
     public static final String ROUTING_KEY_UPDATED = "journal.updated";
+    public static final String ROUTING_KEY_DELETED = "journal.deleted";
 
     private JournalEventRouting() {
     }

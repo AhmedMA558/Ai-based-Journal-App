@@ -9,31 +9,52 @@ describe('NotificationsDrawer', () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it('falls back to the default notifications when none are passed', () => {
+  it('shows a genuine empty state when no notifications are passed', () => {
     render(<NotificationsDrawer isOpen onClose={vi.fn()} />);
-    expect(screen.getByText('AI Daily Wellness Suggestion')).toBeInTheDocument();
-    expect(screen.getByText('3-Day Journaling Streak Unlocked! 🔥')).toBeInTheDocument();
-    expect(screen.getByText('Session Security Active')).toBeInTheDocument();
+    expect(screen.getByText('No notifications yet')).toBeInTheDocument();
+    expect(screen.queryByText('Mark all as read')).not.toBeInTheDocument();
   });
 
-  it('renders custom notifications instead of the defaults when provided', () => {
+  it('renders real notifications with a type-derived label', () => {
     render(
       <NotificationsDrawer
         isOpen
         onClose={vi.fn()}
         notifications={[
-          { id: 99, title: 'Custom Alert', message: 'Something happened', time: 'now', type: 'ai', icon: null },
+          { id: 1, type: 'SECURITY', message: 'Your password was changed.', read: false, createdAt: new Date().toISOString() },
         ]}
       />
     );
-    expect(screen.getByText('Custom Alert')).toBeInTheDocument();
-    expect(screen.queryByText('AI Daily Wellness Suggestion')).not.toBeInTheDocument();
+    expect(screen.getByText('Account Security')).toBeInTheDocument();
+    expect(screen.getByText('Your password was changed.')).toBeInTheDocument();
+    expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument();
+  });
+
+  it('falls back to a generic label for an unknown notification type', () => {
+    render(
+      <NotificationsDrawer
+        isOpen
+        onClose={vi.fn()}
+        notifications={[
+          { id: 2, type: 'SOMETHING_NEW', message: 'A new kind of event.', read: false, createdAt: new Date().toISOString() },
+        ]}
+      />
+    );
+    expect(screen.getByText('Notification')).toBeInTheDocument();
+    expect(screen.getByText('A new kind of event.')).toBeInTheDocument();
   });
 
   it('calls onMarkAllRead when the mark-all button is clicked', async () => {
     const user = userEvent.setup();
     const onMarkAllRead = vi.fn();
-    render(<NotificationsDrawer isOpen onClose={vi.fn()} onMarkAllRead={onMarkAllRead} />);
+    render(
+      <NotificationsDrawer
+        isOpen
+        onClose={vi.fn()}
+        onMarkAllRead={onMarkAllRead}
+        notifications={[{ id: 1, type: 'SECURITY', message: 'msg', read: false, createdAt: new Date().toISOString() }]}
+      />
+    );
 
     await user.click(screen.getByText('Mark all as read'));
 

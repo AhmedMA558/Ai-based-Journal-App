@@ -83,8 +83,15 @@ async function removeFromCache(id: Journal['id']): Promise<void> {
 // Replays any offline-queued creates/updates/deletes against the real
 // backend, in order, stopping on the first failure so a mid-sync drop
 // doesn't lose or reorder anything - see lib/offlineQueue.ts.
+let syncing = false;
 export async function syncPendingChanges(): Promise<void> {
-  await processQueue({ create: rawCreateJournal, update: rawUpdateJournal, delete: rawDeleteJournal });
+  if (syncing) return;
+  syncing = true;
+  try {
+    await processQueue({ create: rawCreateJournal, update: rawUpdateJournal, delete: rawDeleteJournal });
+  } finally {
+    syncing = false;
+  }
 }
 
 // Fires an initial sync attempt on reconnect, without any screen needing to
@@ -92,6 +99,24 @@ export async function syncPendingChanges(): Promise<void> {
 // same as every other real service module) - harmless if EXPO_PUBLIC_USE_MOCKS
 // is on, since Pass A never queues anything for this listener to sync.
 let wasConnected: boolean | null = null;
+
+// A one-shot check at module load closes a real gap the listener alone
+// leaves open: wasConnected starts as null, so a cold app launch while
+// already online would otherwise never trigger the false->true transition
+// the listener below waits for - pending edits from a previous offline
+// session would sit stuck until the device went offline and back online
+// again while the app was actually running. This also seeds wasConnected
+// from a real reading instead of null.
+NetInfo.fetch().then((state) => {
+  const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
+  wasConnected = isConnected;
+  if (isConnected) {
+    syncPendingChanges().catch(() => {
+      // Sync will retry on the next reconnect event or screen-focus call.
+    });
+  }
+});
+
 NetInfo.addEventListener((state) => {
   const isConnected = Boolean(state.isConnected && state.isInternetReachable !== false);
   if (isConnected && wasConnected === false) {

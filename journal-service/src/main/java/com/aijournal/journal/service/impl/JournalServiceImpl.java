@@ -2,6 +2,7 @@ package com.aijournal.journal.service.impl;
 
 import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.event.JournalCreatedEvent;
+import com.aijournal.common.event.JournalDeletedEvent;
 import com.aijournal.common.event.JournalUpdatedEvent;
 import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.common.messaging.JournalEventRouting;
@@ -94,14 +95,20 @@ public class JournalServiceImpl implements JournalService {
         Long activeUserId = userId != null ? userId : 1L;
         Journal existing = findOwnedJournal(activeUserId, journalId);
         existing.setTitle(updated.getTitle());
-        // existing.contentEncrypted may already be true from a prior save -
-        // force it false while the field briefly holds real plaintext so
-        // calculateMetrics() actually recomputes instead of no-op'ing.
-        existing.setContentEncrypted(false);
-        existing.setContent(updated.getContent());
-        existing.calculateMetrics();
-        existing.setContent(journalEncryptionService.encrypt(updated.getContent()));
-        existing.setContentEncrypted(true);
+        // A partial-update payload that omits content entirely (updated.getContent()
+        // == null) must leave the existing content untouched rather than crash -
+        // journalEncryptionService.encrypt(null) would NPE. Matches the
+        // skip-if-null convention already used below for isDraft/folderId/categoryId.
+        if (updated.getContent() != null) {
+            // existing.contentEncrypted may already be true from a prior save -
+            // force it false while the field briefly holds real plaintext so
+            // calculateMetrics() actually recomputes instead of no-op'ing.
+            existing.setContentEncrypted(false);
+            existing.setContent(updated.getContent());
+            existing.calculateMetrics();
+            existing.setContent(journalEncryptionService.encrypt(updated.getContent()));
+            existing.setContentEncrypted(true);
+        }
         existing.setMood(updated.getMood());
         existing.setLocation(updated.getLocation());
         existing.setWeather(updated.getWeather());
@@ -208,15 +215,37 @@ public class JournalServiceImpl implements JournalService {
     public void softDeleteJournal(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
         Journal journal = findOwnedJournal(activeUserId, journalId);
+        // Journal's @SQLDelete intercepts this into an UPDATE ... is_deleted =
+        // true, not a real row removal - which is exactly right for a "trash"
+        // action. @SQLRestriction("is_deleted = false") already hides it from
+        // every subsequent journal-service read, so it should stop being
+        // surfaced by search too - see the publishJournalDeletedEvent() call
+        // below.
         journalRepository.delete(journal);
+        publishJournalDeletedEvent(journalId, activeUserId);
     }
 
     @Override
     @Transactional
     public void permanentDeleteJournal(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = findOwnedJournal(activeUserId, journalId);
-        journalRepository.delete(journal);
+        findOwnedJournal(activeUserId, journalId); // ownership check only - 404s if not found/owned
+        // A plain journalRepository.delete(journal) would hit the exact same
+        // @SQLDelete interception softDeleteJournal relies on, silently
+        // turning "permanent" delete into the same soft-delete UPDATE - this
+        // JPQL bulk delete bypasses that annotation entirely for a real row
+        // removal (see JournalRepository.hardDeleteByIdAndUserId's comment).
+        journalRepository.hardDeleteByIdAndUserId(journalId, activeUserId);
+        publishJournalDeletedEvent(journalId, activeUserId);
+    }
+
+    private void publishJournalDeletedEvent(Long journalId, Long userId) {
+        try {
+            JournalDeletedEvent event = new JournalDeletedEvent(journalId, userId);
+            rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_DELETED, event);
+        } catch (Exception e) {
+            // Log fallback if RabbitMQ broker is offline
+        }
     }
 
     private PagedResponse<Journal> toPagedResponse(Page<Journal> page) {

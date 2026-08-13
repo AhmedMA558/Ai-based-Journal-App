@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -66,16 +66,24 @@ export default function AnalyticsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [insights, setInsights] = useState<Insights | null>(null);
+  // fetchRealtimeAnalytics is called both from the mount effect below and
+  // from the "Refresh Data" button - a plain effect-scoped `cancelled` flag
+  // can't guard the button-triggered call, so a request-id ref tracks which
+  // invocation is the latest and lets every earlier one's response be
+  // ignored if it resolves after a newer call has already started.
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     fetchRealtimeAnalytics();
   }, []);
 
   const fetchRealtimeAnalytics = async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError('');
     try {
       const list = await journalService.getAllJournals();
+      if (requestIdRef.current !== requestId) return;
       setJournals(Array.isArray(list) ? list : []);
 
       try {
@@ -84,18 +92,20 @@ export default function AnalyticsView() {
         // charts above, which are computed entirely from `list` and always
         // work regardless of this call's outcome.
         const res = await analyticsService.getInsights();
+        if (requestIdRef.current !== requestId) return;
         const data = res?.data?.data;
         if (data && typeof data === 'object') {
           setInsights(data as Insights);
         }
       } catch {
-        setInsights(null);
+        if (requestIdRef.current === requestId) setInsights(null);
       }
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       console.error('Failed to load realtime analytics:', err);
       setError('Could not load analytics data. Please try refreshing.');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) setLoading(false);
     }
   };
 
