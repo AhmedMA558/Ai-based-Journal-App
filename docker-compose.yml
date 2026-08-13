@@ -36,6 +36,11 @@ services:
     container_name: journal-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -79,9 +84,12 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env and fill it in}
     depends_on:
-      - discovery-server
-      - config-server
-      - redis
+      discovery-server:
+        condition: service_started
+      config-server:
+        condition: service_started
+      redis:
+        condition: service_healthy
 
   auth-service:
     build: ./auth-service

@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: gateway-service
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:redis}
+      port: ${SPRING_REDIS_PORT:6379}
   cloud:
     gateway:
       globalcors:
@@ -22,6 +26,32 @@ spring:
             allowedHeaders: "*"
             allowCredentials: true
       routes:
+        # Split from the general auth-service route below so the four
+        # unauthenticated, brute-forceable endpoints get a real rate limit
+        # while everything else under /api/v1/auth/** (e.g. /me, /password,
+        # /mfa/status) stays unthrottled. order: -1 guarantees this route is
+        # matched first for these paths regardless of declaration-order
+        # edge cases in Spring Cloud Gateway's route locator.
+        - id: auth-service-sensitive
+          uri: http://auth-service:8081
+          order: -1
+          predicates:
+            - Path=/api/v1/auth/login,/api/v1/auth/mfa/verify,/api/v1/auth/password/forgot,/api/v1/auth/password/reset
+          filters:
+            - name: JwtAuthenticationFilter
+            - name: RequestRateLimiter
+              args:
+                # A real user's occasional mistyped password/retry sails
+                # through (5 immediate attempts); sustained automated
+                # hammering throttles to 1/sec (60/min) after that.
+                # RedisRateLimiter's token bucket only supports integer
+                # per-second rates, so this is the standard shape for
+                # "generous burst, tight sustained rate" on a
+                # security-sensitive endpoint.
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 5
+                key-resolver: "#{@ipKeyResolver}"
+
         - id: auth-service
           uri: http://auth-service:8081
           predicates:
@@ -98,14 +128,10 @@ management:
     web:
       exposure:
         include: health,info,metrics,prometheus
-  health:
-    redis:
-      # spring-boot-starter-data-redis-reactive is on the classpath (for a rate
-      # limiter that was never actually wired up), so Spring Boot auto-enables a
-      # Redis health contributor that defaults to localhost:6379 - unreachable
-      # from inside the container, so /actuator/health always reported DOWN even
-      # though nothing here depends on Redis. That silently broke the k8s
-      # readiness/liveness probes in k8s/22-gateway-service.yaml (pod would never
-      # become Ready). Disabled rather than pointed at a real host, since Redis
-      # isn't actually used by any request path.
-      enabled: false
+  # Redis is now genuinely used (the rate limiter above) and genuinely
+  # reachable (spring.data.redis.host points at the real service), so the
+  # default Redis health contributor now reflects real state instead of
+  # needing to be force-disabled - it used to default to localhost:6379
+  # (unreachable from inside the container) since nothing configured a real
+  # host, which silently broke the k8s readiness/liveness probes in
+  # k8s/22-gateway-service.yaml.
