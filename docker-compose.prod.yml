@@ -127,6 +127,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       SPRING_RABBITMQ_HOST: rabbitmq
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      JOURNAL_ENCRYPTION_KEY: ${JOURNAL_ENCRYPTION_KEY:?JOURNAL_ENCRYPTION_KEY must be set}
     depends_on:
       mysql:
         condition: service_healthy
