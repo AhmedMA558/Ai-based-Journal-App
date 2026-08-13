@@ -42,7 +42,7 @@ Analytics deliberately doesn't pull in a charting library - the web app's rechar
 ## Tech stack
 
 - **Expo** (managed workflow, SDK 54 - runs directly in the published Expo Go app, no custom dev client needed; every native module used here - `expo-secure-store`, `react-native-svg`, `expo-linear-gradient`, etc. - is one Expo Go already bundles for this SDK version)
-- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Analytics/Settings, icon-only past 6 tabs), plus modal `JournalEditor`/`Achievements`/`Notifications`/`CommandPalette` screens on the stack above the tabs
+- **React Navigation** (`native-stack` + `bottom-tabs`) - `AuthStack` (Login/Register/MfaChallenge/ForgotPassword) and `MainTabs` (Dashboard/Journals/Calendar/Search/Chat/Analytics/Settings, icon-only past 6 tabs), plus modal `JournalEditor`/`Achievements`/`Notifications`/`CommandPalette` screens on the stack above the tabs
 - **expo-clipboard** for the AI Chat "copy message" button
 - **react-native-qrcode-svg** for the 2FA setup QR code (pure JS, built on the already-installed `react-native-svg`)
 - **@react-native-community/netinfo** for offline detection - listed on Expo's own SDK reference (`docs.expo.dev/versions/latest/sdk/netinfo/`), which means Expo Go bundles it for SDK 54; needs no config plugin
@@ -75,9 +75,9 @@ Two env vars (read via `src/config/env.ts`, `EXPO_PUBLIC_*` prefix required by E
 
 ```
 src/
-  screens/       Login, Register, MfaChallenge, Dashboard, JournalList, JournalEditor,
-                   Calendar, Search, Chat, Analytics, Settings, Achievements, Notifications,
-                   CommandPalette
+  screens/       Login, Register, MfaChallenge, ForgotPassword, Dashboard, JournalList,
+                   JournalEditor, Calendar, Search, Chat, Analytics, Settings, Achievements,
+                   Notifications, CommandPalette
   navigation/     RootNavigator.tsx (AuthStack / MainTabs / modal JournalEditor), types.ts
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
@@ -103,7 +103,7 @@ src/
 
 ## Verification
 
-1. **Pass A (mocks, no backend needed)**: `npx expo start --dev-client`, open on a device/emulator via the Expo Dev Client. Log in as `demo` / `password123` (no MFA) or `mfa_demo` / `password123` (MFA path, code `123456`). Tap through Dashboard, Journals, create/edit/delete an entry, Calendar, Search, AI Chat, and Settings (edit profile, change password, walk the full 2FA setup/enable/disable flow - confirmation code is always `123456` in Pass A), log out.
+1. **Pass A (mocks, no backend needed)**: `npx expo start --dev-client`, open on a device/emulator via the Expo Dev Client. Log in as `demo` / `password123` (no MFA) or `mfa_demo` / `password123` (MFA path, code `123456`). Tap through Dashboard, Journals, create/edit/delete an entry, Calendar, Search, AI Chat, and Settings (edit profile, change password, walk the full 2FA setup/enable/disable flow - confirmation code is always `123456` in Pass A), log out. From the Login screen, "Forgot password?" walks the reset-code flow - `mockAuthService.forgotPassword` always "succeeds," and the fixture reset code accepted by `resetPassword` is `RESET-12345`.
 2. `npm run typecheck` and `npm test` (Jest - covers the pure logic in `journalStats.ts` and every mock service's CRUD/auth/search/MFA behavior).
 3. **Pass B (real backend)**: set `EXPO_PUBLIC_USE_MOCKS=false` and `EXPO_PUBLIC_API_BASE_URL` to your gateway's reachable address, repeat the same tap-through against live data.
 

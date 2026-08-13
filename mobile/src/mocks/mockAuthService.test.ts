@@ -59,3 +59,17 @@ describe('mockAuthService.changePassword', () => {
     await expect(mockAuthService.changePassword('wrong-password', 'NewPass123!')).rejects.toThrow('Current password is incorrect');
   });
 });
+
+describe('mockAuthService forgot/reset password flow', () => {
+  it('forgotPassword always resolves regardless of the email given', async () => {
+    await expect(mockAuthService.forgotPassword('anyone@example.com')).resolves.toBeUndefined();
+  });
+
+  it('resetPassword with the fixture reset code resolves', async () => {
+    await expect(mockAuthService.resetPassword('RESET-12345', 'NewPass123!')).resolves.toBeUndefined();
+  });
+
+  it('resetPassword with an unknown code rejects', async () => {
+    await expect(mockAuthService.resetPassword('WRONG-CODE', 'NewPass123!')).rejects.toThrow('Invalid or expired reset code');
+  });
+});

@@ -13,7 +13,7 @@ interface AuthFormData {
   fullName: string;
 }
 
-type AuthStep = 'credentials' | 'mfa-challenge';
+type AuthStep = 'credentials' | 'mfa-challenge' | 'forgot-password' | 'reset-password';
 
 const LABEL_CLASS = 'block text-[0.85rem] text-[#cbd5e1] mb-[0.4rem] font-medium';
 const ICON_CLASS = 'absolute left-[0.85rem] top-1/2 -translate-y-1/2';
@@ -33,6 +33,12 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [challengeToken, setChallengeToken] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [useRecoveryCode, setUseRecoveryCode] = useState(false);
+
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -85,7 +91,46 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
     setChallengeToken('');
     setMfaCode('');
     setUseRecoveryCode(false);
+    setForgotEmail('');
+    setResetCode('');
+    setNewPassword('');
+    setConfirmNewPassword('');
     setError('');
+    setInfoMessage('');
+  };
+
+  const handleForgotPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await authService.forgotPassword(forgotEmail);
+      setInfoMessage(res?.message || 'If that email is registered, a reset code has been sent.');
+      setAuthStep('reset-password');
+    } catch (err: any) {
+      setError(err?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (newPassword !== confirmNewPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.resetPassword(resetCode, newPassword);
+      backToCredentials();
+      setInfoMessage('Password reset successfully. Sign in with your new password.');
+    } catch (err: any) {
+      setError(err?.message || 'Invalid or expired reset code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (authStep === 'mfa-challenge') {
@@ -162,6 +207,153 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
     );
   }
 
+  if (authStep === 'forgot-password') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
+        <div className="absolute top-[15%] left-[20%] w-[350px] h-[350px] rounded-full bg-[rgba(99,102,241,0.15)] blur-[90px] pointer-events-none" />
+        <div className="absolute bottom-[15%] right-[20%] w-[400px] h-[400px] rounded-full bg-[rgba(168,85,247,0.15)] blur-[100px] pointer-events-none" />
+
+        <div className="glass-panel glass-panel-glow animate-fade-in w-full max-w-[460px] p-10">
+          <div className="text-center mb-8">
+            <div className="inline-flex p-3 rounded-2xl bg-[linear-gradient(135deg,#6366f1,#a855f7)] shadow-[0_8px_24px_rgba(99,102,241,0.4)] mb-4">
+              <KeyRound size={32} color="#ffffff" />
+            </div>
+            <h1 className="text-[2rem] font-extrabold mb-2">Reset Your Password</h1>
+            <p className="text-[#94a3b8] text-[0.9rem]">Enter your account email and we'll send you a reset code</p>
+          </div>
+
+          {error && (
+            <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl mb-6 text-[0.85rem] leading-[1.4]">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleForgotPasswordSubmit} className="flex flex-col gap-[1.2rem]">
+            <div>
+              <label className={LABEL_CLASS}>Email Address</label>
+              <div className="relative">
+                <input
+                  type="email"
+                  required
+                  autoFocus
+                  className="glass-input pl-[2.6rem]"
+                  placeholder="alex@example.com"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                />
+                <Mail size={18} color="#64748b" className={ICON_CLASS} />
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full mt-2 p-[0.85rem]">
+              {loading ? <span>Sending...</span> : <><span>Send Reset Code</span><ArrowRight size={18} /></>}
+            </button>
+          </form>
+
+          <div className="text-center mt-6 pt-[1.2rem] border-t border-t-white/[0.08] flex flex-col gap-2">
+            <button
+              onClick={() => setAuthStep('reset-password')}
+              className="bg-transparent border-0 text-[#94a3b8] cursor-pointer text-[0.9rem]"
+            >
+              Already have a code?
+            </button>
+            <button onClick={backToCredentials} className="bg-transparent border-0 text-[#64748b] cursor-pointer text-[0.85rem]">
+              Back to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (authStep === 'reset-password') {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
+        <div className="absolute top-[15%] left-[20%] w-[350px] h-[350px] rounded-full bg-[rgba(99,102,241,0.15)] blur-[90px] pointer-events-none" />
+        <div className="absolute bottom-[15%] right-[20%] w-[400px] h-[400px] rounded-full bg-[rgba(168,85,247,0.15)] blur-[100px] pointer-events-none" />
+
+        <div className="glass-panel glass-panel-glow animate-fade-in w-full max-w-[460px] p-10">
+          <div className="text-center mb-8">
+            <div className="inline-flex p-3 rounded-2xl bg-[linear-gradient(135deg,#6366f1,#a855f7)] shadow-[0_8px_24px_rgba(99,102,241,0.4)] mb-4">
+              <KeyRound size={32} color="#ffffff" />
+            </div>
+            <h1 className="text-[2rem] font-extrabold mb-2">Enter Reset Code</h1>
+            <p className="text-[#94a3b8] text-[0.9rem]">Check your email for the code, then choose a new password</p>
+          </div>
+
+          {infoMessage && (
+            <div className="bg-[rgba(34,197,94,0.15)] border border-[rgba(34,197,94,0.3)] text-[#4ade80] py-3 px-4 rounded-xl mb-6 text-[0.85rem] leading-[1.4]">
+              {infoMessage}
+            </div>
+          )}
+          {error && (
+            <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl mb-6 text-[0.85rem] leading-[1.4]">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleResetPasswordSubmit} className="flex flex-col gap-[1.2rem]">
+            <div>
+              <label className={LABEL_CLASS}>Reset Code</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  className="glass-input pl-[2.6rem]"
+                  placeholder="XXXXX-XXXXX"
+                  value={resetCode}
+                  onChange={(e) => setResetCode(e.target.value)}
+                />
+                <KeyRound size={18} color="#64748b" className={ICON_CLASS} />
+              </div>
+            </div>
+
+            <div>
+              <label className={LABEL_CLASS}>New Password</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  className="glass-input pl-[2.6rem]"
+                  placeholder="••••••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <Lock size={18} color="#64748b" className={ICON_CLASS} />
+              </div>
+            </div>
+
+            <div>
+              <label className={LABEL_CLASS}>Confirm New Password</label>
+              <div className="relative">
+                <input
+                  type="password"
+                  required
+                  className="glass-input pl-[2.6rem]"
+                  placeholder="••••••••••••"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                />
+                <Lock size={18} color="#64748b" className={ICON_CLASS} />
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full mt-2 p-[0.85rem]">
+              {loading ? <span>Resetting...</span> : <><span>Reset Password</span><ArrowRight size={18} /></>}
+            </button>
+          </form>
+
+          <div className="text-center mt-6 pt-[1.2rem] border-t border-t-white/[0.08]">
+            <button onClick={backToCredentials} className="bg-transparent border-0 text-[#64748b] cursor-pointer text-[0.85rem]">
+              Back to Sign In
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-8 relative overflow-hidden">
       {/* Background Glow Spheres */}
@@ -186,6 +378,11 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         {error && (
           <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl mb-6 text-[0.85rem] leading-[1.4]">
             {error}
+          </div>
+        )}
+        {infoMessage && (
+          <div className="bg-[rgba(34,197,94,0.15)] border border-[rgba(34,197,94,0.3)] text-[#4ade80] py-3 px-4 rounded-xl mb-6 text-[0.85rem] leading-[1.4]">
+            {infoMessage}
           </div>
         )}
 
@@ -253,6 +450,19 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
               />
               <Lock size={18} color="#64748b" className={ICON_CLASS} />
             </div>
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthStep('forgot-password');
+                  setError('');
+                  setInfoMessage('');
+                }}
+                className="bg-transparent border-0 text-[#818cf8] cursor-pointer text-[0.8rem] mt-2"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
 
           <button type="submit" disabled={loading} className="btn-primary w-full mt-2 p-[0.85rem]">

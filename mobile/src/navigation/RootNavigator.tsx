@@ -11,6 +11,7 @@ import type { AuthStackParamList, MainStackParamList, MainTabParamList } from '.
 import LoginScreen from '@/screens/LoginScreen';
 import RegisterScreen from '@/screens/RegisterScreen';
 import MfaChallengeScreen from '@/screens/MfaChallengeScreen';
+import ForgotPasswordScreen from '@/screens/ForgotPasswordScreen';
 import DashboardScreen from '@/screens/DashboardScreen';
 import JournalListScreen from '@/screens/JournalListScreen';
 import JournalEditorScreen from '@/screens/JournalEditorScreen';
@@ -47,6 +48,7 @@ function AuthNavigator() {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
       <AuthStack.Screen name="MfaChallenge" component={MfaChallengeScreen} />
+      <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </AuthStack.Navigator>
   );
 }

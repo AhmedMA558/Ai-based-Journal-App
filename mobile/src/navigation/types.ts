@@ -5,6 +5,7 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   MfaChallenge: { challengeToken: string };
+  ForgotPassword: undefined;
 };
 
 export type MainTabParamList = {

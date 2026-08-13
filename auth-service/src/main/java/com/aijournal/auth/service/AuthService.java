@@ -16,4 +16,9 @@ public interface AuthService {
     MfaStatusResponse getMfaStatus(Long userId);
     void changePassword(Long userId, ChangePasswordRequest request);
     CurrentUserResponse getCurrentUser(Long userId);
+
+    // Always completes without revealing whether the email is registered -
+    // enumeration protection lives at this layer, not just the controller.
+    void forgotPassword(ForgotPasswordRequest request);
+    void resetPassword(ResetPasswordRequest request);
 }

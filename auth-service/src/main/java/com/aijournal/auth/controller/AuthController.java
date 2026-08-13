@@ -73,6 +73,20 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Password changed successfully", null));
     }
 
+    @PostMapping("/password/forgot")
+    @Operation(summary = "Request a password reset code by email - always returns the same generic response")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("If that email is registered, a reset code has been sent.", null));
+    }
+
+    @PostMapping("/password/reset")
+    @Operation(summary = "Reset a password using a code emailed by /password/forgot")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Password reset successfully", null));
+    }
+
     @GetMapping("/mfa/status")
     @Operation(summary = "Check whether the authenticated user has 2FA enabled")
     public ResponseEntity<ApiResponse<MfaStatusResponse>> getMfaStatus(@RequestHeader("X-User-Id") Long userId) {

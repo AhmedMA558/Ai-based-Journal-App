@@ -8,6 +8,7 @@ import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult } from '@/t
 const KNOWN_USERS: MockUser[] = [mockUser, mockMfaUser];
 const MOCK_CHALLENGE_TOKEN = 'mock-challenge-token';
 const MOCK_RECOVERY_CODE = 'ABCDE-12345';
+const MOCK_PASSWORD_RESET_CODE = 'RESET-12345';
 const ARTIFICIAL_DELAY_MS = 450;
 
 function delay<T>(value: T): Promise<T> {
@@ -161,6 +162,22 @@ export const mockAuthService = {
 
   async logout(): Promise<void> {
     await session.clear();
+  },
+
+  // Pass A has no real email to check against - always "succeeds" (same
+  // no-op-success shape as register()), matching the real service's own
+  // enumeration-safe "always the same response" behavior.
+  async forgotPassword(_email: string): Promise<void> {
+    return delay(undefined);
+  },
+
+  async resetPassword(resetCode: string, _newPassword: string): Promise<void> {
+    if (resetCode !== MOCK_PASSWORD_RESET_CODE) {
+      return delay(undefined).then(() => {
+        throw new Error('Invalid or expired reset code.');
+      });
+    }
+    return delay(undefined);
   },
 
   isAuthenticated: () => session.isAuthenticated(),

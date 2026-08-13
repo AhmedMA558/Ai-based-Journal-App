@@ -3,11 +3,13 @@ package com.aijournal.auth.service;
 import com.aijournal.auth.dto.*;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
+import com.aijournal.auth.entity.PasswordResetToken;
 import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
+import com.aijournal.auth.repository.PasswordResetTokenRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,6 +32,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -56,6 +60,9 @@ class AuthServiceTest {
 
     @Mock
     private MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
+
+    @Mock
+    private PasswordResetTokenRepository passwordResetTokenRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -401,5 +408,112 @@ class AuthServiceTest {
         verify(userRepository).save(savedUser.capture());
         assertEquals("newEncodedPassword", savedUser.getValue().getPassword());
         verify(refreshTokenRepository, times(1)).deleteByUser(user);
+    }
+
+    @Test
+    void forgotPassword_ExistingEmail_GeneratesCodeAndTriggersEmail() {
+        User user = mfaUser(false, null);
+        ForgotPasswordRequest request = new ForgotPasswordRequest();
+        request.setEmail("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+
+        authService.forgotPassword(request);
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor = ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository).save(tokenCaptor.capture());
+        assertEquals(user, tokenCaptor.getValue().getUser());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<Map<String, String>>> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
+                entityCaptor.capture(), eq(Void.class));
+        HttpEntity<Map<String, String>> entity = entityCaptor.getValue();
+        assertTrue(entity.getHeaders().getFirst("Authorization").startsWith("Bearer "));
+        assertEquals("test@example.com", entity.getBody().get("to"));
+        assertTrue(entity.getBody().get("body").contains(tokenCaptor.getValue().getResetCode()));
+    }
+
+    @Test
+    void forgotPassword_UnknownEmail_DoesNothingButDoesNotThrow() {
+        ForgotPasswordRequest request = new ForgotPasswordRequest();
+        request.setEmail("nobody@example.com");
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
+
+        assertDoesNotThrow(() -> authService.forgotPassword(request));
+
+        verify(passwordResetTokenRepository, never()).save(any());
+        verifyNoInteractions(restTemplate);
+    }
+
+    @Test
+    void forgotPassword_ExistingCode_IsInvalidatedBeforeNewOneIssued() {
+        User user = mfaUser(false, null);
+        ForgotPasswordRequest request = new ForgotPasswordRequest();
+        request.setEmail("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+
+        authService.forgotPassword(request);
+
+        InOrder inOrder = inOrder(passwordResetTokenRepository);
+        inOrder.verify(passwordResetTokenRepository).deleteByUser(user);
+        inOrder.verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
+    }
+
+    @Test
+    void forgotPassword_NotificationServiceUnreachable_StillGeneratesAndSavesCode() {
+        User user = mfaUser(false, null);
+        ForgotPasswordRequest request = new ForgotPasswordRequest();
+        request.setEmail("test@example.com");
+        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(restTemplate.postForEntity(anyString(), any(), eq(Void.class)))
+                .thenThrow(new RestClientException("connection refused"));
+
+        assertDoesNotThrow(() -> authService.forgotPassword(request));
+
+        verify(passwordResetTokenRepository).save(any(PasswordResetToken.class));
+    }
+
+    @Test
+    void resetPassword_ValidCode_UpdatesPasswordAndRevokesRefreshTokens() {
+        User user = mfaUser(false, null);
+        PasswordResetToken token = new PasswordResetToken(1L, user, "ABCDE-12345", Instant.now().plus(10, ChronoUnit.MINUTES));
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setResetCode("ABCDE-12345");
+        request.setNewPassword("newpassword123");
+        when(passwordResetTokenRepository.findByResetCode("ABCDE-12345")).thenReturn(Optional.of(token));
+        when(passwordEncoder.encode("newpassword123")).thenReturn("newEncodedPassword");
+
+        authService.resetPassword(request);
+
+        ArgumentCaptor<User> savedUser = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(savedUser.capture());
+        assertEquals("newEncodedPassword", savedUser.getValue().getPassword());
+        verify(refreshTokenRepository).deleteByUser(user);
+        verify(passwordResetTokenRepository).delete(token);
+    }
+
+    @Test
+    void resetPassword_ExpiredCode_ThrowsAndDeletesToken() {
+        User user = mfaUser(false, null);
+        PasswordResetToken token = new PasswordResetToken(1L, user, "ABCDE-12345", Instant.now().minus(1, ChronoUnit.MINUTES));
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setResetCode("ABCDE-12345");
+        request.setNewPassword("newpassword123");
+        when(passwordResetTokenRepository.findByResetCode("ABCDE-12345")).thenReturn(Optional.of(token));
+
+        assertThrows(UnauthorizedException.class, () -> authService.resetPassword(request));
+
+        verify(passwordResetTokenRepository).delete(token);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void resetPassword_InvalidCode_ThrowsUnauthorized() {
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setResetCode("NOPE-NOPE");
+        request.setNewPassword("newpassword123");
+        when(passwordResetTokenRepository.findByResetCode("NOPE-NOPE")).thenReturn(Optional.empty());
+
+        assertThrows(UnauthorizedException.class, () -> authService.resetPassword(request));
     }
 }
