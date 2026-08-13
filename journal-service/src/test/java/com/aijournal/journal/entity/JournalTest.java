@@ -54,6 +54,25 @@ class JournalTest {
     }
 
     @Test
+    void calculateMetrics_ContentEncrypted_DoesNotRecomputeFromCiphertext() {
+        // Regression guard: Hibernate's @PrePersist/@PreUpdate calls
+        // calculateMetrics() again at flush time, after JournalServiceImpl has
+        // already overwritten `content` with ciphertext - it must not
+        // silently replace the real plaintext-derived metrics with
+        // ciphertext-derived nonsense.
+        Journal journal = new Journal();
+        journal.setContent("one two three four five");
+        journal.calculateMetrics();
+        journal.setContent("aGVsbG8gd29ybGQ=someBase64LookingCiphertextBlobWithNoSpaces");
+        journal.setContentEncrypted(true);
+
+        journal.calculateMetrics();
+
+        assertThat(journal.getWordCount()).isEqualTo(5);
+        assertThat(journal.getCharacterCount()).isEqualTo(23);
+    }
+
+    @Test
     void constructor_NullMoodAndTags_DefaultsToNeutralAndEmptySet() {
         Journal journal = new Journal(null, 1L, null, null, "Title", "content",
                 null, null, null, null, null, null, null, null, null);

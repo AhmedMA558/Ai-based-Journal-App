@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { Smile, TrendingUp, Flame, Award } from 'lucide-react-native';
+import { Smile, TrendingUp, Flame, Award, Hash, PenLine, CalendarDays } from 'lucide-react-native';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { ErrorBanner } from '@/components/ErrorBanner';
@@ -10,8 +10,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { MOOD_META, MOODS as SHARED_MOODS, type Mood as SharedMood, type MoodMeta } from '@/lib/moods';
 import { getAiLevel } from '@/lib/journalStats';
-import { journalService } from '@/services';
-import type { Journal } from '@/types';
+import { journalService, analyticsService } from '@/services';
+import type { Journal, Insights } from '@/types';
 
 // Same "8th NEUTRAL bucket" reasoning as the web app's AnalyticsView.tsx:
 // backend-seeded pre-classification placeholder, a real reportable bucket
@@ -35,6 +35,7 @@ export default function AnalyticsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [insights, setInsights] = useState<Insights | null>(null);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -48,6 +49,12 @@ export default function AnalyticsScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+
+    try {
+      setInsights(await analyticsService.getInsights());
+    } catch {
+      setInsights(null);
     }
   }, []);
 
@@ -177,6 +184,52 @@ export default function AnalyticsScreen() {
                       ))}
                     </View>
                   </GlassPanel>
+
+                  {insights && (
+                    <GlassPanel className="p-5">
+                      <Text className="text-text-primary text-base font-bold mb-4">Deeper Insights</Text>
+                      <View className="flex-row flex-wrap gap-3 mb-4">
+                        <View className="items-center flex-1 min-w-[45%]">
+                          <Flame size={20} color="#fde047" />
+                          <Text className="text-text-secondary text-xs mt-1 mb-1">Longest Streak</Text>
+                          <Text className="text-sm font-extrabold" style={{ color: '#fde047' }}>
+                            {insights.longestStreakDays} Days
+                          </Text>
+                        </View>
+                        <View className="items-center flex-1 min-w-[45%]">
+                          <PenLine size={20} color="#38bdf8" />
+                          <Text className="text-text-secondary text-xs mt-1 mb-1">Writing Frequency</Text>
+                          <Text className="text-sm font-extrabold" style={{ color: '#38bdf8' }}>
+                            {insights.writingFrequency}
+                          </Text>
+                        </View>
+                        <View className="items-center flex-1 min-w-[45%]">
+                          <CalendarDays size={20} color="#4ade80" />
+                          <Text className="text-text-secondary text-xs mt-1 mb-1">
+                            Most Productive Day{insights.mostProductiveDays.length !== 1 ? 's' : ''}
+                          </Text>
+                          <Text className="text-sm font-extrabold text-center" style={{ color: '#4ade80' }}>
+                            {insights.mostProductiveDays.length > 0 ? insights.mostProductiveDays.join(', ') : 'N/A'}
+                          </Text>
+                        </View>
+                      </View>
+                      {insights.topTopics.length > 0 && (
+                        <View>
+                          <View className="flex-row items-center gap-1 mb-2">
+                            <Hash size={12} color="#94a3b8" />
+                            <Text className="text-text-secondary text-xs">Top Topics</Text>
+                          </View>
+                          <View className="flex-row flex-wrap gap-2">
+                            {insights.topTopics.map((topic) => (
+                              <View key={topic} className="bg-accent-indigo/15 border border-accent-indigo/35 py-1 px-3 rounded-full">
+                                <Text className="text-xs text-accent-indigo">{topic}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      )}
+                    </GlassPanel>
+                  )}
                 </>
               )}
             </View>

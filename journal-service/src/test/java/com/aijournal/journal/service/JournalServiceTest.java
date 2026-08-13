@@ -192,6 +192,22 @@ class JournalServiceTest {
     }
 
     @Test
+    void createJournal_ComputesWordCountFromRealPlaintextBeforeEncrypting() {
+        // Regression guard: calculateMetrics() must run against the real
+        // plaintext before encrypt() replaces `content` with ciphertext -
+        // otherwise word/char counts silently reflect the ciphertext blob
+        // instead of the actual entry.
+        Journal input = new Journal();
+        input.setTitle("My Entry");
+        input.setContent("one two three four five");
+
+        Journal created = journalService.createJournal(1L, input);
+
+        assertThat(created.getWordCount()).isEqualTo(5);
+        assertThat(created.getCharacterCount()).isEqualTo(23);
+    }
+
+    @Test
     void createJournal_PublishesRabbitMqEventWithPlaintextContent_NotCiphertext() {
         Journal input = new Journal();
         input.setTitle("My Entry");
@@ -255,6 +271,24 @@ class JournalServiceTest {
 
         assertThat(contentAtSaveTime[0]).isEqualTo("ENC(updated private content)");
         assertThat(result.getContent()).isEqualTo("updated private content");
+    }
+
+    @Test
+    void updateJournal_ComputesWordCountFromRealPlaintextBeforeEncrypting_EvenWhenAlreadyEncrypted() {
+        // existing already has contentEncrypted=true from a prior save (set
+        // below) - the fix must still recompute from the fresh plaintext, not
+        // skip via the ciphertext-guard because the flag was already true.
+        Journal existing = existingJournal(10L, 1L);
+        existing.setContent("ENC(old ciphertext blob)");
+        existing.setContentEncrypted(true);
+        when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        Journal updates = new Journal();
+        updates.setTitle("New Title");
+        updates.setContent("one two three four five six seven");
+
+        Journal result = journalService.updateJournal(1L, 10L, updates);
+
+        assertThat(result.getWordCount()).isEqualTo(7);
     }
 
     @Test

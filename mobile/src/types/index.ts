@@ -68,3 +68,10 @@ export interface MfaEnableResult {
   mfaEnabled: boolean;
   recoveryCodes: string[];
 }
+
+export interface Insights {
+  longestStreakDays: number;
+  writingFrequency: string;
+  mostProductiveDays: string[];
+  topTopics: string[];
+}

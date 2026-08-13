@@ -23,8 +23,10 @@ public class AnalyticsController {
 
     @GetMapping("/insights")
     @Operation(summary = "Get deep journal insights and analytics dashboard data")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getInsights(@RequestHeader("X-User-Id") Long userId) {
-        Map<String, Object> insights = analyticsService.getUserJournalInsights(userId);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getInsights(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        Map<String, Object> insights = analyticsService.getUserJournalInsights(userId, authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success(insights));
     }
 }

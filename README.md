@@ -53,9 +53,9 @@ Only `journal-service` (producer) and `search-service` (consumer) are actually w
 | `journal-service` | 8083 | MySQL (`journal_db`), RabbitMQ, Eureka | Journal CRUD, publishes create/update events |
 | `ai-service` | 8084 | MySQL (`ai_db`), `python-ai-service`, Eureka | Proxies AI features to the Flask service |
 | `search-service` | 8085 | Elasticsearch, RabbitMQ, Eureka | Full-text/mood/tag search, indexes journal events |
-| `recommendation-service` | 8086 | Eureka | Curated prompts/books/exercises (static content today) |
-| `notification-service` | 8087 | Eureka | Logs email/push notification intents (no real provider wired up yet) |
-| `analytics-service` | 8088 | Eureka | Journal insights (hardcoded data today, not yet computed from real entries) |
+| `recommendation-service` | 8086 | `journal-service`, Eureka | Mood-bucketed prompts/books/exercises (curated content, not model-generated) |
+| `notification-service` | 8087 | MySQL (`notification_db`), Eureka | Real push notifications (Expo) + a daily reminder scheduler |
+| `analytics-service` | 8088 | `journal-service`, Eureka | Real journal insights (streaks, word counts, top topics) computed from the caller's entries |
 | `file-service` | 8089 | Local disk, Eureka | Attachment upload/download |
 | `python-ai-service` | 5000 | Flask, Hugging Face (optional) | Mood/summarize/rephrase/grammar NLP |
 | `config-server` | 8888 | - | Spring Cloud Config source |

@@ -15,10 +15,19 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts';
-import { Smile, TrendingUp, Flame, Award, RefreshCw, AlertCircle, BarChart3 } from 'lucide-react';
+import { Smile, TrendingUp, Flame, Award, RefreshCw, AlertCircle, BarChart3, Hash, PenLine, CalendarDays } from 'lucide-react';
 import { journalService } from '@/services/journalService';
+import { analyticsService } from '@/services/analyticsService';
 import { MOODS as SHARED_MOODS, MOOD_META, type Mood as SharedMood, type MoodMeta } from '@/lib/moods';
 import { getAiLevel } from '@/lib/journalStats';
+
+interface Insights {
+  longestStreakDays: number;
+  writingFrequency: string;
+  mostProductiveDays: string[];
+  topTopics: string[];
+  [key: string]: unknown;
+}
 
 // AnalyticsView is the only consumer that needs an 8th "NEUTRAL" bucket: the
 // backend seeds newly-indexed journals with mood "NEUTRAL" before AI
@@ -56,6 +65,7 @@ export default function AnalyticsView() {
   const [journals, setJournals] = useState<Journal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [insights, setInsights] = useState<Insights | null>(null);
 
   useEffect(() => {
     fetchRealtimeAnalytics();
@@ -67,6 +77,20 @@ export default function AnalyticsView() {
     try {
       const list = await journalService.getAllJournals();
       setJournals(Array.isArray(list) ? list : []);
+
+      try {
+        // Deeper Insights is a separate, non-blocking data source
+        // (analytics-service) - a failure here must never take down the
+        // charts above, which are computed entirely from `list` and always
+        // work regardless of this call's outcome.
+        const res = await analyticsService.getInsights();
+        const data = res?.data?.data;
+        if (data && typeof data === 'object') {
+          setInsights(data as Insights);
+        }
+      } catch {
+        setInsights(null);
+      }
     } catch (err) {
       console.error('Failed to load realtime analytics:', err);
       setError('Could not load analytics data. Please try refreshing.');
@@ -262,6 +286,43 @@ export default function AnalyticsView() {
               </ResponsiveContainer>
             </div>
           </div>
+
+          {insights && (
+            <div className="glass-panel p-8">
+              <h3 className="text-[1.2rem] font-bold text-[#f8fafc] mb-6">Deeper Insights</h3>
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5 mb-6">
+                <div className="text-center">
+                  <Flame size={26} color="#fde047" className="mb-2 mx-auto" />
+                  <div className="text-[0.8rem] text-[#94a3b8]">Longest Streak</div>
+                  <div className="text-[1.2rem] font-extrabold text-[#fde047]">{insights.longestStreakDays} Days</div>
+                </div>
+                <div className="text-center">
+                  <PenLine size={26} color="#38bdf8" className="mb-2 mx-auto" />
+                  <div className="text-[0.8rem] text-[#94a3b8]">Writing Frequency</div>
+                  <div className="text-[1.2rem] font-extrabold text-[#38bdf8]">{insights.writingFrequency}</div>
+                </div>
+                <div className="text-center">
+                  <CalendarDays size={26} color="#4ade80" className="mb-2 mx-auto" />
+                  <div className="text-[0.8rem] text-[#94a3b8]">Most Productive Day{insights.mostProductiveDays.length !== 1 ? 's' : ''}</div>
+                  <div className="text-[1.2rem] font-extrabold text-[#4ade80]">
+                    {insights.mostProductiveDays.length > 0 ? insights.mostProductiveDays.join(', ') : 'N/A'}
+                  </div>
+                </div>
+              </div>
+              {insights.topTopics.length > 0 && (
+                <div>
+                  <div className="text-[0.8rem] text-[#94a3b8] mb-2 flex items-center gap-1"><Hash size={14} /> Top Topics</div>
+                  <div className="flex flex-wrap gap-2">
+                    {insights.topTopics.map((topic) => (
+                      <span key={topic} className="text-xs bg-[rgba(99,102,241,0.15)] border border-[rgba(99,102,241,0.35)] text-[#818cf8] py-1 px-3 rounded-full">
+                        {topic}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
