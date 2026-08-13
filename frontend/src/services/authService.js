@@ -1,6 +1,7 @@
 import axios from 'axios';
 import api from './api';
 import Cookies from 'js-cookie';
+import { decodeJwtPayload } from '@/lib/jwt';
 
 const SESSION_DURATION_MS = 10 * 60 * 1000; // 10 Minutes in milliseconds
 const COOKIE_EXPIRES_DAYS = 10 / (24 * 60); // 10 Minutes in days (10/1440)
@@ -131,6 +132,26 @@ export const authService = {
   getToken: () => {
     if (!authService.isAuthenticated()) return null;
     return Cookies.get('jwt_token') || localStorage.getItem('jwt_token');
+  },
+
+  // Reads the ROLE_ADMIN claim already embedded in the stored JWT - a
+  // synchronous, zero-network-call check purely for UI gating (hiding the
+  // Admin tab from non-admins). The real enforcement is server-side
+  // @PreAuthorize on auth-service's AdminController; this is not a security
+  // boundary and never should be treated as one.
+  isAdmin: () => {
+    const token = Cookies.get('jwt_token') || localStorage.getItem('jwt_token');
+    const payload = decodeJwtPayload(token);
+    return Array.isArray(payload?.roles) && payload.roles.includes('ROLE_ADMIN');
+  },
+
+  // Same JWT-decode approach as isAdmin() - used by the Admin tab to disable
+  // self-targeting actions client-side (a UX mirror of the backend's own
+  // self-protection guards, not a replacement for them).
+  getCurrentUserId: () => {
+    const token = Cookies.get('jwt_token') || localStorage.getItem('jwt_token');
+    const payload = decodeJwtPayload(token);
+    return payload?.userId ?? null;
   },
 
   // Check if session is valid (must be within 10 minutes)

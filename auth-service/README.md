@@ -44,6 +44,8 @@ Real role-based access control, added after an audit found the pieces existing (
 
 **Rotate or remove this account before any real deployment.**
 
+**Web UI**: `frontend`'s Settings modal has an Admin tab (visible only to `ROLE_ADMIN` users - gated client-side by decoding the JWT's `roles` claim, purely a UX nicety since the real enforcement is the `@PreAuthorize` above) for listing users and toggling roles/status against these same endpoints.
+
 ## Run standalone
 
 ```bash

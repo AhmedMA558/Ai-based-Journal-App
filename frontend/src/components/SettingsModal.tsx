@@ -1,13 +1,25 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, ShieldCheck, Palette, Server, AlertCircle } from 'lucide-react';
+import { X, User, ShieldCheck, Palette, Server, AlertCircle, Users } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';
+import { adminService } from '@/services/adminService';
 import ThemeCustomizer from './ThemeCustomizer';
 
-type SettingsTab = 'profile' | 'security' | 'appearance' | 'services';
+type SettingsTab = 'profile' | 'security' | 'appearance' | 'services' | 'admin';
+
+interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  fullName?: string;
+  roles: string[];
+  enabled: boolean;
+  mfaEnabled?: boolean;
+  createdAt?: string;
+}
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -30,6 +42,7 @@ interface ProfileData {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const isAdmin = authService.isAdmin();
 
   if (!isOpen) return null;
 
@@ -62,6 +75,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <SettingsTabBtn icon={<ShieldCheck size={16} />} label="Security & Sessions" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
               <SettingsTabBtn icon={<Palette size={16} />} label="Appearance & Themes" active={activeTab === 'appearance'} onClick={() => setActiveTab('appearance')} />
               <SettingsTabBtn icon={<Server size={16} />} label="Connected Services" active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
+              {isAdmin && (
+                <SettingsTabBtn icon={<Users size={16} />} label="Admin" active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />
+              )}
             </div>
 
             {/* Inner Tab Content */}
@@ -90,6 +106,8 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <ServiceRow name="MySQL Relational DB" port="3307" status="Online" />
                 </div>
               )}
+
+              {activeTab === 'admin' && isAdmin && <AdminTab isOpen={isOpen} />}
             </div>
           </div>
         </motion.div>
@@ -524,6 +542,162 @@ function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps)
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+function AdminTab({ isOpen }: { isOpen: boolean }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const currentUserId = authService.getCurrentUserId();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setLoading(true);
+    setLoadError('');
+    adminService
+      .listUsers()
+      .then((res: any) => {
+        if (cancelled) return;
+        setUsers(res?.data?.data?.content || []);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError('Failed to load users. Please try reopening Settings.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  const patchUser = (updated: AdminUser) => {
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="skeleton-pulse h-6 w-40 rounded-lg" />
+        <div className="skeleton-pulse h-16 rounded-xl" />
+        <div className="skeleton-pulse h-16 rounded-xl" />
+        <div className="skeleton-pulse h-16 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
+        <AlertCircle size={18} />
+        <span>{loadError}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <h3 className="text-[1.1rem] font-bold">User Administration</h3>
+        <p className="text-[0.8rem] text-[#94a3b8]">{users.length} account{users.length !== 1 ? 's' : ''}</p>
+      </div>
+      <div className="flex flex-col gap-3">
+        {users.map((user) => (
+          <AdminUserRow key={user.id} user={user} isSelf={user.id === currentUserId} onUpdated={patchUser} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface AdminUserRowProps {
+  user: AdminUser;
+  isSelf: boolean;
+  onUpdated: (user: AdminUser) => void;
+}
+
+function AdminUserRow({ user, isSelf, onUpdated }: AdminUserRowProps) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const isUserAdmin = user.roles.includes('ROLE_ADMIN');
+
+  const toggleAdminRole = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const nextRoles = isUserAdmin ? ['ROLE_USER'] : ['ROLE_USER', 'ROLE_ADMIN'];
+      const res: any = await adminService.updateRoles(user.id, nextRoles);
+      onUpdated(res?.data?.data || { ...user, roles: nextRoles });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update roles.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleStatus = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const res: any = await adminService.updateStatus(user.id, !user.enabled);
+      onUpdated(res?.data?.data || { ...user, enabled: !user.enabled });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update account status.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-2 py-3 px-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-[0.85rem] font-semibold text-[#f8fafc]">
+            {user.username} <span className="text-[#64748b] font-normal">({user.email})</span>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            {user.roles.map((role) => (
+              <span key={role} className="text-[0.65rem] py-[0.15rem] px-2 rounded-md font-bold bg-[rgba(99,102,241,0.15)] text-[#818cf8]">
+                {role}
+              </span>
+            ))}
+            <span
+              className={cn(
+                'text-[0.65rem] py-[0.15rem] px-2 rounded-md font-bold',
+                user.enabled ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]' : 'bg-[rgba(239,68,68,0.15)] text-[#f87171]'
+              )}
+            >
+              {user.enabled ? 'Active' : 'Disabled'}
+            </span>
+          </div>
+        </div>
+        {isSelf ? (
+          <span className="text-[0.7rem] text-[#64748b] italic">This is your account</span>
+        ) : (
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={toggleAdminRole}
+              className="btn-secondary py-[0.35rem] px-3 text-[0.75rem]"
+            >
+              {isUserAdmin ? 'Remove Admin' : 'Make Admin'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={toggleStatus}
+              className="btn-secondary py-[0.35rem] px-3 text-[0.75rem]"
+            >
+              {user.enabled ? 'Disable' : 'Enable'}
+            </button>
+          </div>
+        )}
+      </div>
+      {error && <p className="text-[0.75rem] text-[#f87171]">{error}</p>}
     </div>
   );
 }

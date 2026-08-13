@@ -4,22 +4,35 @@ import userEvent from '@testing-library/user-event';
 import SettingsModal from './SettingsModal';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';
+import { adminService } from '@/services/adminService';
 
-vi.mock('@/services/authService', () => ({
-  authService: {
-    getCurrentUser: vi.fn(),
-    changePassword: vi.fn(),
-    getMfaStatus: vi.fn(),
-    setupMfa: vi.fn(),
-    enableMfa: vi.fn(),
-    disableMfa: vi.fn(),
-  },
-}));
+vi.mock('@/services/authService', async () => {
+  const actual = await vi.importActual<typeof import('@/services/authService')>('@/services/authService');
+  return {
+    authService: {
+      ...actual.authService,
+      getCurrentUser: vi.fn(),
+      changePassword: vi.fn(),
+      getMfaStatus: vi.fn(),
+      setupMfa: vi.fn(),
+      enableMfa: vi.fn(),
+      disableMfa: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/services/userService', () => ({
   userService: {
     getProfile: vi.fn(),
     updateProfile: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/adminService', () => ({
+  adminService: {
+    listUsers: vi.fn(),
+    updateRoles: vi.fn(),
+    updateStatus: vi.fn(),
   },
 }));
 
@@ -31,6 +44,20 @@ const mockedEnableMfa = vi.mocked(authService.enableMfa);
 const mockedDisableMfa = vi.mocked(authService.disableMfa);
 const mockedGetProfile = vi.mocked(userService.getProfile);
 const mockedUpdateProfile = vi.mocked(userService.updateProfile);
+const mockedListUsers = vi.mocked(adminService.listUsers);
+const mockedUpdateRoles = vi.mocked(adminService.updateRoles);
+const mockedUpdateStatus = vi.mocked(adminService.updateStatus);
+
+// authService.isAdmin()/getCurrentUserId() decode the real stored JWT
+// (isAdmin/getCurrentUserId are NOT mocked above via `...actual.authService` -
+// only the network-calling methods are) - build an unsigned test token with
+// the desired claims rather than mocking those two functions directly.
+function seedFakeJwt(payload: Record<string, unknown>) {
+  const base64url = (obj: object) =>
+    btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const token = `${base64url({ alg: 'none' })}.${base64url(payload)}.fakesignature`;
+  localStorage.setItem('jwt_token', token);
+}
 
 describe('SettingsModal', () => {
   beforeEach(() => {
@@ -178,6 +205,102 @@ describe('SettingsModal', () => {
     expect(screen.getByText('Spring Cloud API Gateway')).toBeInTheDocument();
     expect(screen.getByText('Port: :8080')).toBeInTheDocument();
     expect(screen.getByText('MySQL Relational DB')).toBeInTheDocument();
+  });
+
+  it('hides the Admin tab entirely for a non-admin token', async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER'] });
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    expect(screen.queryByText('Admin')).not.toBeInTheDocument();
+  });
+
+  it('shows the Admin tab and lists real users for an admin token', async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER', 'ROLE_ADMIN'] });
+    mockedListUsers.mockResolvedValue({
+      data: {
+        data: {
+          content: [
+            { id: 1, username: 'admin', email: 'admin@example.com', roles: ['ROLE_USER', 'ROLE_ADMIN'], enabled: true },
+            { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true },
+          ],
+        },
+      },
+    } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await user.click(screen.getByText('Admin'));
+
+    expect(await screen.findByText(/bob@example.com/)).toBeInTheDocument();
+    expect(screen.getByText(/admin@example.com/)).toBeInTheDocument();
+    expect(mockedListUsers).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables both actions on the caller's own row", async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER', 'ROLE_ADMIN'] });
+    mockedListUsers.mockResolvedValue({
+      data: {
+        data: {
+          content: [
+            { id: 1, username: 'admin', email: 'admin@example.com', roles: ['ROLE_USER', 'ROLE_ADMIN'], enabled: true },
+            { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true },
+          ],
+        },
+      },
+    } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await user.click(screen.getByText('Admin'));
+    await screen.findByText(/bob@example.com/);
+
+    expect(screen.getByText('This is your account')).toBeInTheDocument();
+    // Only bob's (id 2, non-self) row gets an actionable "Make Admin" button -
+    // the admin's own row (id 1) shows "This is your account" instead of buttons.
+    expect(screen.getAllByRole('button', { name: 'Make Admin' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Remove Admin' })).not.toBeInTheDocument();
+  });
+
+  it('promotes a user to admin and updates their badge', async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER', 'ROLE_ADMIN'] });
+    mockedListUsers.mockResolvedValue({
+      data: { data: { content: [{ id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true }] } },
+    } as any);
+    mockedUpdateRoles.mockResolvedValue({
+      data: { data: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER', 'ROLE_ADMIN'], enabled: true } },
+    } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await user.click(screen.getByText('Admin'));
+    await user.click(await screen.findByRole('button', { name: 'Make Admin' }));
+
+    expect(await screen.findByRole('button', { name: 'Remove Admin' })).toBeInTheDocument();
+    expect(mockedUpdateRoles).toHaveBeenCalledWith(2, ['ROLE_USER', 'ROLE_ADMIN']);
+  });
+
+  it('disables a user account and updates their badge', async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER', 'ROLE_ADMIN'] });
+    mockedListUsers.mockResolvedValue({
+      data: { data: { content: [{ id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true }] } },
+    } as any);
+    mockedUpdateStatus.mockResolvedValue({
+      data: { data: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: false } },
+    } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await user.click(screen.getByText('Admin'));
+    await user.click(await screen.findByRole('button', { name: 'Disable' }));
+
+    expect(await screen.findByRole('button', { name: 'Enable' })).toBeInTheDocument();
+    expect(screen.getByText('Disabled')).toBeInTheDocument();
+    expect(mockedUpdateStatus).toHaveBeenCalledWith(2, false);
   });
 
   it('calls onClose when the close button is clicked', async () => {
