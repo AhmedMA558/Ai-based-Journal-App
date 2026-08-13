@@ -32,6 +32,8 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
             "/api/v1/auth/refresh",
             "/api/v1/auth/logout",
             "/api/v1/auth/mfa/verify",
+            "/api/v1/auth/password/forgot",
+            "/api/v1/auth/password/reset",
             "/api/v1/auth/oauth2",
             "/swagger-ui",
             "/v3/api-docs",

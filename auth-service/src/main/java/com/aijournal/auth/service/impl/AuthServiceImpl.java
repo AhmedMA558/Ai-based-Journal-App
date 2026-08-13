@@ -3,11 +3,13 @@ package com.aijournal.auth.service.impl;
 import com.aijournal.auth.dto.*;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
+import com.aijournal.auth.entity.PasswordResetToken;
 import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
+import com.aijournal.auth.repository.PasswordResetTokenRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
@@ -46,6 +48,8 @@ public class AuthServiceImpl implements AuthService {
 
     private static final int RECOVERY_CODE_COUNT = 10;
     private static final int MFA_CHALLENGE_TTL_MINUTES = 5;
+    private static final int PASSWORD_RESET_TTL_MINUTES = 30;
+    private static final int SYSTEM_TOKEN_TTL_SECONDS = 60;
     private static final SecureRandom RECOVERY_CODE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -53,6 +57,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final MfaChallengeRepository mfaChallengeRepository;
     private final MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final TotpEncryptionService totpEncryptionService;
@@ -72,13 +77,14 @@ public class AuthServiceImpl implements AuthService {
 
     public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
-            MfaRecoveryCodeRepository mfaRecoveryCodeRepository, PasswordEncoder passwordEncoder,
-            TotpService totpService, TotpEncryptionService totpEncryptionService) {
+            MfaRecoveryCodeRepository mfaRecoveryCodeRepository, PasswordResetTokenRepository passwordResetTokenRepository,
+            PasswordEncoder passwordEncoder, TotpService totpService, TotpEncryptionService totpEncryptionService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.mfaChallengeRepository = mfaChallengeRepository;
         this.mfaRecoveryCodeRepository = mfaRecoveryCodeRepository;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.totpService = totpService;
         this.totpEncryptionService = totpEncryptionService;
@@ -273,6 +279,97 @@ public class AuthServiceImpl implements AuthService {
         // Force re-login everywhere else - a stolen-device session shouldn't
         // survive a password change made because of suspected compromise.
         refreshTokenRepository.deleteByUser(user);
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequest request) {
+        Optional<User> maybeUser = userRepository.findByEmail(request.getEmail());
+        if (maybeUser.isEmpty()) {
+            // Don't reveal whether the email is registered - the controller
+            // returns the same generic response either way.
+            return;
+        }
+        User user = maybeUser.get();
+        // Only the most recently requested code is ever valid.
+        passwordResetTokenRepository.deleteByUser(user);
+        String code = randomPasswordResetCode();
+        PasswordResetToken token = new PasswordResetToken(null, user, code,
+                Instant.now().plus(PASSWORD_RESET_TTL_MINUTES, ChronoUnit.MINUTES));
+        passwordResetTokenRepository.save(token);
+        sendPasswordResetEmailBestEffort(user, code);
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        PasswordResetToken token = passwordResetTokenRepository.findByResetCode(request.getResetCode())
+                .orElseThrow(() -> new UnauthorizedException("Invalid or expired reset code"));
+
+        if (token.getExpiresAt().isBefore(Instant.now())) {
+            passwordResetTokenRepository.delete(token);
+            throw new UnauthorizedException("Reset code expired, please request a new one");
+        }
+
+        User user = token.getUser();
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        // Force re-login everywhere - same reasoning as changePassword: a
+        // compromised-credential recovery path shouldn't leave old sessions alive.
+        refreshTokenRepository.deleteByUser(user);
+        passwordResetTokenRepository.delete(token);
+    }
+
+    // Unlike sendWelcomeEmailBestEffort (which forwards the freshly-registered
+    // user's own token), there's no logged-in user's token to forward here -
+    // the caller is by definition logged out. Mints a short-lived, synthetic
+    // internal token purely to authenticate this one server-to-server call -
+    // common-library's JwtAuthenticationFilter only validates the signature
+    // and reads claims, it never checks the user exists, so this passes
+    // cleanly with no new auth mechanism and no endpoint made public.
+    private void sendPasswordResetEmailBestEffort(User user, String code) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+            Map<String, String> body = Map.of(
+                    "to", user.getEmail(),
+                    "subject", "Reset your Mindora password",
+                    "body", "Hi " + user.getUsername() + ",\n\nYour password reset code is: " + code +
+                            "\n\nThis code expires in " + PASSWORD_RESET_TTL_MINUTES + " minutes. " +
+                            "If you didn't request this, you can safely ignore this email."
+            );
+            restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
+                    new HttpEntity<>(body, headers), Void.class);
+        } catch (Exception e) {
+            log.warn("Could not send password reset email to {}: {}", user.getEmail(), e.getMessage());
+        }
+    }
+
+    private String mintSystemToken() {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("system")
+                .claim("userId", 0L)
+                .claim("roles", List.of("ROLE_SYSTEM"))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(SYSTEM_TOKEN_TTL_SECONDS)))
+                .signWith(key)
+                .compact();
+    }
+
+    private String randomPasswordResetCode() {
+        // Same generation shape as randomRecoveryCode() - human-typeable,
+        // unambiguous charset. A separate method (not a shared rename) matches
+        // this codebase's established tolerance for small, purpose-named
+        // duplicates over premature abstraction.
+        StringBuilder sb = new StringBuilder(11);
+        String chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no O/I to avoid ambiguity
+        for (int i = 0; i < 10; i++) {
+            if (i == 5) sb.append('-');
+            sb.append(chars.charAt(RECOVERY_CODE_RANDOM.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     @Override

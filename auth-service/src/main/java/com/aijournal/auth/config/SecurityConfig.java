@@ -32,6 +32,8 @@ public class SecurityConfig {
             "/api/v1/auth/refresh",
             "/api/v1/auth/logout",
             "/api/v1/auth/mfa/verify",
+            "/api/v1/auth/password/forgot",
+            "/api/v1/auth/password/reset",
             "/error"
     );
 
@@ -65,6 +67,8 @@ public class SecurityConfig {
                                 AntPathRequestMatcher.antMatcher("/api/v1/auth/refresh"),
                                 AntPathRequestMatcher.antMatcher("/api/v1/auth/logout"),
                                 AntPathRequestMatcher.antMatcher("/api/v1/auth/mfa/verify"),
+                                AntPathRequestMatcher.antMatcher("/api/v1/auth/password/forgot"),
+                                AntPathRequestMatcher.antMatcher("/api/v1/auth/password/reset"),
                                 AntPathRequestMatcher.antMatcher("/v3/api-docs/**"),
                                 AntPathRequestMatcher.antMatcher("/swagger-ui/**"),
                                 AntPathRequestMatcher.antMatcher("/swagger-ui.html"),

@@ -86,6 +86,16 @@ export const authService = {
     await api.post('/api/v1/auth/mfa/disable', { password, code });
   },
 
+  // Always resolves with the same generic message regardless of whether the
+  // email is registered - the backend deliberately never reveals that.
+  async forgotPassword(email: string): Promise<void> {
+    await api.post('/api/v1/auth/password/forgot', { email });
+  },
+
+  async resetPassword(resetCode: string, newPassword: string): Promise<void> {
+    await api.post('/api/v1/auth/password/reset', { resetCode, newPassword });
+  },
+
   async logout(): Promise<void> {
     const refreshToken = await session.getRefreshToken();
     if (refreshToken) {

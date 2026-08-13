@@ -82,6 +82,14 @@ export const authService = {
   disableMfa: async (password, code) =>
     (await api.post('/api/v1/auth/mfa/disable', { password, code }))?.data?.data,
 
+  // Always resolves with the same generic message regardless of whether the
+  // email is registered - the backend deliberately never reveals that.
+  forgotPassword: async (email) =>
+    (await api.post('/api/v1/auth/password/forgot', { email }))?.data,
+
+  resetPassword: async (resetCode, newPassword) =>
+    (await api.post('/api/v1/auth/password/reset', { resetCode, newPassword }))?.data,
+
   // Set active session tokens with strict 10-minute (client-side, activity-driven)
   // expiration. refreshToken is the single-use rotating token used by
   // refreshAccessToken() - the access token itself expires server-side after 15

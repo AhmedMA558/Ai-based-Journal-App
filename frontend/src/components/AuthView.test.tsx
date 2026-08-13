@@ -9,18 +9,24 @@ vi.mock('@/services/authService', () => ({
     login: vi.fn(),
     register: vi.fn(),
     verifyMfa: vi.fn(),
+    forgotPassword: vi.fn(),
+    resetPassword: vi.fn(),
   },
 }));
 
 const mockedLogin = vi.mocked(authService.login);
 const mockedRegister = vi.mocked(authService.register);
 const mockedVerifyMfa = vi.mocked(authService.verifyMfa);
+const mockedForgotPassword = vi.mocked(authService.forgotPassword);
+const mockedResetPassword = vi.mocked(authService.resetPassword);
 
 describe('AuthView', () => {
   beforeEach(() => {
     mockedLogin.mockReset();
     mockedRegister.mockReset();
     mockedVerifyMfa.mockReset();
+    mockedForgotPassword.mockReset();
+    mockedResetPassword.mockReset();
   });
 
   it('shows the login form by default', () => {
@@ -180,5 +186,91 @@ describe('AuthView', () => {
     await user.click(screen.getByText('Back to Sign In'));
 
     expect(screen.getByText('Welcome Back to AURA')).toBeInTheDocument();
+  });
+
+  it('switches to the forgot-password step via the link on the login form', async () => {
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.click(screen.getByText('Forgot password?'));
+
+    expect(screen.getByText('Reset Your Password')).toBeInTheDocument();
+  });
+
+  it('submitting the forgot-password form shows the generic message and advances to reset-password', async () => {
+    mockedForgotPassword.mockResolvedValue({ message: 'If that email is registered, a reset code has been sent.' } as any);
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.click(screen.getByText('Forgot password?'));
+    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
+
+    expect(mockedForgotPassword).toHaveBeenCalledWith('alex@example.com');
+    expect(await screen.findByText('Enter Reset Code')).toBeInTheDocument();
+    expect(screen.getByText('If that email is registered, a reset code has been sent.')).toBeInTheDocument();
+  });
+
+  it('shows a mismatch error without calling resetPassword when new passwords differ', async () => {
+    mockedForgotPassword.mockResolvedValue({ message: 'sent' } as any);
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.click(screen.getByText('Forgot password?'));
+    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
+    await screen.findByText('Enter Reset Code');
+
+    await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'ABCDE-12345');
+    const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
+    await user.type(passwordInputs[0], 'newpass123');
+    await user.type(passwordInputs[1], 'different');
+    await user.click(screen.getByRole('button', { name: /Reset Password/ }));
+
+    expect(screen.getByText('New passwords do not match.')).toBeInTheDocument();
+    expect(mockedResetPassword).not.toHaveBeenCalled();
+  });
+
+  it('resets the password with a valid code and returns to the credentials step', async () => {
+    mockedForgotPassword.mockResolvedValue({ message: 'sent' } as any);
+    mockedResetPassword.mockResolvedValue({ message: 'Password reset successfully' } as any);
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.click(screen.getByText('Forgot password?'));
+    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
+    await screen.findByText('Enter Reset Code');
+
+    await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'ABCDE-12345');
+    const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
+    await user.type(passwordInputs[0], 'newpass123');
+    await user.type(passwordInputs[1], 'newpass123');
+    await user.click(screen.getByRole('button', { name: /Reset Password/ }));
+
+    expect(mockedResetPassword).toHaveBeenCalledWith('ABCDE-12345', 'newpass123');
+    expect(await screen.findByText('Welcome Back to AURA')).toBeInTheDocument();
+    expect(screen.getByText(/Password reset successfully/)).toBeInTheDocument();
+  });
+
+  it('shows an error and stays on reset-password when the code is invalid', async () => {
+    mockedForgotPassword.mockResolvedValue({ message: 'sent' } as any);
+    mockedResetPassword.mockRejectedValue(new Error('Invalid or expired reset code'));
+    const user = userEvent.setup();
+    render(<AuthView onLoginSuccess={vi.fn()} />);
+
+    await user.click(screen.getByText('Forgot password?'));
+    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
+    await screen.findByText('Enter Reset Code');
+
+    await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'BADCODE');
+    const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
+    await user.type(passwordInputs[0], 'newpass123');
+    await user.type(passwordInputs[1], 'newpass123');
+    await user.click(screen.getByRole('button', { name: /Reset Password/ }));
+
+    expect(await screen.findByText('Invalid or expired reset code')).toBeInTheDocument();
+    expect(screen.getByText('Enter Reset Code')).toBeInTheDocument();
   });
 });

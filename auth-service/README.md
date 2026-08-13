@@ -27,7 +27,11 @@ Registration, login, JWT issuance/refresh, logout, MFA (TOTP-based 2FA), passwor
 | POST | `/api/v1/auth/logout` | Revoke the refresh token |
 | GET | `/api/v1/auth/me` | Get the authenticated user's identity |
 | PUT | `/api/v1/auth/password` | Change the authenticated user's password (revokes all refresh tokens) |
+| POST | `/api/v1/auth/password/forgot` | Request a password reset code by email. Always returns the same generic response regardless of whether the email is registered (no enumeration) - if it is, a real email is sent with a 10-character reset code (`XXXXX-XXXXX`, 30-minute expiry, single-use, same format as MFA recovery codes) |
+| POST | `/api/v1/auth/password/reset` | Reset a password using a code from `/password/forgot` (revokes all refresh tokens, same as `/password` above) |
 | GET/POST | `/api/v1/auth/mfa/status`, `/mfa/setup`, `/mfa/enable`, `/mfa/disable` | TOTP enrollment/management |
+
+**Forgot-password internal auth note**: unlike the welcome-email trigger (which forwards the newly-registered user's own JWT), `/password/forgot` has no logged-in user's token to forward - the caller is by definition logged out. `auth-service` mints a short-lived (60s), synthetic internal token (`userId=0`, `roles=["ROLE_SYSTEM"]`) purely to authenticate that one server-to-server call into `notification-service`. `common-library`'s `JwtAuthenticationFilter` only validates the signature and reads claims, it never checks the user exists, so this passes cleanly with no new auth mechanism and `/api/v1/notifications/send-email` never has to become publicly callable.
 
 ### Admin endpoints (ROLE_ADMIN only, `@PreAuthorize`-gated)
 

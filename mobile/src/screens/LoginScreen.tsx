@@ -75,6 +75,9 @@ export default function LoginScreen({ navigation }: Props) {
               <View>
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Password</Text>
                 <GlassInput secureTextEntry placeholder="••••••••••••" value={password} onChangeText={setPassword} />
+                <Pressable onPress={() => navigation.navigate('ForgotPassword')} className="mt-2 self-start">
+                  <Text className="text-accent-indigo text-xs">Forgot password?</Text>
+                </Pressable>
               </View>
 
               <View className="mt-2">
