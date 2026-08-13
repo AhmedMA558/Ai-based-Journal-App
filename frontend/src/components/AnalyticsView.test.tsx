@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AnalyticsView from './AnalyticsView';
 import { journalService } from '@/services/journalService';
+import { analyticsService } from '@/services/analyticsService';
 
 vi.mock('@/services/journalService', () => ({
   journalService: {
@@ -10,11 +11,20 @@ vi.mock('@/services/journalService', () => ({
   },
 }));
 
+vi.mock('@/services/analyticsService', () => ({
+  analyticsService: {
+    getInsights: vi.fn(),
+  },
+}));
+
 const mockedGetAllJournals = vi.mocked(journalService.getAllJournals);
+const mockedGetInsights = vi.mocked(analyticsService.getInsights);
 
 describe('AnalyticsView', () => {
   beforeEach(() => {
     mockedGetAllJournals.mockReset();
+    mockedGetInsights.mockReset();
+    mockedGetInsights.mockRejectedValue(new Error('not mocked for this test'));
   });
 
   it('renders the header and chart section titles once there is real data', async () => {
@@ -70,5 +80,36 @@ describe('AnalyticsView', () => {
     await user.click(screen.getByText('Refresh Data'));
 
     expect(mockedGetAllJournals).toHaveBeenCalledTimes(2);
+  });
+
+  it('renders a Deeper Insights section with real analytics-service data', async () => {
+    mockedGetAllJournals.mockResolvedValue([{ id: 1, mood: 'HAPPY' }] as any);
+    mockedGetInsights.mockResolvedValue({
+      data: {
+        data: {
+          longestStreakDays: 7,
+          writingFrequency: '3.5 entries / week',
+          mostProductiveDays: ['Sunday', 'Wednesday'],
+          topTopics: ['career', 'health'],
+        },
+      },
+    } as any);
+    render(<AnalyticsView />);
+
+    expect(await screen.findByText('Deeper Insights')).toBeInTheDocument();
+    expect(screen.getByText('7 Days')).toBeInTheDocument();
+    expect(screen.getByText('3.5 entries / week')).toBeInTheDocument();
+    expect(screen.getByText('Sunday, Wednesday')).toBeInTheDocument();
+    expect(screen.getByText('career')).toBeInTheDocument();
+    expect(screen.getByText('health')).toBeInTheDocument();
+  });
+
+  it('omits the Deeper Insights section without affecting the existing charts when analytics-service fails', async () => {
+    mockedGetAllJournals.mockResolvedValue([{ id: 1, mood: 'HAPPY' }] as any);
+    mockedGetInsights.mockRejectedValue(new Error('analytics-service down'));
+    render(<AnalyticsView />);
+
+    expect(await screen.findByText('Live Positivity Stream')).toBeInTheDocument();
+    expect(screen.queryByText('Deeper Insights')).not.toBeInTheDocument();
   });
 });

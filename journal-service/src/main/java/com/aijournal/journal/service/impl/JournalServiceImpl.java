@@ -57,6 +57,11 @@ public class JournalServiceImpl implements JournalService {
         if (journal.getIsPinned() == null) journal.setIsPinned(false);
         if (journal.getIsFavorite() == null) journal.setIsFavorite(false);
         if (journal.getIsArchived() == null) journal.setIsArchived(false);
+        // Compute word/char/reading-time metrics from the real plaintext
+        // before encrypting - calculateMetrics() is a no-op once
+        // contentEncrypted is true, so this must happen first or the
+        // lifecycle-triggered recompute at flush time would silently skip it.
+        journal.calculateMetrics();
         journal.setContent(journalEncryptionService.encrypt(journal.getContent()));
         journal.setContentEncrypted(true);
 
@@ -89,6 +94,12 @@ public class JournalServiceImpl implements JournalService {
         Long activeUserId = userId != null ? userId : 1L;
         Journal existing = findOwnedJournal(activeUserId, journalId);
         existing.setTitle(updated.getTitle());
+        // existing.contentEncrypted may already be true from a prior save -
+        // force it false while the field briefly holds real plaintext so
+        // calculateMetrics() actually recomputes instead of no-op'ing.
+        existing.setContentEncrypted(false);
+        existing.setContent(updated.getContent());
+        existing.calculateMetrics();
         existing.setContent(journalEncryptionService.encrypt(updated.getContent()));
         existing.setContentEncrypted(true);
         existing.setMood(updated.getMood());

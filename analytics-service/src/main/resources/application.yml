@@ -8,6 +8,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
 
+journal:
+  service:
+    url: ${JOURNAL_SERVICE_URL:http://journal-service:8083}
+
 eureka:
   client:
     service-url:

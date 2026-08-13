@@ -130,6 +130,15 @@ public class Journal {
     }
 
     public void calculateMetrics() {
+        // When contentEncrypted is true, `content` holds ciphertext at every
+        // point Hibernate's @PrePersist/@PreUpdate lifecycle invokes this
+        // method - recomputing from it would silently overwrite the real
+        // word/char/reading-time metrics with meaningless ciphertext-derived
+        // numbers. JournalServiceImpl computes real metrics from the plaintext
+        // before encrypting and relies on this guard to preserve them.
+        if (Boolean.TRUE.equals(this.contentEncrypted)) {
+            return;
+        }
         if (this.content != null) {
             this.characterCount = this.content.length();
             String[] words = this.content.trim().split("\\s+");

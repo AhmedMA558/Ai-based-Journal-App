@@ -12,13 +12,13 @@
 | journal-service | 8083 | `journal_db` | yes (producer) | - | yes |
 | ai-service | 8084 | `ai_db` | - | - | yes (also calls `python-ai-service` over HTTP) |
 | search-service | 8085 | - | yes (consumer) | yes | yes |
-| recommendation-service | 8086 | - | - | - | yes |
-| notification-service | 8087 | - | - | - | yes |
-| analytics-service | 8088 | - | - | - | yes |
+| recommendation-service | 8086 | - | - | - | yes (also calls `journal-service` over HTTP) |
+| notification-service | 8087 | `notification_db` | - | - | yes |
+| analytics-service | 8088 | - | - | - | yes (also calls `journal-service` over HTTP) |
 | file-service | 8089 | - | - | - | yes (local disk storage) |
 | python-ai-service | 5000 | - | - | - | no (standalone Flask app, not a Eureka client) |
 
-`notification-service` and `analytics-service` currently have no RabbitMQ, database, or Elasticsearch wiring at all - both serve their responses from static/hardcoded data today. `recommendation-service` is the same: static curated content, not model-generated.
+None of `recommendation-service`, `notification-service`, or `analytics-service` use RabbitMQ or Elasticsearch. All three are real, not stubbed: `recommendation-service` and `analytics-service` compute their responses from the caller's actual journals (fetched from `journal-service` over HTTP, forwarding the caller's own bearer token rather than inventing new service-to-service auth) - `recommendation-service`'s content itself stays curated/static per mood bucket, not model-generated; `analytics-service`'s numbers (streaks, word counts, top topics) are genuinely computed. `notification-service` has its own database (`notification_db`) for registered push tokens and sends real push notifications via Expo's API plus a daily reminder scheduler - no RabbitMQ involved.
 
 ## Gateway routing table
 
