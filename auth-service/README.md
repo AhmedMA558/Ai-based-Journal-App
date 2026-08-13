@@ -14,12 +14,13 @@ Registration, login, JWT issuance/refresh, logout, MFA (TOTP-based 2FA), passwor
 | `SPRING_DATASOURCE_URL` | no | `jdbc:mysql://localhost:3306/auth_db?...` | |
 | `SPRING_DATASOURCE_USERNAME` | no | `root` | |
 | `SPRING_DATASOURCE_PASSWORD` | no | `root` | |
+| `NOTIFICATION_SERVICE_URL` | no | `http://notification-service:8087` | Where the best-effort welcome email is sent on registration |
 
 ## Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Register a new user account (always `ROLE_USER`) |
+| POST | `/api/v1/auth/register` | Register a new user account (always `ROLE_USER`). Also fires a real, best-effort welcome email via `notification-service` (forwards the newly-issued JWT; a failure here never fails registration itself). |
 | POST | `/api/v1/auth/login` | Authenticate; returns tokens, or an MFA challenge if 2FA is enabled. Rejects a disabled account with 403. |
 | POST | `/api/v1/auth/mfa/verify` | Complete login by verifying a TOTP/recovery code against an MFA challenge |
 | POST | `/api/v1/auth/refresh` | Refresh the access token using the refresh token |

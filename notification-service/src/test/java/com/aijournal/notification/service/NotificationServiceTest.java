@@ -3,12 +3,16 @@ package com.aijournal.notification.service;
 import com.aijournal.notification.entity.DeviceToken;
 import com.aijournal.notification.repository.DeviceTokenRepository;
 import com.aijournal.notification.service.impl.NotificationServiceImpl;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,11 +31,34 @@ class NotificationServiceTest {
     @Mock
     private ExpoPushService expoPushService;
 
+    @Mock
+    private JavaMailSender mailSender;
+
     @InjectMocks
     private NotificationServiceImpl service;
 
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(service, "fromAddress", "noreply@mindora.local");
+    }
+
     @Test
-    void sendEmail_DoesNotThrow() {
+    void sendEmail_Success_SendsViaJavaMailSender() {
+        service.sendEmail("user@example.com", "Subject", "Body");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender).send(captor.capture());
+        SimpleMailMessage sent = captor.getValue();
+        assertThat(sent.getTo()).containsExactly("user@example.com");
+        assertThat(sent.getSubject()).isEqualTo("Subject");
+        assertThat(sent.getText()).isEqualTo("Body");
+        assertThat(sent.getFrom()).isEqualTo("noreply@mindora.local");
+    }
+
+    @Test
+    void sendEmail_MailSenderThrows_DoesNotPropagate() {
+        doThrow(new RuntimeException("SMTP down")).when(mailSender).send(any(SimpleMailMessage.class));
+
         assertThatCode(() -> service.sendEmail("user@example.com", "Subject", "Body"))
                 .doesNotThrowAnyException();
     }

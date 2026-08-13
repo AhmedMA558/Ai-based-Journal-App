@@ -21,11 +21,16 @@ import com.aijournal.common.exception.UnauthorizedException;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestTemplate;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +41,8 @@ import java.util.*;
 
 @Service
 public class AuthServiceImpl implements AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     private static final int RECOVERY_CODE_COUNT = 10;
     private static final int MFA_CHALLENGE_TTL_MINUTES = 5;
@@ -49,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final TotpEncryptionService totpEncryptionService;
+    private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${jwt.secret:defaultSecretKeyForTestingJwtTokenValidation1234567890}")
     private String jwtSecret;
@@ -58,6 +66,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Value("${jwt.refresh-expiration-ms:604800000}") // 7 days default
     private long refreshExpirationMs;
+
+    @Value("${notification.service.url:http://notification-service:8087}")
+    private String notificationServiceUrl;
 
     public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
@@ -102,7 +113,30 @@ public class AuthServiceImpl implements AuthService {
                 roles);
 
         User savedUser = userRepository.save(user);
-        return generateTokensForUser(savedUser);
+        AuthResponse response = generateTokensForUser(savedUser);
+        sendWelcomeEmailBestEffort(savedUser, response.getAccessToken());
+        return response;
+    }
+
+    // Forwards the token just minted for this exact user - self-authenticating
+    // against notification-service's own JwtAuthenticationFilter, no new
+    // service-to-service auth mechanism needed. Best-effort: a failure here
+    // must never fail registration itself.
+    private void sendWelcomeEmailBestEffort(User user, String accessToken) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken);
+            Map<String, String> body = Map.of(
+                    "to", user.getEmail(),
+                    "subject", "Welcome to Mindora!",
+                    "body", "Hi " + user.getUsername() + ",\n\nWelcome to Mindora - your AI journaling companion. " +
+                            "Start writing your first entry whenever you're ready.\n\nHappy journaling!"
+            );
+            restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
+                    new HttpEntity<>(body, headers), Void.class);
+        } catch (Exception e) {
+            log.warn("Could not send welcome email to {}: {}", user.getEmail(), e.getMessage());
+        }
     }
 
     @Override
