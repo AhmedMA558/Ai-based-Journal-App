@@ -7,7 +7,10 @@ import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.common.messaging.JournalEventRouting;
 import com.aijournal.journal.entity.Journal;
 import com.aijournal.journal.repository.JournalRepository;
+import com.aijournal.journal.service.JournalEncryptionService;
 import com.aijournal.journal.service.JournalService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,10 +25,16 @@ public class JournalServiceImpl implements JournalService {
 
     private final JournalRepository journalRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final JournalEncryptionService journalEncryptionService;
 
-    public JournalServiceImpl(JournalRepository journalRepository, RabbitTemplate rabbitTemplate) {
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    public JournalServiceImpl(JournalRepository journalRepository, RabbitTemplate rabbitTemplate,
+                               JournalEncryptionService journalEncryptionService) {
         this.journalRepository = journalRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.journalEncryptionService = journalEncryptionService;
     }
 
     @Override
@@ -48,11 +57,14 @@ public class JournalServiceImpl implements JournalService {
         if (journal.getIsPinned() == null) journal.setIsPinned(false);
         if (journal.getIsFavorite() == null) journal.setIsFavorite(false);
         if (journal.getIsArchived() == null) journal.setIsArchived(false);
-        if (journal.getContentEncrypted() == null) journal.setContentEncrypted(false);
+        journal.setContent(journalEncryptionService.encrypt(journal.getContent()));
+        journal.setContentEncrypted(true);
 
-        Journal saved = journalRepository.save(journal);
+        Journal saved = persistAndDecrypt(journalRepository.save(journal));
 
-        // Async event dispatch to RabbitMQ for AI Service & Search Service
+        // Async event dispatch to RabbitMQ for AI Service & Search Service.
+        // Built from `saved` AFTER persistAndDecrypt(), so the event (and the
+        // Elasticsearch index it feeds) carries real plaintext, not ciphertext.
         try {
             JournalCreatedEvent event = new JournalCreatedEvent(
                     saved.getId(),
@@ -75,9 +87,10 @@ public class JournalServiceImpl implements JournalService {
     @Transactional
     public Journal updateJournal(Long userId, Long journalId, Journal updated) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal existing = getJournalById(activeUserId, journalId);
+        Journal existing = findOwnedJournal(activeUserId, journalId);
         existing.setTitle(updated.getTitle());
-        existing.setContent(updated.getContent());
+        existing.setContent(journalEncryptionService.encrypt(updated.getContent()));
+        existing.setContentEncrypted(true);
         existing.setMood(updated.getMood());
         existing.setLocation(updated.getLocation());
         existing.setWeather(updated.getWeather());
@@ -86,7 +99,7 @@ public class JournalServiceImpl implements JournalService {
         if (updated.getFolderId() != null) existing.setFolderId(updated.getFolderId());
         if (updated.getCategoryId() != null) existing.setCategoryId(updated.getCategoryId());
 
-        Journal saved = journalRepository.save(existing);
+        Journal saved = persistAndDecrypt(journalRepository.save(existing));
 
         try {
             JournalUpdatedEvent event = new JournalUpdatedEvent(
@@ -108,6 +121,14 @@ public class JournalServiceImpl implements JournalService {
     @Transactional(readOnly = true)
     public Journal getJournalById(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
+        return decryptForRead(findOwnedJournal(activeUserId, journalId));
+    }
+
+    // Raw fetch, content left exactly as stored (ciphertext for encrypted rows).
+    // Used by every internal mutation path so a subsequent save() never risks
+    // persisting the decrypted-for-display content back over the ciphertext -
+    // only getJournalById()/list reads route through decryptForRead().
+    private Journal findOwnedJournal(Long activeUserId, Long journalId) {
         return journalRepository.findByIdAndUserId(journalId, activeUserId)
                 .orElseThrow(() -> new ResourceNotFoundException("Journal", "id", journalId));
     }
@@ -148,34 +169,34 @@ public class JournalServiceImpl implements JournalService {
     @Transactional
     public Journal togglePin(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = getJournalById(activeUserId, journalId);
+        Journal journal = findOwnedJournal(activeUserId, journalId);
         journal.setIsPinned(!journal.getIsPinned());
-        return journalRepository.save(journal);
+        return persistAndDecrypt(journalRepository.save(journal));
     }
 
     @Override
     @Transactional
     public Journal toggleFavorite(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = getJournalById(activeUserId, journalId);
+        Journal journal = findOwnedJournal(activeUserId, journalId);
         journal.setIsFavorite(!journal.getIsFavorite());
-        return journalRepository.save(journal);
+        return persistAndDecrypt(journalRepository.save(journal));
     }
 
     @Override
     @Transactional
     public Journal toggleArchive(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = getJournalById(activeUserId, journalId);
+        Journal journal = findOwnedJournal(activeUserId, journalId);
         journal.setIsArchived(!journal.getIsArchived());
-        return journalRepository.save(journal);
+        return persistAndDecrypt(journalRepository.save(journal));
     }
 
     @Override
     @Transactional
     public void softDeleteJournal(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = getJournalById(activeUserId, journalId);
+        Journal journal = findOwnedJournal(activeUserId, journalId);
         journalRepository.delete(journal);
     }
 
@@ -183,11 +204,12 @@ public class JournalServiceImpl implements JournalService {
     @Transactional
     public void permanentDeleteJournal(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        Journal journal = getJournalById(activeUserId, journalId);
+        Journal journal = findOwnedJournal(activeUserId, journalId);
         journalRepository.delete(journal);
     }
 
     private PagedResponse<Journal> toPagedResponse(Page<Journal> page) {
+        page.getContent().forEach(this::decryptForRead);
         return new PagedResponse<>(
                 page.getContent(),
                 page.getNumber(),
@@ -197,5 +219,30 @@ public class JournalServiceImpl implements JournalService {
                 page.isLast(),
                 page.isFirst()
         );
+    }
+
+    // Write paths (create/update/toggle): the entity was just save()'d in the
+    // current transaction, so its pending change must be flushed to the DB
+    // *before* detaching - otherwise the encrypted content set on the entity
+    // earlier in the method would still be sitting unflushed in the
+    // persistence context, and detaching would just discard it.
+    private Journal persistAndDecrypt(Journal managed) {
+        entityManager.flush();
+        entityManager.detach(managed);
+        if (Boolean.TRUE.equals(managed.getContentEncrypted())) {
+            managed.setContent(journalEncryptionService.decrypt(managed.getContent()));
+        }
+        return managed;
+    }
+
+    // Read paths: nothing was written this transaction, so no flush is
+    // needed - but still detach before mutating, so correctness doesn't
+    // depend on readOnly=true's FlushMode.MANUAL behavior.
+    private Journal decryptForRead(Journal managed) {
+        entityManager.detach(managed);
+        if (Boolean.TRUE.equals(managed.getContentEncrypted())) {
+            managed.setContent(journalEncryptionService.decrypt(managed.getContent()));
+        }
+        return managed;
     }
 }

@@ -26,6 +26,11 @@ spec:
             secretKeyRef:
               name: app-secrets
               key: JWT_SECRET
+        - name: JOURNAL_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JOURNAL_ENCRYPTION_KEY
         - name: SPRING_DATASOURCE_URL
           value: "jdbc:mysql://mysql:3306/journal_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
         - name: SPRING_DATASOURCE_USERNAME

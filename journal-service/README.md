@@ -6,11 +6,22 @@ Journal entry CRUD, plus pin/favorite/archive toggles and soft/permanent delete.
 **Database:** MySQL, schema `journal_db` (Flyway-managed, `src/main/resources/db/migration`)
 **Messaging:** publishes to RabbitMQ (`journal.exchange`, topic exchange)
 
+## Content encryption
+
+Journal content is encrypted at rest with AES/GCM (`JournalEncryptionService`, same algorithm as `auth-service`'s TOTP secret encryption, but a separate key - `JOURNAL_ENCRYPTION_KEY`, never reused across services). Every create/update encrypts `content` and sets `contentEncrypted = true` before saving; every read path (`getJournalById`, the list endpoints, and the pin/favorite/archive toggles, which also return the full entity) decrypts it back before returning, so callers - including the RabbitMQ event `search-service` indexes - always see plaintext.
+
+**Scope: opt-in going forward, not backfilled.** Rows created before this shipped stay `contentEncrypted = false` and are read back exactly as stored, unchanged - there is no migration that re-encrypts existing entries. This mirrors Phase 7's MFA rollout (new capability applies from the moment it ships, not retroactively).
+
+`JOURNAL_ENCRYPTION_KEY` is required - the service fails fast at startup if it's unset. Generate one the same way as `TOTP_ENCRYPTION_KEY`: `openssl rand -base64 64`.
+
+Two schema notes, not touched by this feature: the unused `FULLTEXT INDEX` on `title`/`content` (nothing ever queried it - full-text search is real Elasticsearch via `search-service`, not MySQL `MATCH...AGAINST`) was dropped in `V2__drop_unused_fulltext_index.sql`, since it would've become misleading once `content` holds ciphertext for new rows. `journal_versions` remains a dormant table with no active entity/repository anywhere in this codebase - out of scope here too.
+
 ## Environment variables
 
 | Variable | Required | Default |
 |---|:---:|---|
 | `JWT_SECRET` | yes | - |
+| `JOURNAL_ENCRYPTION_KEY` | yes | - |
 | `SPRING_DATASOURCE_URL` | no | `jdbc:mysql://localhost:3306/journal_db?...` |
 | `SPRING_DATASOURCE_USERNAME` | no | `root` |
 | `SPRING_DATASOURCE_PASSWORD` | no | `root` |
