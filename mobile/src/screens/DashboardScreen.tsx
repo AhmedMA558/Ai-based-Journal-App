@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
-import { journalService } from '@/services';
+import { journalService, recommendationService } from '@/services';
 import { session } from '@/services/session';
 import { getPendingCount } from '@/lib/offlineQueue';
 import { useAuthContext } from '@/context/AuthContext';
@@ -19,7 +19,7 @@ import { calculateStreak } from '@/lib/journalStats';
 import type { MainStackParamList } from '@/navigation/types';
 import type { Journal } from '@/types';
 
-const RECOMMENDATION = 'Take 5 deep breaths and reflect on 3 good things today.';
+const DEFAULT_RECOMMENDATION = 'Take 5 deep breaths and reflect on 3 good things today.';
 
 function moodEmoji(mood?: string): string {
   return MOOD_META[(mood || '').toUpperCase() as Mood]?.emoji || '😊';
@@ -34,6 +34,7 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
+  const [recommendation, setRecommendation] = useState(DEFAULT_RECOMMENDATION);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -50,6 +51,13 @@ export default function DashboardScreen() {
       setRefreshing(false);
     }
     setPendingCount(await getPendingCount());
+
+    try {
+      const suggestion = await recommendationService.getSuggestion();
+      if (suggestion) setRecommendation(suggestion);
+    } catch {
+      // Keep the existing recommendation (default or last-successful fetch).
+    }
   }, []);
 
   useEffect(() => {
@@ -128,7 +136,7 @@ export default function DashboardScreen() {
               </View>
               <View className="flex-1">
                 <Text className="text-text-secondary text-xs mb-1">AI Wellness Suggestion</Text>
-                <Text className="text-[#cbd5e1] text-sm italic">"{RECOMMENDATION}"</Text>
+                <Text className="text-[#cbd5e1] text-sm italic">"{recommendation}"</Text>
               </View>
             </GlassPanel>
 

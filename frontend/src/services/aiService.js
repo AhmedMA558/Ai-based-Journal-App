@@ -32,7 +32,7 @@ export const aiService = {
   },
 
   // Get Personal Recommendations
-  getRecommendations: async (mood) => {
-    return await api.post('/api/v1/ai/recommendations', { mood });
+  getRecommendations: async (mood, content) => {
+    return await api.post('/api/v1/ai/recommendations', { mood, content });
   },
 };

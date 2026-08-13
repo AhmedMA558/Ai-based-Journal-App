@@ -57,9 +57,20 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
       setJournals(Array.isArray(list) ? list : []);
 
       try {
-        const aiRes = await aiService.getRecommendations('HAPPY');
-        if (aiRes?.data && Array.isArray(aiRes.data) && aiRes.data.length > 0) {
-          setRecommendation(aiRes.data[0]);
+        // Most recent entry (getAllJournals returns newest-first by default,
+        // matching journal-service's default sortBy=createdAt&sortDir=DESC) -
+        // not a hardcoded mood, so this actually reflects how the user's
+        // been feeling instead of always requesting HAPPY-flavored content.
+        const mostRecent = Array.isArray(list) ? list[0] : undefined;
+        const currentMood = mostRecent?.mood || 'NEUTRAL';
+        const aiRes = await aiService.getRecommendations(currentMood, mostRecent?.content);
+        // ApiResponse<T> wraps every backend response as {success, message,
+        // data, timestamp} - aiRes.data is that envelope, not the array
+        // itself. Reading aiRes.data directly here meant Array.isArray()
+        // was always false and this branch never actually fired.
+        const recommendations = aiRes?.data?.data;
+        if (Array.isArray(recommendations) && recommendations.length > 0) {
+          setRecommendation(recommendations[0]);
         }
       } catch {
         // Fallback recommendation

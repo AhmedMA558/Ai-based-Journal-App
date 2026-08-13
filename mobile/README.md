@@ -7,7 +7,9 @@ This phase (Phase 11) ships one complete vertical slice - auth through core jour
 - **Pass A (default today)**: runs entirely against a local mock service layer (`src/mocks/`) with realistic canned data. No backend needs to be running.
 - **Pass B**: flips one env var to swap in the real axios-backed services (`src/services/`). Screens are identical between the two passes - only `src/services/index.ts` changes which module it re-exports.
 
-Calendar, Search, AI Chat, Settings/2FA management, Analytics, Achievements, Notifications, Command Palette, a confetti moment in the journal editor, offline support for journal CRUD, and real push notifications were added after the initial slice. Voice dictation is the one item still intentionally not in this app - see below and the Phase 11 plan for the full deferral list.
+Calendar, Search, AI Chat, Settings/2FA management, Analytics, Achievements, Notifications, Command Palette, a confetti moment in the journal editor, offline support for journal CRUD, real push notifications, and a real AI Wellness Suggestion on the Dashboard were added after the initial slice. Voice dictation is the one item still intentionally not in this app - see below and the Phase 11 plan for the full deferral list.
+
+The Dashboard's "AI Wellness Suggestion" card (`src/services/recommendationService.ts`) calls `recommendation-service`'s `GET /api/v1/recommendations`, which computes a real dominant mood from the user's recent journals server-side and returns genuinely mood-differentiated content - this app never had any recommendation integration at all before (the card was a fully static hardcoded string), so this is new ground, not a bug fix like the equivalent web-app card had (`frontend/`'s version called a different endpoint - `ai-service`'s - and had three real bugs of its own, fixed separately).
 
 **Push notifications are real, not a stub - and the one Phase 11 feature that needs more than plain Expo Go.** `notification-service` now has its own MySQL database (`notification_db`, `device_tokens` table) and actually calls Expo's push API (`https://exp.host/--/api/v2/push/send`) instead of just logging; a `ReminderScheduler` sends a real daily reminder (fixed UTC time, no per-user personalization - documented simplification, not a fake feature) to every registered device. On the mobile side, `useAuth.ts` registers a real Expo push token whenever a session becomes active and unregisters it on logout, via `services/notificationService.ts` + new `lib/pushRegistration.ts`. Tapping a delivered reminder navigates straight into a new journal entry (`navigation/RootNavigator.tsx`).
 
@@ -80,11 +82,11 @@ src/
   context/         AuthContext.tsx - wraps hooks/useAuth.ts's 10s session-poll (RN port of
                    App.jsx's session-expiry watcher) so screens can reach login()/logout()
   services/        real axios-backed authService/journalService/aiService/searchService/
-                   userService/notificationService/api/session, plus index.ts - the one
-                   file that switches between real and mocks/
+                   userService/notificationService/recommendationService/api/session,
+                   plus index.ts - the one file that switches between real and mocks/
   mocks/           fixtures.ts (seed users + journals), mock{Auth,Journal,Ai,Search,User,
-                   Notification}Service.ts - same function signatures as services/*.ts,
-                   used for Pass A
+                   Notification,Recommendation}Service.ts - same function signatures as
+                   services/*.ts, used for Pass A
   components/      MoodWheel.tsx, ErrorBanner.tsx, OfflineBanner.tsx, ui/ (GlassPanel,
                    GlassInput, PrimaryButton, SkeletonBlock, FadeInView, EmptyState)
   lib/             moods.ts, journalStats.ts, utils.ts (cn()) - ported near-verbatim
