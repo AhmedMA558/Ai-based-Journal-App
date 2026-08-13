@@ -36,7 +36,7 @@ describe('DashboardView', () => {
     mockedGetAllJournals.mockReset();
     mockedDeleteJournal.mockReset();
     mockedGetRecommendations.mockReset();
-    mockedGetRecommendations.mockResolvedValue({ data: [] } as any);
+    mockedGetRecommendations.mockResolvedValue({ data: { data: [] } } as any);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
@@ -62,10 +62,31 @@ describe('DashboardView', () => {
 
   it('shows an AI recommendation when the service returns one', async () => {
     mockedGetAllJournals.mockResolvedValue([]);
-    mockedGetRecommendations.mockResolvedValue({ data: ['Try a 10-minute walk today.'] } as any);
+    // Real ApiResponse<T> envelope shape ({success, message, data, timestamp})
+    // - aiRes.data is that envelope, not the array itself. A test mocking
+    // { data: [...] } directly would pass even with the envelope-unwrap bug
+    // this fix addresses (aiRes?.data vs aiRes?.data?.data), which is exactly
+    // how that bug went undetected the first time.
+    mockedGetRecommendations.mockResolvedValue({ data: { data: ['Try a 10-minute walk today.'] } } as any);
     render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
 
     expect(await screen.findByText('"Try a 10-minute walk today."')).toBeInTheDocument();
+  });
+
+  it('requests recommendations for the most recent journal entry\'s real mood, not a hardcoded value', async () => {
+    mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    await screen.findByText('First Entry');
+    expect(mockedGetRecommendations).toHaveBeenCalledWith('HAPPY', 'Some content here');
+  });
+
+  it('requests NEUTRAL recommendations when the user has no journal entries yet', async () => {
+    mockedGetAllJournals.mockResolvedValue([]);
+    render(<DashboardView onNewJournal={vi.fn()} onSelectJournal={vi.fn()} />);
+
+    await screen.findByText('No Journal Entries Yet');
+    expect(mockedGetRecommendations).toHaveBeenCalledWith('NEUTRAL', undefined);
   });
 
   it('falls back to the default recommendation when the AI service fails', async () => {

@@ -23,11 +23,12 @@ public class RecommendationController {
     }
 
     @GetMapping
-    @Operation(summary = "Get personalized recommendations based on mood & journal history")
+    @Operation(summary = "Get personalized recommendations based on mood & journal history - if currentMood is omitted, it's computed from the caller's real recent journal entries")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getRecommendations(
             @RequestHeader("X-User-Id") Long userId,
-            @RequestParam(required = false, defaultValue = "NEUTRAL") String currentMood) {
-        Map<String, Object> response = recommendationService.getPersonalizedRecommendations(userId, currentMood);
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
+            @RequestParam(required = false) String currentMood) {
+        Map<String, Object> response = recommendationService.getPersonalizedRecommendations(userId, currentMood, authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
