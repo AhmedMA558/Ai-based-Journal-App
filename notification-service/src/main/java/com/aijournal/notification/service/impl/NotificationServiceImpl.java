@@ -6,6 +6,9 @@ import com.aijournal.notification.service.ExpoPushService;
 import com.aijournal.notification.service.NotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,15 +22,31 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final DeviceTokenRepository deviceTokenRepository;
     private final ExpoPushService expoPushService;
+    private final JavaMailSender mailSender;
 
-    public NotificationServiceImpl(DeviceTokenRepository deviceTokenRepository, ExpoPushService expoPushService) {
+    @Value("${notification.mail.from:noreply@mindora.local}")
+    private String fromAddress;
+
+    public NotificationServiceImpl(DeviceTokenRepository deviceTokenRepository, ExpoPushService expoPushService,
+                                    JavaMailSender mailSender) {
         this.deviceTokenRepository = deviceTokenRepository;
         this.expoPushService = expoPushService;
+        this.mailSender = mailSender;
     }
 
     @Override
     public void sendEmail(String to, String subject, String body) {
-        log.info("Sending Email to: {}, Subject: '{}', Body: '{}'", to, subject, body);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromAddress);
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+            log.info("Sent email to {}: '{}'", to, subject);
+        } catch (Exception e) {
+            log.warn("Failed to send email to {}: {}", to, e.getMessage());
+        }
     }
 
     @Override

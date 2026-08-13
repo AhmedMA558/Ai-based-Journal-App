@@ -22,11 +22,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -62,6 +66,9 @@ class AuthServiceTest {
     @Mock
     private TotpEncryptionService totpEncryptionService;
 
+    @Mock
+    private RestTemplate restTemplate;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -70,6 +77,8 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(authService, "jwtSecret", "defaultSecretKeyForTestingJwtTokenValidation1234567890");
         ReflectionTestUtils.setField(authService, "jwtExpirationMs", 900000L);
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
+        ReflectionTestUtils.setField(authService, "restTemplate", restTemplate);
+        ReflectionTestUtils.setField(authService, "notificationServiceUrl", "http://notification-service:8087");
     }
 
     private User mfaUser(boolean mfaEnabled, String encryptedSecret) {
@@ -99,6 +108,47 @@ class AuthServiceTest {
         assertNotNull(response.getAccessToken());
         assertNotNull(response.getRefreshToken());
         verify(userRepository, times(1)).save(any(User.class));
+    }
+
+    @Test
+    void register_Success_TriggersWelcomeEmailWithNewlyIssuedToken() {
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("testuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(roleRepository.findByName(Role.RoleName.ROLE_USER))
+                .thenReturn(Optional.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        AuthResponse response = authService.register(request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<Map<String, String>>> captor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
+                captor.capture(), eq(Void.class));
+        HttpEntity<Map<String, String>> entity = captor.getValue();
+        assertEquals("Bearer " + response.getAccessToken(), entity.getHeaders().getFirst("Authorization"));
+        assertEquals("test@example.com", entity.getBody().get("to"));
+    }
+
+    @Test
+    void register_NotificationServiceUnreachable_RegistrationStillSucceeds() {
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("testuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(roleRepository.findByName(Role.RoleName.ROLE_USER))
+                .thenReturn(Optional.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+        when(restTemplate.postForEntity(anyString(), any(), eq(Void.class)))
+                .thenThrow(new RestClientException("connection refused"));
+
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        assertNotNull(response.getAccessToken());
     }
 
     @Test

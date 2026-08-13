@@ -189,6 +189,8 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:?SPRING_MAIL_HOST must be set - point at a real SMTP provider, no MailHog in prod}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:?SPRING_MAIL_PORT must be set}
     depends_on:
       mysql:
         condition: service_healthy
