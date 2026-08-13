@@ -92,6 +92,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
       if (showToast) showToast('Journal entry deleted.', 'info');
     } catch (err) {
       console.error('Delete failed:', err);
+      if (showToast) showToast('Failed to delete journal entry. Please try again.', 'error');
     }
   };
 

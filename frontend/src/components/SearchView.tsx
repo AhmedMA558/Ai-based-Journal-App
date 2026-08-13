@@ -38,24 +38,33 @@ export default function SearchView() {
   // filter changes. Sorting is applied client-side to whatever page comes back
   // (the endpoint doesn't offer server-side sorting).
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
     const timer = setTimeout(async () => {
       try {
         const res = await searchService.search({ query, mood: selectedMoodFilter, size: RESULTS_PAGE_SIZE });
+        if (cancelled) return;
         const content = res?.data?.data?.content;
         setResults(Array.isArray(content) ? content : []);
       } catch (err) {
+        if (cancelled) return;
         console.error('Search failed:', err);
         setError('Search failed. Please try again.');
         setResults([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }, SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    // clearTimeout alone only stops a not-yet-fired debounce timer - it can't
+    // cancel a request already in flight. The cancelled flag covers that gap
+    // so a slower, now-stale response can never overwrite fresher results.
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query, selectedMoodFilter]);
 
   const sortedResults = [...results].sort((a, b) => {

@@ -42,9 +42,10 @@ describe('Header', () => {
     expect(baseProps.onOpenCommandPalette).toHaveBeenCalledTimes(1);
   });
 
-  it('defaults the unread badge to 2 when unreadCount is not passed', () => {
+  it('hides the unread badge when unreadCount is not passed (defaults to 0, not a fake count)', () => {
     render(<Header {...baseProps} />);
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.queryByText('2')).not.toBeInTheDocument();
+    expect(screen.queryByText('0')).not.toBeInTheDocument();
   });
 
   it('hides the unread badge when unreadCount is 0', () => {

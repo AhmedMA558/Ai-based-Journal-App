@@ -12,6 +12,7 @@ import { OfflineBanner } from '@/components/OfflineBanner';
 import { cn } from '@/lib/utils';
 import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
 import { getPendingCount } from '@/lib/offlineQueue';
+import { syncPendingChanges } from '@/services/journalService';
 import { journalService } from '@/services';
 import type { MainStackParamList } from '@/navigation/types';
 import type { Journal } from '@/types';
@@ -52,6 +53,10 @@ export default function JournalListScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      // Belt-and-suspenders retry alongside the reconnect-triggered sync in
+      // journalService.ts - a real no-op when the queue is already empty
+      // (including under Pass A mocks, where nothing is ever queued).
+      syncPendingChanges().catch(() => {});
     }, [load])
   );
 

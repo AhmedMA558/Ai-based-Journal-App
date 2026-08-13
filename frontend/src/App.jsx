@@ -10,6 +10,7 @@ import AchievementsModal from './components/AchievementsModal';
 import Toast from './components/Toast';
 import { authService } from './services/authService';
 import { journalService } from './services/journalService';
+import { notificationService } from './services/notificationService';
 
 function EditJournalRoute({ onSaveSuccess, showToast }) {
   const { journalId } = useParams();
@@ -68,11 +69,39 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Fetch real notifications whenever the drawer opens, matching
+  // SettingsModal's established on-open fetch convention.
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    let cancelled = false;
+    notificationService.list()
+      .then((res) => {
+        if (!cancelled) setNotifications(res?.data?.data?.content || []);
+      })
+      .catch(() => {
+        // Fail soft - the drawer just shows its empty state.
+      });
+    return () => { cancelled = true; };
+  }, [isNotificationsOpen]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      showToast('All notifications marked as read', 'info');
+    } catch {
+      showToast('Could not mark notifications as read.', 'error');
+    }
+  };
 
   // Global Keyboard Shortcuts (Cmd+K, Cmd+N, Cmd+A, Cmd+J)
   useEffect(() => {
@@ -174,7 +203,8 @@ export default function App() {
       <NotificationsDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
-        onMarkAllRead={() => showToast('All notifications marked as read', 'info')}
+        notifications={notifications}
+        onMarkAllRead={handleMarkAllRead}
       />
       <SettingsModal
         isOpen={isSettingsOpen}
@@ -202,6 +232,7 @@ export default function App() {
           onToggleTheme={toggleTheme}
           theme={theme}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
+          unreadCount={unreadCount}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
 

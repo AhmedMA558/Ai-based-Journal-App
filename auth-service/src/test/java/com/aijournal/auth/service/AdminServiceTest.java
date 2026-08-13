@@ -3,12 +3,14 @@ package com.aijournal.auth.service;
 import com.aijournal.auth.dto.UserSummaryResponse;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
+import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
 import com.aijournal.auth.service.impl.AdminServiceImpl;
 import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.exception.BadRequestException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -17,14 +19,20 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpEntity;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,8 +47,22 @@ class AdminServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    private MfaChallengeRepository mfaChallengeRepository;
+
+    @Mock
+    private RestTemplate restTemplate;
+
     @InjectMocks
     private AdminServiceImpl adminService;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(adminService, "jwtSecret", "defaultSecretKeyForTestingJwtTokenValidation1234567890");
+        ReflectionTestUtils.setField(adminService, "notificationServiceUrl", "http://notification-service:8087");
+        ReflectionTestUtils.setField(adminService, "restTemplate", restTemplate);
+        ReflectionTestUtils.setField(adminService, "notificationExecutor", (Executor) Runnable::run);
+    }
 
     private static User user(Long id, Role... roles) {
         return new User(id, "user" + id, "user" + id + "@example.com", "hashed", "User " + id,
@@ -95,7 +117,11 @@ class AdminServiceTest {
     }
 
     @Test
-    void updateStatus_Disable_RevokesRefreshTokens() {
+    void updateStatus_Disable_RevokesRefreshTokensAndPendingMfaChallenge() {
+        // A disabled account must lose both an existing refresh token AND any
+        // still-outstanding MFA challenge (password already accepted, code
+        // not yet entered) - otherwise the user could still complete login
+        // via verifyMfa() after being disabled.
         User target = user(2L, new Role(1L, Role.RoleName.ROLE_USER));
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -105,11 +131,30 @@ class AdminServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(refreshTokenRepository).deleteByUser(captor.capture());
         assertThat(captor.getValue().getId()).isEqualTo(2L);
+        verify(mfaChallengeRepository).deleteByUser(any(User.class));
         assertThat(target.getEnabled()).isFalse();
     }
 
     @Test
-    void updateStatus_Enable_DoesNotRevokeRefreshTokens() {
+    void updateStatus_Disable_TriggersAccountEventNotification() {
+        User target = user(2L, new Role(1L, Role.RoleName.ROLE_USER));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        adminService.updateStatus(2L, 99L, false);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<Map<String, Object>>> captor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications"),
+                captor.capture(), eq(Void.class));
+        HttpEntity<Map<String, Object>> entity = captor.getValue();
+        assertThat(entity.getHeaders().getFirst("Authorization")).startsWith("Bearer ");
+        assertThat(entity.getBody().get("userId")).isEqualTo(2L);
+        assertThat(entity.getBody().get("type")).isEqualTo("SECURITY");
+    }
+
+    @Test
+    void updateStatus_Enable_DoesNotRevokeRefreshTokensOrNotify() {
         User target = user(2L, new Role(1L, Role.RoleName.ROLE_USER));
         target.setEnabled(false);
         when(userRepository.findById(2L)).thenReturn(Optional.of(target));
@@ -117,7 +162,7 @@ class AdminServiceTest {
 
         adminService.updateStatus(2L, 99L, true);
 
-        verifyNoInteractions(refreshTokenRepository);
+        verifyNoInteractions(refreshTokenRepository, mfaChallengeRepository, restTemplate);
         assertThat(target.getEnabled()).isTrue();
     }
 

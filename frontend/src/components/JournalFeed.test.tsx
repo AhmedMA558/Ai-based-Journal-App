@@ -87,6 +87,21 @@ describe('JournalFeed', () => {
     expect(showToast).toHaveBeenCalledWith('Journal entry deleted.', 'info');
   });
 
+  it('shows an error toast (not just a silent console.error) when delete fails', async () => {
+    mockedDeleteJournal.mockRejectedValue(new Error('network error'));
+    const showToast = vi.fn();
+    const user = userEvent.setup();
+    render(<JournalFeed onNewJournal={vi.fn()} onEditJournal={vi.fn()} showToast={showToast} />);
+    await screen.findByText('Hackathon Day');
+
+    const deleteButtons = screen.getAllByTitle('Delete Entry');
+    await user.click(deleteButtons[0]);
+
+    expect(mockedDeleteJournal).toHaveBeenCalledWith(1);
+    expect(showToast).toHaveBeenCalledWith('Failed to delete journal entry. Please try again.', 'error');
+    expect(await screen.findByText('Hackathon Day')).toBeInTheDocument();
+  });
+
   it('calls onNewJournal when "New Entry" is clicked', async () => {
     const user = userEvent.setup();
     const onNewJournal = vi.fn();

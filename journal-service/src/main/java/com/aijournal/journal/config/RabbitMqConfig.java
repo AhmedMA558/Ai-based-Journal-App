@@ -24,6 +24,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue journalDeletedQueue() {
+        return QueueBuilder.durable(JournalEventRouting.QUEUE_DELETED).build();
+    }
+
+    @Bean
     public Binding createdBinding(Queue journalCreatedQueue, TopicExchange journalExchange) {
         return BindingBuilder.bind(journalCreatedQueue).to(journalExchange).with(JournalEventRouting.ROUTING_KEY_CREATED);
     }
@@ -31,5 +36,10 @@ public class RabbitMqConfig {
     @Bean
     public Binding updatedBinding(Queue journalUpdatedQueue, TopicExchange journalExchange) {
         return BindingBuilder.bind(journalUpdatedQueue).to(journalExchange).with(JournalEventRouting.ROUTING_KEY_UPDATED);
+    }
+
+    @Bean
+    public Binding deletedBinding(Queue journalDeletedQueue, TopicExchange journalExchange) {
+        return BindingBuilder.bind(journalDeletedQueue).to(journalExchange).with(JournalEventRouting.ROUTING_KEY_DELETED);
     }
 }

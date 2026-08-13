@@ -1,7 +1,11 @@
 package com.aijournal.notification.service;
 
+import com.aijournal.common.dto.PagedResponse;
+import com.aijournal.notification.dto.NotificationResponse;
 import com.aijournal.notification.entity.DeviceToken;
+import com.aijournal.notification.entity.Notification;
 import com.aijournal.notification.repository.DeviceTokenRepository;
+import com.aijournal.notification.repository.NotificationRepository;
 import com.aijournal.notification.service.impl.NotificationServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,10 +14,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +34,9 @@ class NotificationServiceTest {
 
     @Mock
     private DeviceTokenRepository deviceTokenRepository;
+
+    @Mock
+    private NotificationRepository notificationRepository;
 
     @Mock
     private ExpoPushService expoPushService;
@@ -128,5 +138,39 @@ class NotificationServiceTest {
         service.unregisterDeviceToken(1L, "tok");
 
         verify(deviceTokenRepository).deleteByUserIdAndExpoPushToken(1L, "tok");
+    }
+
+    @Test
+    void createNotification_SavesRealRow() {
+        service.createNotification(1L, "SECURITY", "Your password was changed.");
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+        assertThat(captor.getValue().getUserId()).isEqualTo(1L);
+        assertThat(captor.getValue().getType()).isEqualTo("SECURITY");
+        assertThat(captor.getValue().getMessage()).isEqualTo("Your password was changed.");
+    }
+
+    @Test
+    void listNotifications_MapsPageToNotificationResponses() {
+        Notification n = new Notification(1L, "SECURITY", "msg");
+        n.setId(5L);
+        n.setCreatedAt(Instant.now());
+        when(notificationRepository.findByUserIdOrderByCreatedAtDesc(eq(1L), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(n), PageRequest.of(0, 20), 1));
+
+        PagedResponse<NotificationResponse> result = service.listNotifications(1L, PageRequest.of(0, 20));
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(5L);
+        assertThat(result.getContent().get(0).getType()).isEqualTo("SECURITY");
+        assertThat(result.getContent().get(0).isRead()).isFalse();
+    }
+
+    @Test
+    void markAllAsRead_DelegatesToRepository() {
+        service.markAllAsRead(1L);
+
+        verify(notificationRepository).markAllAsReadForUser(1L);
     }
 }

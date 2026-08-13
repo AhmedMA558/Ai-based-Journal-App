@@ -14,7 +14,7 @@ export default function Header({
   onToggleTheme,
   theme,
   onOpenNotifications,
-  unreadCount = 2,
+  unreadCount = 0,
   onOpenSettings,
 }: HeaderProps) {
   const username = localStorage.getItem('user_name') || 'Journaler';

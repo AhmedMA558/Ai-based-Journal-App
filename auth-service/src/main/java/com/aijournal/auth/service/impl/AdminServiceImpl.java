@@ -3,6 +3,7 @@ package com.aijournal.auth.service.impl;
 import com.aijournal.auth.dto.UserSummaryResponse;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
+import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
@@ -10,26 +11,56 @@ import com.aijournal.auth.service.AdminService;
 import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.exception.BadRequestException;
 import com.aijournal.common.exception.ResourceNotFoundException;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 public class AdminServiceImpl implements AdminService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminServiceImpl.class);
+    private static final int SYSTEM_TOKEN_TTL_SECONDS = 60;
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final MfaChallengeRepository mfaChallengeRepository;
+    private final RestTemplate restTemplate = new RestTemplate();
+    private Executor notificationExecutor = Executors.newCachedThreadPool();
+
+    @Value("${jwt.secret:defaultSecretKeyForTestingJwtTokenValidation1234567890}")
+    private String jwtSecret;
+
+    @Value("${notification.service.url:http://notification-service:8087}")
+    private String notificationServiceUrl;
 
     public AdminServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
-                             RefreshTokenRepository refreshTokenRepository) {
+                             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.mfaChallengeRepository = mfaChallengeRepository;
     }
 
     @Override
@@ -89,8 +120,13 @@ public class AdminServiceImpl implements AdminService {
         User saved = userRepository.save(target);
         if (!enabled) {
             // Same reasoning as changePassword's stolen-device handling - a
-            // disabled account's active session must not survive.
+            // disabled account's active session must not survive. Also purge
+            // any outstanding MFA challenge - without this, a user mid-login
+            // (password already accepted, MFA not yet completed) could still
+            // finish /mfa/verify and mint fresh tokens after being disabled.
             refreshTokenRepository.deleteByUser(saved);
+            mfaChallengeRepository.deleteByUser(saved);
+            notifyAccountEventBestEffort(saved, "Your account was disabled by an administrator.");
         }
         return toSummary(saved);
     }
@@ -98,6 +134,41 @@ public class AdminServiceImpl implements AdminService {
     private User getUserOrThrow(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    // Mechanical duplicate of AuthServiceImpl's mintSystemToken()/notify
+    // helper - same reasoning this codebase already applies to small
+    // purpose-named infrastructure (e.g. TotpEncryptionService vs.
+    // JournalEncryptionService) over a shared abstraction for a few lines.
+    private String mintSystemToken() {
+        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("system")
+                .claim("userId", 0L)
+                .claim("roles", List.of("ROLE_SYSTEM"))
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(SYSTEM_TOKEN_TTL_SECONDS)))
+                .signWith(key)
+                .compact();
+    }
+
+    private void notifyAccountEventBestEffort(User user, String message) {
+        notificationExecutor.execute(() -> {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+                Map<String, Object> body = Map.of(
+                        "userId", user.getId(),
+                        "type", "SECURITY",
+                        "message", message
+                );
+                restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications",
+                        new HttpEntity<>(body, headers), Void.class);
+            } catch (Exception e) {
+                log.warn("Could not create account-event notification for user {}: {}", user.getId(), e.getMessage());
+            }
+        });
     }
 
     private UserSummaryResponse toSummary(User user) {
