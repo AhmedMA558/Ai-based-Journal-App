@@ -90,6 +90,15 @@ export const authService = {
   resetPassword: async (resetCode, newPassword) =>
     (await api.post('/api/v1/auth/password/reset', { resetCode, newPassword }))?.data,
 
+  // Authenticated (not public like password reset) - the caller is always
+  // logged in by the time they'd submit a code, since register() issues
+  // tokens unconditionally (non-blocking email verification).
+  verifyEmail: async (code) =>
+    (await api.post('/api/v1/auth/verify-email', { code }))?.data,
+
+  resendVerificationEmail: async () =>
+    (await api.post('/api/v1/auth/verify-email/resend'))?.data,
+
   // Set active session tokens with strict 10-minute (client-side, activity-driven)
   // expiration. refreshToken is the single-use rotating token used by
   // refreshAccessToken() - the access token itself expires server-side after 15

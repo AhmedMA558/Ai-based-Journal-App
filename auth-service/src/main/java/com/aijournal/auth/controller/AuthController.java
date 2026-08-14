@@ -113,4 +113,19 @@ public class AuthController {
         authService.disableMfa(userId, request);
         return ResponseEntity.ok(ApiResponse.success("2FA disabled", null));
     }
+
+    @PostMapping("/verify-email")
+    @Operation(summary = "Verify the authenticated user's email address with a code sent at registration")
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+            @RequestHeader("X-User-Id") Long userId, @Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(userId, request);
+        return ResponseEntity.ok(ApiResponse.success("Email verified successfully", null));
+    }
+
+    @PostMapping("/verify-email/resend")
+    @Operation(summary = "Resend the authenticated user's email verification code")
+    public ResponseEntity<ApiResponse<Void>> resendVerificationEmail(@RequestHeader("X-User-Id") Long userId) {
+        authService.resendVerificationEmail(userId);
+        return ResponseEntity.ok(ApiResponse.success("Verification email sent", null));
+    }
 }

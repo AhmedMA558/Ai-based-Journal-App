@@ -20,20 +20,24 @@ Registration, login, JWT issuance/refresh, logout, MFA (TOTP-based 2FA), passwor
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/v1/auth/register` | Register a new user account (always `ROLE_USER`). Also fires a real, best-effort welcome email via `notification-service` (a failure here never fails registration itself). |
+| POST | `/api/v1/auth/register` | Register a new user account (always `ROLE_USER`). Tokens are issued unconditionally regardless of email verification state - this platform does not gate login/registration on it. Also fires a real, best-effort welcome email and a separate email-verification email via `notification-service` (a failure here never fails registration itself). |
 | POST | `/api/v1/auth/login` | Authenticate; returns tokens, or an MFA challenge if 2FA is enabled. Rejects a disabled account with 403. |
 | POST | `/api/v1/auth/mfa/verify` | Complete login by verifying a TOTP/recovery code against an MFA challenge. Also rejects with 403 if the account was disabled after the challenge was created but before it was completed. |
 | POST | `/api/v1/auth/refresh` | Refresh the access token using the refresh token. Also rejects with 403 (and deletes the token) if the account has since been disabled - a refresh token issued before disablement must not keep working for the rest of its 7-day life. |
 | POST | `/api/v1/auth/logout` | Revoke the refresh token |
-| GET | `/api/v1/auth/me` | Get the authenticated user's identity |
+| GET | `/api/v1/auth/me` | Get the authenticated user's identity, including `emailVerified` |
 | PUT | `/api/v1/auth/password` | Change the authenticated user's password (revokes all refresh tokens) |
 | POST | `/api/v1/auth/password/forgot` | Request a password reset code by email. Always returns the same generic response regardless of whether the email is registered (no enumeration) - if it is, a real email is sent with a 10-character reset code (`XXXXX-XXXXX`, 30-minute expiry, single-use, same format as MFA recovery codes) |
 | POST | `/api/v1/auth/password/reset` | Reset a password using a code from `/password/forgot` (revokes all refresh tokens, same as `/password` above) |
 | GET/POST | `/api/v1/auth/mfa/status`, `/mfa/setup`, `/mfa/enable`, `/mfa/disable` | TOTP enrollment/management |
+| POST | `/api/v1/auth/verify-email` | Verify the authenticated caller's email with the code sent at registration (24-hour expiry, `XXXXX-XXXXX` format like the other codes). Unlike `/password/forgot`/`/password/reset`, this is authenticated (`X-User-Id`-derived), not public - the caller is always logged in by the time they'd submit a code, since registration issues tokens unconditionally. Not added to any of the platform's public-path lists, and not on the gateway's rate-limited route (it's per-account, not anonymous/IP-guessable). Idempotent - a second call on an already-verified account is a no-op. |
+| POST | `/api/v1/auth/verify-email/resend` | Regenerate and resend the verification code (invalidates the previous one). Rejects with 400 if the account is already verified. |
+
+**Non-blocking by design**: an unverified email never blocks login, registration, or any other endpoint - `User.emailVerified` defaults `false` and is purely tracked/nagged, not enforced. The web and mobile apps show a dismissible banner plus a verification block in Settings → Security until the user completes it.
 
 **Internal auth note**: `notification-service`'s `/send-email` and `POST /notifications` endpoints are `@PreAuthorize("hasRole('SYSTEM')")`-only (an audit found `/send-email` had no restriction at all - any authenticated user could send arbitrary email as the platform). Neither the welcome email nor the password-reset email nor an account-event notification forwards a real user's own JWT anymore - all three authenticate the same way, via a short-lived (60s), synthetic internal token `auth-service` mints itself (`mintSystemToken()`: `userId=0`, `roles=["ROLE_SYSTEM"]`). `common-library`'s `JwtAuthenticationFilter` only validates the signature and reads claims, it never checks the user exists, so this passes cleanly with no new auth mechanism.
 
-**Real account-security notifications**: five genuine events - password changed, password reset, MFA enabled, MFA disabled, and an admin disabling the account - each create a real row in `notification-service`'s notification log (`notifyAccountEventBestEffort`, same best-effort/never-fails-the-real-operation bar as the email sends). This is what backs the web app's notification bell, which used to always show 3 hardcoded fictional items regardless of what the account actually did.
+**Real account-security notifications**: six genuine events - password changed, password reset, MFA enabled, MFA disabled, an admin disabling the account, and email verified - each create a real row in `notification-service`'s notification log (`notifyAccountEventBestEffort`, same best-effort/never-fails-the-real-operation bar as the email sends). This is what backs the web app's notification bell, which used to always show 3 hardcoded fictional items regardless of what the account actually did.
 
 ### Admin endpoints (ROLE_ADMIN only, `@PreAuthorize`-gated)
 

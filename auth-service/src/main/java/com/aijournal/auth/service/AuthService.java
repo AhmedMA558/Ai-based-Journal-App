@@ -21,4 +21,10 @@ public interface AuthService {
     // enumeration protection lives at this layer, not just the controller.
     void forgotPassword(ForgotPasswordRequest request);
     void resetPassword(ResetPasswordRequest request);
+
+    // Authenticated (not public, unlike password reset) - the caller is
+    // always logged in by the time they'd submit a code, since register()
+    // issues tokens unconditionally.
+    void verifyEmail(Long userId, VerifyEmailRequest request);
+    void resendVerificationEmail(Long userId);
 }

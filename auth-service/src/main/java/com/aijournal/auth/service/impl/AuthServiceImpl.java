@@ -1,12 +1,14 @@
 package com.aijournal.auth.service.impl;
 
 import com.aijournal.auth.dto.*;
+import com.aijournal.auth.entity.EmailVerificationToken;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
 import com.aijournal.auth.entity.PasswordResetToken;
 import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
+import com.aijournal.auth.repository.EmailVerificationTokenRepository;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.PasswordResetTokenRepository;
@@ -51,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
     private static final int RECOVERY_CODE_COUNT = 10;
     private static final int MFA_CHALLENGE_TTL_MINUTES = 5;
     private static final int PASSWORD_RESET_TTL_MINUTES = 30;
+    private static final int EMAIL_VERIFICATION_TTL_HOURS = 24;
     private static final int SYSTEM_TOKEN_TTL_SECONDS = 60;
     private static final SecureRandom RECOVERY_CODE_RANDOM = new SecureRandom();
 
@@ -60,6 +63,7 @@ public class AuthServiceImpl implements AuthService {
     private final MfaChallengeRepository mfaChallengeRepository;
     private final MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationTokenRepository emailVerificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final TotpEncryptionService totpEncryptionService;
@@ -89,6 +93,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
             MfaRecoveryCodeRepository mfaRecoveryCodeRepository, PasswordResetTokenRepository passwordResetTokenRepository,
+            EmailVerificationTokenRepository emailVerificationTokenRepository,
             PasswordEncoder passwordEncoder, TotpService totpService, TotpEncryptionService totpEncryptionService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -96,6 +101,7 @@ public class AuthServiceImpl implements AuthService {
         this.mfaChallengeRepository = mfaChallengeRepository;
         this.mfaRecoveryCodeRepository = mfaRecoveryCodeRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.emailVerificationTokenRepository = emailVerificationTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.totpService = totpService;
         this.totpEncryptionService = totpEncryptionService;
@@ -132,6 +138,7 @@ public class AuthServiceImpl implements AuthService {
         User savedUser = userRepository.save(user);
         AuthResponse response = generateTokensForUser(savedUser);
         sendWelcomeEmailBestEffort(savedUser);
+        sendEmailVerificationBestEffort(savedUser);
         return response;
     }
 
@@ -158,6 +165,82 @@ public class AuthServiceImpl implements AuthService {
                 log.warn("Could not send welcome email to {}: {}", user.getEmail(), e.getMessage());
             }
         });
+    }
+
+    // Code generation + token save stay synchronous (fast DB write, and
+    // unlike forgotPassword this isn't hiding whether an account exists -
+    // register() already reveals that via its own success/400 response), only
+    // the network call to notification-service is deferred - same shape as
+    // sendWelcomeEmailBestEffort/sendPasswordResetEmailBestEffort. A separate
+    // email/method from the welcome email (not merged into one) so resend()
+    // can reuse this verbatim.
+    private void sendEmailVerificationBestEffort(User user) {
+        emailVerificationTokenRepository.deleteByUser(user);
+        String code = randomEmailVerificationCode();
+        emailVerificationTokenRepository.save(new EmailVerificationToken(null, user, code,
+                Instant.now().plus(EMAIL_VERIFICATION_TTL_HOURS, ChronoUnit.HOURS)));
+        notificationExecutor.execute(() -> {
+            try {
+                HttpHeaders headers = new HttpHeaders();
+                headers.set(HttpHeaders.AUTHORIZATION, "Bearer " + mintSystemToken());
+                Map<String, String> body = Map.of(
+                        "to", user.getEmail(),
+                        "subject", "Verify your Mindora email address",
+                        "body", "Hi " + user.getUsername() + ",\n\nYour email verification code is: " + code +
+                                "\n\nThis code expires in " + EMAIL_VERIFICATION_TTL_HOURS + " hours."
+                );
+                restTemplate.postForEntity(notificationServiceUrl + "/api/v1/notifications/send-email",
+                        new HttpEntity<>(body, headers), Void.class);
+            } catch (Exception e) {
+                log.warn("Could not send verification email to {}: {}", user.getEmail(), e.getMessage());
+            }
+        });
+    }
+
+    private String randomEmailVerificationCode() {
+        // Same XXXXX-XXXXX generation shape as randomRecoveryCode()/randomPasswordResetCode().
+        StringBuilder sb = new StringBuilder(11);
+        String chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no O/I to avoid ambiguity
+        for (int i = 0; i < 10; i++) {
+            if (i == 5) sb.append('-');
+            sb.append(chars.charAt(RECOVERY_CODE_RANDOM.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmail(Long userId, VerifyEmailRequest request) {
+        User user = getUserOrThrow(userId);
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            return; // idempotent no-op
+        }
+        EmailVerificationToken token = emailVerificationTokenRepository.findByVerificationCode(request.getCode())
+                .orElseThrow(() -> new UnauthorizedException("Invalid or expired verification code"));
+
+        if (!token.getUser().getId().equals(userId)) {
+            // Don't reveal that the code is valid but belongs to someone else.
+            throw new UnauthorizedException("Invalid or expired verification code");
+        }
+        if (token.getExpiresAt().isBefore(Instant.now())) {
+            emailVerificationTokenRepository.delete(token);
+            throw new UnauthorizedException("Verification code expired, please request a new one");
+        }
+
+        user.setEmailVerified(true);
+        userRepository.save(user);
+        emailVerificationTokenRepository.delete(token);
+        notifyAccountEventBestEffort(user, "Your email address was verified.");
+    }
+
+    @Override
+    @Transactional
+    public void resendVerificationEmail(Long userId) {
+        User user = getUserOrThrow(userId);
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            throw new BadRequestException("Your email is already verified.");
+        }
+        sendEmailVerificationBestEffort(user);
     }
 
     @Override
@@ -441,7 +524,8 @@ public class AuthServiceImpl implements AuthService {
     public CurrentUserResponse getCurrentUser(Long userId) {
         User user = getUserOrThrow(userId);
         List<String> roleNames = user.getRoles().stream().map(r -> r.getName().name()).toList();
-        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), roleNames);
+        return new CurrentUserResponse(user.getId(), user.getUsername(), user.getEmail(), user.getFullName(), roleNames,
+                Boolean.TRUE.equals(user.getEmailVerified()));
     }
 
     @Override

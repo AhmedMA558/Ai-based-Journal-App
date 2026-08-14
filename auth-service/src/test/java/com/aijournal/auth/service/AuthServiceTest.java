@@ -1,12 +1,14 @@
 package com.aijournal.auth.service;
 
 import com.aijournal.auth.dto.*;
+import com.aijournal.auth.entity.EmailVerificationToken;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
 import com.aijournal.auth.entity.PasswordResetToken;
 import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
+import com.aijournal.auth.repository.EmailVerificationTokenRepository;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.PasswordResetTokenRepository;
@@ -64,6 +66,9 @@ class AuthServiceTest {
 
     @Mock
     private PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @Mock
+    private EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -142,17 +147,54 @@ class AuthServiceTest {
 
         AuthResponse response = authService.register(request);
 
+        // register() now sends two separate best-effort emails (welcome +
+        // email-verification) to the same endpoint - capture both and pick
+        // out the welcome one by its subject line.
         @SuppressWarnings("unchecked")
         ArgumentCaptor<HttpEntity<Map<String, String>>> captor = ArgumentCaptor.forClass(HttpEntity.class);
-        verify(restTemplate).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
+        verify(restTemplate, times(2)).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
                 captor.capture(), eq(Void.class));
-        HttpEntity<Map<String, String>> entity = captor.getValue();
+        HttpEntity<Map<String, String>> entity = captor.getAllValues().stream()
+                .filter(e -> "Welcome to Mindora!".equals(e.getBody().get("subject")))
+                .findFirst().orElseThrow();
         String authHeader = entity.getHeaders().getFirst("Authorization");
         assertNotNull(authHeader);
         assertTrue(authHeader.startsWith("Bearer "));
         assertNotEquals("Bearer " + response.getAccessToken(), authHeader,
                 "welcome email must authenticate with a system token, not the new user's own access token");
         assertEquals("test@example.com", entity.getBody().get("to"));
+    }
+
+    @Test
+    void register_Success_CreatesUnverifiedEmailAndSendsVerificationEmail() {
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("testuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(roleRepository.findByName(Role.RoleName.ROLE_USER))
+                .thenReturn(Optional.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        assertFalse(savedUser.getEmailVerified(), "newly registered users start unverified");
+
+        ArgumentCaptor<EmailVerificationToken> tokenCaptor = ArgumentCaptor.forClass(EmailVerificationToken.class);
+        verify(emailVerificationTokenRepository).save(tokenCaptor.capture());
+        assertEquals(savedUser, tokenCaptor.getValue().getUser());
+        assertNotNull(tokenCaptor.getValue().getVerificationCode());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<HttpEntity<Map<String, String>>> captor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate, times(2)).postForEntity(eq("http://notification-service:8087/api/v1/notifications/send-email"),
+                captor.capture(), eq(Void.class));
+        HttpEntity<Map<String, String>> verificationEmail = captor.getAllValues().stream()
+                .filter(e -> "Verify your Mindora email address".equals(e.getBody().get("subject")))
+                .findFirst().orElseThrow();
+        assertEquals("test@example.com", verificationEmail.getBody().get("to"));
+        assertTrue(verificationEmail.getBody().get("body").contains(tokenCaptor.getValue().getVerificationCode()));
     }
 
     @Test
@@ -622,5 +664,100 @@ class AuthServiceTest {
         when(passwordResetTokenRepository.findByResetCode("NOPE-NOPE")).thenReturn(Optional.empty());
 
         assertThrows(UnauthorizedException.class, () -> authService.resetPassword(request));
+    }
+
+    @Test
+    void getCurrentUser_ReturnsEmailVerifiedField() {
+        User user = mfaUser(false, null);
+        user.setEmailVerified(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        CurrentUserResponse response = authService.getCurrentUser(1L);
+
+        assertTrue(response.getEmailVerified());
+    }
+
+    @Test
+    void verifyEmail_ValidCode_MarksVerifiedAndDeletesToken() {
+        User user = mfaUser(false, null);
+        EmailVerificationToken token = new EmailVerificationToken(1L, user, "ABCDE-12345", Instant.now().plus(1, ChronoUnit.HOURS));
+        VerifyEmailRequest request = new VerifyEmailRequest();
+        request.setCode("ABCDE-12345");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findByVerificationCode("ABCDE-12345")).thenReturn(Optional.of(token));
+
+        authService.verifyEmail(1L, request);
+
+        assertTrue(user.getEmailVerified());
+        verify(userRepository).save(user);
+        verify(emailVerificationTokenRepository).delete(token);
+    }
+
+    @Test
+    void verifyEmail_CodeBelongsToAnotherUser_ThrowsUnauthorized() {
+        User caller = mfaUser(false, null);
+        User otherUser = new User(2L, "otheruser", "other@example.com", "encodedPassword", "Other User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        EmailVerificationToken token = new EmailVerificationToken(1L, otherUser, "ABCDE-12345", Instant.now().plus(1, ChronoUnit.HOURS));
+        VerifyEmailRequest request = new VerifyEmailRequest();
+        request.setCode("ABCDE-12345");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(caller));
+        when(emailVerificationTokenRepository.findByVerificationCode("ABCDE-12345")).thenReturn(Optional.of(token));
+
+        assertThrows(UnauthorizedException.class, () -> authService.verifyEmail(1L, request));
+
+        verify(userRepository, never()).save(any());
+        verify(emailVerificationTokenRepository, never()).delete(any());
+    }
+
+    @Test
+    void verifyEmail_ExpiredCode_ThrowsAndDeletesToken() {
+        User user = mfaUser(false, null);
+        EmailVerificationToken token = new EmailVerificationToken(1L, user, "ABCDE-12345", Instant.now().minus(1, ChronoUnit.MINUTES));
+        VerifyEmailRequest request = new VerifyEmailRequest();
+        request.setCode("ABCDE-12345");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(emailVerificationTokenRepository.findByVerificationCode("ABCDE-12345")).thenReturn(Optional.of(token));
+
+        assertThrows(UnauthorizedException.class, () -> authService.verifyEmail(1L, request));
+
+        verify(emailVerificationTokenRepository).delete(token);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void verifyEmail_AlreadyVerified_NoOp() {
+        User user = mfaUser(false, null);
+        user.setEmailVerified(true);
+        VerifyEmailRequest request = new VerifyEmailRequest();
+        request.setCode("ABCDE-12345");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertDoesNotThrow(() -> authService.verifyEmail(1L, request));
+
+        verifyNoInteractions(emailVerificationTokenRepository);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void resendVerificationEmail_UnverifiedUser_GeneratesNewCode() {
+        User user = mfaUser(false, null);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        authService.resendVerificationEmail(1L);
+
+        InOrder inOrder = inOrder(emailVerificationTokenRepository);
+        inOrder.verify(emailVerificationTokenRepository).deleteByUser(user);
+        inOrder.verify(emailVerificationTokenRepository).save(any(EmailVerificationToken.class));
+    }
+
+    @Test
+    void resendVerificationEmail_AlreadyVerified_ThrowsBadRequest() {
+        User user = mfaUser(false, null);
+        user.setEmailVerified(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThrows(BadRequestException.class, () -> authService.resendVerificationEmail(1L));
+
+        verifyNoInteractions(emailVerificationTokenRepository);
     }
 }

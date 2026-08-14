@@ -51,6 +51,9 @@ public class User {
     @Column(name = "totp_secret")
     private String totpSecret;
 
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = false;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "user_roles",
@@ -107,6 +110,7 @@ public class User {
         if (this.isDeleted == null) this.isDeleted = false;
         if (this.provider == null) this.provider = AuthProvider.LOCAL;
         if (this.mfaEnabled == null) this.mfaEnabled = false;
+        if (this.emailVerified == null) this.emailVerified = false;
     }
 
     @PreUpdate
@@ -136,6 +140,8 @@ public class User {
     public void setMfaEnabled(Boolean mfaEnabled) { this.mfaEnabled = mfaEnabled; }
     public String getTotpSecret() { return totpSecret; }
     public void setTotpSecret(String totpSecret) { this.totpSecret = totpSecret; }
+    public Boolean getEmailVerified() { return emailVerified; }
+    public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
     public Set<Role> getRoles() { return roles; }
     public void setRoles(Set<Role> roles) { this.roles = roles; }
     public LocalDateTime getCreatedAt() { return createdAt; }

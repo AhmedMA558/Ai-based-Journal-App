@@ -9,6 +9,7 @@ const KNOWN_USERS: MockUser[] = [mockUser, mockMfaUser];
 const MOCK_CHALLENGE_TOKEN = 'mock-challenge-token';
 const MOCK_RECOVERY_CODE = 'ABCDE-12345';
 const MOCK_PASSWORD_RESET_CODE = 'RESET-12345';
+const MOCK_EMAIL_VERIFICATION_CODE = 'VERIFY-12345';
 const ARTIFICIAL_DELAY_MS = 450;
 
 function delay<T>(value: T): Promise<T> {
@@ -56,6 +57,15 @@ async function effectiveMfaEnabled(): Promise<boolean> {
   if (mfaEnabledOverride !== null) return mfaEnabledOverride;
   const username = await session.getUserName();
   return username === mockMfaUser.username;
+}
+
+// Same override shape as mfaEnabledOverride - both fixture users start
+// unverified so the verification nag/flow is demoable in the prototype
+// without a real backend.
+let emailVerifiedOverride: boolean | null = null;
+
+export function __resetEmailVerifiedOverrideForTests() {
+  emailVerifiedOverride = null;
 }
 
 export const mockAuthService = {
@@ -111,7 +121,13 @@ export const mockAuthService = {
   async getCurrentUser(): Promise<CurrentUser> {
     const username = await session.getUserName();
     const user = KNOWN_USERS.find((u) => u.username === username) || mockUser;
-    return delay({ id: user.id, username: user.username, email: user.email, fullName: user.fullName });
+    return delay({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      fullName: user.fullName,
+      emailVerified: emailVerifiedOverride ?? false,
+    });
   },
 
   async changePassword(currentPassword: string, _newPassword: string): Promise<void> {
@@ -177,6 +193,20 @@ export const mockAuthService = {
         throw new Error('Invalid or expired reset code.');
       });
     }
+    return delay(undefined);
+  },
+
+  async verifyEmail(code: string): Promise<void> {
+    if (code !== MOCK_EMAIL_VERIFICATION_CODE) {
+      return delay(undefined).then(() => {
+        throw new Error('Invalid or expired verification code.');
+      });
+    }
+    emailVerifiedOverride = true;
+    return delay(undefined);
+  },
+
+  async resendVerificationEmail(): Promise<void> {
     return delay(undefined);
   },
 

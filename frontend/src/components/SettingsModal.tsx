@@ -24,6 +24,7 @@ interface AdminUser {
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onEmailVerified?: () => void;
 }
 
 interface CurrentUser {
@@ -40,7 +41,7 @@ interface ProfileData {
   city?: string;
 }
 
-export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onEmailVerified }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const isAdmin = authService.isAdmin();
 
@@ -83,7 +84,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {/* Inner Tab Content */}
             <div className="flex-1 p-6 overflow-y-auto">
               {activeTab === 'profile' && <ProfileTab isOpen={isOpen} />}
-              {activeTab === 'security' && <SecurityTab isOpen={isOpen} />}
+              {activeTab === 'security' && <SecurityTab isOpen={isOpen} onEmailVerified={onEmailVerified} />}
 
               {activeTab === 'appearance' && (
                 <div className="flex flex-col gap-5">
@@ -241,18 +242,20 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   );
 }
 
-function SecurityTab({ isOpen }: { isOpen: boolean }) {
+function SecurityTab({ isOpen, onEmailVerified }: { isOpen: boolean; onEmailVerified?: () => void }) {
   const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
   const [mfaLoadError, setMfaLoadError] = useState('');
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
     setMfaLoadError('');
-    authService
-      .getMfaStatus()
-      .then((status) => {
-        if (!cancelled) setMfaEnabled(Boolean(status?.mfaEnabled));
+    Promise.all([authService.getMfaStatus(), authService.getCurrentUser()])
+      .then(([status, user]) => {
+        if (cancelled) return;
+        setMfaEnabled(Boolean(status?.mfaEnabled));
+        setEmailVerified(Boolean(user?.emailVerified));
       })
       .catch(() => {
         if (!cancelled) setMfaLoadError('Could not load 2FA status. Please try reopening Settings.');
@@ -261,6 +264,11 @@ function SecurityTab({ isOpen }: { isOpen: boolean }) {
       cancelled = true;
     };
   }, [isOpen]);
+
+  const handleVerified = () => {
+    setEmailVerified(true);
+    onEmailVerified?.();
+  };
 
   return (
     <div className="flex flex-col gap-5">
@@ -274,6 +282,12 @@ function SecurityTab({ isOpen }: { isOpen: boolean }) {
 
       <PasswordChangeSection />
 
+      {emailVerified === null ? (
+        <div className="skeleton-pulse h-16 rounded-xl" />
+      ) : (
+        <EmailVerificationSection emailVerified={emailVerified} onVerified={handleVerified} />
+      )}
+
       {mfaLoadError ? (
         <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-3 px-4 rounded-xl flex items-center gap-2">
           <AlertCircle size={18} />
@@ -283,6 +297,92 @@ function SecurityTab({ isOpen }: { isOpen: boolean }) {
         <div className="skeleton-pulse h-16 rounded-xl" />
       ) : (
         <TwoFactorSection mfaEnabled={mfaEnabled} onStatusChange={setMfaEnabled} />
+      )}
+    </div>
+  );
+}
+
+interface EmailVerificationSectionProps {
+  emailVerified: boolean;
+  onVerified: () => void;
+}
+
+function EmailVerificationSection({ emailVerified, onVerified }: EmailVerificationSectionProps) {
+  const [code, setCode] = useState('');
+  const [message, setMessage] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  const handleVerify = async (e: FormEvent) => {
+    e.preventDefault();
+    setMessage('');
+    setVerifying(true);
+    try {
+      await authService.verifyEmail(code);
+      setCode('');
+      onVerified();
+    } catch (err: any) {
+      setMessage(err?.message || 'Invalid or expired code.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setMessage('');
+    setResending(true);
+    try {
+      await authService.resendVerificationEmail();
+      setMessage('A new verification code has been sent to your email.');
+    } catch (err: any) {
+      setMessage(err?.message || 'Failed to resend verification code.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 p-[0.85rem] bg-white/[0.03] rounded-xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[0.9rem] font-semibold">Email Verification</div>
+          <div className="text-xs text-[#64748b]">Confirm you own the email address on this account.</div>
+        </div>
+        <span
+          className={cn(
+            'text-xs py-[0.2rem] px-2 rounded-md font-bold',
+            emailVerified ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]' : 'bg-[rgba(245,158,11,0.15)] text-[#fbbf24]'
+          )}
+        >
+          {emailVerified ? 'Verified' : 'Not verified'}
+        </span>
+      </div>
+
+      {!emailVerified && (
+        <form onSubmit={handleVerify} className="flex flex-col gap-2">
+          <input
+            type="text"
+            required
+            className="glass-input"
+            placeholder="Enter the code emailed to you"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          {message && <p className="text-[0.8rem] text-[#94a3b8]">{message}</p>}
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={verifying} className="btn-primary self-start px-5 text-[0.85rem]">
+              {verifying ? 'Verifying...' : 'Verify'}
+            </button>
+            <button
+              type="button"
+              disabled={resending}
+              onClick={handleResend}
+              className="text-[0.8rem] text-[#818cf8] underline hover:opacity-80 disabled:opacity-50"
+            >
+              {resending ? 'Sending...' : 'Resend code'}
+            </button>
+          </div>
+        </form>
       )}
     </div>
   );

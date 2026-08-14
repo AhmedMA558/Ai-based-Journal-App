@@ -156,14 +156,16 @@ function ProfileSection() {
 function SecuritySection() {
   const [mfaEnabled, setMfaEnabled] = useState<boolean | null>(null);
   const [mfaLoadError, setMfaLoadError] = useState('');
+  const [emailVerified, setEmailVerified] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setMfaLoadError('');
-    authService
-      .getMfaStatus()
-      .then((status) => {
-        if (!cancelled) setMfaEnabled(Boolean(status?.mfaEnabled));
+    Promise.all([authService.getMfaStatus(), authService.getCurrentUser()])
+      .then(([status, user]) => {
+        if (cancelled) return;
+        setMfaEnabled(Boolean(status?.mfaEnabled));
+        setEmailVerified(Boolean(user?.emailVerified));
       })
       .catch(() => {
         if (!cancelled) setMfaLoadError('Could not load 2FA status. Please try reopening Settings.');
@@ -180,6 +182,12 @@ function SecuritySection() {
           <View className="gap-4">
             <PasswordChangeSection />
 
+            {emailVerified === null ? (
+              <SkeletonBlock className="h-16" />
+            ) : (
+              <EmailVerificationSection emailVerified={emailVerified} onVerified={() => setEmailVerified(true)} />
+            )}
+
             {mfaLoadError ? (
               <ErrorBanner message={mfaLoadError} />
             ) : mfaEnabled === null ? (
@@ -191,6 +199,78 @@ function SecuritySection() {
         </FadeInView>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function EmailVerificationSection({ emailVerified, onVerified }: { emailVerified: boolean; onVerified: () => void }) {
+  const [code, setCode] = useState('');
+  const [message, setMessage] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  const handleVerify = async () => {
+    setMessage('');
+    setVerifying(true);
+    try {
+      await authService.verifyEmail(code);
+      setCode('');
+      onVerified();
+    } catch (err: any) {
+      setMessage(err?.message || 'Invalid or expired code.');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setMessage('');
+    setResending(true);
+    try {
+      await authService.resendVerificationEmail();
+      setMessage('A new verification code has been sent to your email.');
+    } catch (err: any) {
+      setMessage(err?.message || 'Failed to resend verification code.');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  return (
+    <GlassPanel className="p-4 gap-3">
+      <View className="flex-row items-center justify-between">
+        <View className="flex-1 pr-2">
+          <Text className="text-text-primary text-sm font-semibold">Email Verification</Text>
+          <Text className="text-text-muted text-xs">Confirm you own the email address on this account.</Text>
+        </View>
+        <View className={cn('py-1 px-2 rounded-md', emailVerified ? 'bg-[rgba(34,197,94,0.15)]' : 'bg-[rgba(245,158,11,0.15)]')}>
+          <Text className={cn('text-xs font-bold', emailVerified ? 'text-[#4ade80]' : 'text-[#fbbf24]')}>
+            {emailVerified ? 'Verified' : 'Not verified'}
+          </Text>
+        </View>
+      </View>
+
+      {!emailVerified && (
+        <View className="gap-2">
+          <GlassInput placeholder="Enter the code emailed to you" value={code} onChangeText={setCode} autoCapitalize="characters" />
+          {message ? <Text className="text-text-secondary text-xs">{message}</Text> : null}
+          <View className="flex-row items-center gap-3">
+            <Pressable
+              onPress={handleVerify}
+              disabled={verifying || !code.trim()}
+              className="bg-accent-indigo/80 rounded-xl py-2 px-4"
+              style={{ opacity: verifying || !code.trim() ? 0.5 : 1 }}
+            >
+              <Text className="text-white text-sm font-semibold">{verifying ? 'Verifying...' : 'Verify'}</Text>
+            </Pressable>
+            <Pressable onPress={handleResend} disabled={resending}>
+              <Text className="text-accent-indigo text-xs font-semibold underline" style={{ opacity: resending ? 0.5 : 1 }}>
+                {resending ? 'Sending...' : 'Resend code'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+    </GlassPanel>
   );
 }
 

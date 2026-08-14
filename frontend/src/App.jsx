@@ -1,5 +1,6 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
+import { AlertCircle } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
 import AuthView from './components/AuthView';
@@ -70,6 +71,8 @@ export default function App() {
   const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [notifications, setNotifications] = useState([]);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -92,6 +95,23 @@ export default function App() {
   }, [isNotificationsOpen]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Fetch once whenever the app becomes authenticated (fresh login, or an
+  // already-authenticated page reload) to drive the non-blocking email
+  // verification banner - never gates access, purely a nag. Also exposed to
+  // SettingsModal so a successful verify clears the banner without a reload.
+  const refreshEmailVerified = () => {
+    authService.getCurrentUser()
+      .then((user) => setEmailVerified(Boolean(user?.emailVerified)))
+      .catch(() => {
+        // Fail soft - no banner shown rather than a broken one.
+      });
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    refreshEmailVerified();
+  }, [isAuthenticated]);
 
   const handleMarkAllRead = async () => {
     try {
@@ -209,6 +229,7 @@ export default function App() {
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
+        onEmailVerified={refreshEmailVerified}
       />
       <AchievementsModal
         isOpen={isAchievementsOpen}
@@ -235,6 +256,31 @@ export default function App() {
           unreadCount={unreadCount}
           onOpenSettings={() => setIsSettingsOpen(true)}
         />
+
+        {/* Non-blocking email verification nag - dismissible, never gates access */}
+        {!emailVerified && !verificationBannerDismissed && (
+          <div className="mx-6 mt-4 bg-[rgba(245,158,11,0.15)] border border-[rgba(245,158,11,0.3)] text-[#fbbf24] py-3 px-4 rounded-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={18} />
+              <span>Verify your email to secure your account.</span>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="underline font-medium hover:opacity-80"
+              >
+                Verify Now
+              </button>
+              <button
+                onClick={() => setVerificationBannerDismissed(true)}
+                className="hover:opacity-80"
+                aria-label="Dismiss"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Route Content with Lazy Loading Suspense */}
         <main className="main-content">
