@@ -161,23 +161,8 @@ public class FlaskAiStrategy implements AiProviderStrategy {
     }
 
     @Override
-    public List<String> detectHabits(String content) {
-        return List.of("Daily Journaling", "Mindful Reflection");
-    }
-
-    @Override
-    public List<String> extractGoals(String content) {
-        return List.of("Maintain positive streak", "Execute microservices workflow");
-    }
-
-    @Override
     public SentimentResult analyzeSentiment(String content) {
         return new SentimentResult("POSITIVE", 0.92);
-    }
-
-    @Override
-    public WritingImprovementResult suggestWritingImprovements(String content) {
-        return new WritingImprovementResult("Great flow and structure!", "90/100", "Use expressive vocabulary.");
     }
 
     @Override
@@ -224,14 +209,6 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             // Fallback
         }
         return new GrammarResult(content, content);
-    }
-
-    @Override
-    public ReflectionResult generateDailyReflection(String content) {
-        return new ReflectionResult(
-                List.of("What went well today?"),
-                List.of("How can you build on this progress tomorrow?"),
-                List.of("Celebrate your wins!"));
     }
 
     @SuppressWarnings("unchecked")

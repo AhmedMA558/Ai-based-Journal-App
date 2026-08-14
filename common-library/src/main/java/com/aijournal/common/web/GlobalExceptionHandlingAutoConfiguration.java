@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * Ships a real, ApiResponse-shaped error response to every service that
@@ -64,6 +65,18 @@ public class GlobalExceptionHandlingAutoConfiguration {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error("Access denied."));
+    }
+
+    // Spring MVC's own exception for a genuinely unmapped path (e.g. a
+    // removed/renamed endpoint) - since Spring Boot 3.2, no matching handler
+    // AND no matching static resource both fall through to this rather than
+    // the old bare 404. Without this explicit handler, the catch-all below
+    // would intercept it first and turn a real, expected 404 into a
+    // misleading 500 - found live while verifying that 5 removed dead
+    // pseudo-AI endpoints (ai-service) actually 404 as intended.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error("The requested resource was not found."));
     }
 
     // Catch-all: logs the real exception server-side but never leaks its

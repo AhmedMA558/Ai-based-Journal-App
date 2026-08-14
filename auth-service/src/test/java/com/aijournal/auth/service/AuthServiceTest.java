@@ -329,6 +329,22 @@ class AuthServiceTest {
     }
 
     @Test
+    void verifyMfa_BothCodeAndRecoveryCodeProvided_ThrowsBadRequest() {
+        User user = mfaUser(true, "encryptedSecret");
+        MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));
+        MfaVerifyRequest request = new MfaVerifyRequest();
+        request.setChallengeToken("challenge-token");
+        request.setCode("123456");
+        request.setRecoveryCode("ABCDE-12345");
+
+        when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
+
+        assertThrows(BadRequestException.class, () -> authService.verifyMfa(request));
+        verify(mfaChallengeRepository, never()).delete(any());
+        verifyNoInteractions(totpService, totpEncryptionService);
+    }
+
+    @Test
     void verifyMfa_ValidRecoveryCode_ConsumesCodeAndReturnsTokens() {
         User user = mfaUser(true, "encryptedSecret");
         MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));

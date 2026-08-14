@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -113,9 +114,27 @@ class UserServiceTest {
 
     @Test
     void deleteUserAccount_DeletesFromBothRepositories() {
+        when(userProfileRepository.existsById(6L)).thenReturn(true);
+        when(userPreferencesRepository.existsById(6L)).thenReturn(true);
+
         userService.deleteUserAccount(6L);
 
         verify(userProfileRepository).deleteById(6L);
         verify(userPreferencesRepository).deleteById(6L);
+    }
+
+    @Test
+    void deleteUserAccount_UserNeverViewedProfileOrPreferences_DoesNotThrow() {
+        // Both rows are created lazily (get-or-create in getProfile/getPreferences)
+        // - a brand-new user who requests deletion without ever having viewed
+        // either would previously make deleteById throw
+        // EmptyResultDataAccessException (an unhandled 500).
+        when(userProfileRepository.existsById(7L)).thenReturn(false);
+        when(userPreferencesRepository.existsById(7L)).thenReturn(false);
+
+        assertThatCode(() -> userService.deleteUserAccount(7L)).doesNotThrowAnyException();
+
+        verify(userProfileRepository, never()).deleteById(any());
+        verify(userPreferencesRepository, never()).deleteById(any());
     }
 }

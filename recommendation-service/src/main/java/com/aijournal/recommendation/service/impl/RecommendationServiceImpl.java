@@ -115,13 +115,33 @@ public class RecommendationServiceImpl implements RecommendationService {
         return result;
     }
 
+    // Real, category-differentiated curated prompts - same non-AI-fallback
+    // pattern as CONTENT_BY_BUCKET above. Previously every category returned
+    // the same 3 hardcoded prompts regardless of what was requested.
+    private static final List<String> DEFAULT_PROMPTS = List.of(
+            "Write down 3 things you are deeply grateful for today.",
+            "Describe a situation that challenged you and how you handled it.",
+            "Where do you see yourself mentally and emotionally 6 months from now?"
+    );
+
+    private static final Map<String, List<String>> PROMPTS_BY_CATEGORY = Map.of(
+            "GRATITUDE", List.of(
+                    "Write down 3 things you are deeply grateful for today.",
+                    "Who is someone you haven't thanked yet, and why are they on your mind?"),
+            "REFLECTION", List.of(
+                    "Describe a situation that challenged you and how you handled it.",
+                    "What is something you understood differently today than you did yesterday?"),
+            "GOALS", List.of(
+                    "Where do you see yourself mentally and emotionally 6 months from now?",
+                    "What's one small step you can take tomorrow toward a goal that matters to you?")
+    );
+
     @Override
     public List<String> getJournalPrompts(String category) {
-        return List.of(
-                "Write down 3 things you are deeply grateful for today.",
-                "Describe a situation that challenged you and how you handled it.",
-                "Where do you see yourself mentally and emotionally 6 months from now?"
-        );
+        if (category == null || category.isBlank()) {
+            return DEFAULT_PROMPTS;
+        }
+        return PROMPTS_BY_CATEGORY.getOrDefault(category.toUpperCase(), DEFAULT_PROMPTS);
     }
 
     // Caller-supplied mood always wins. Otherwise, fetch the 5 most recent

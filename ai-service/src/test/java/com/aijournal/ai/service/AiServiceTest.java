@@ -1,7 +1,6 @@
 package com.aijournal.ai.service;
 
 import com.aijournal.ai.entity.MoodHistory;
-import com.aijournal.ai.repository.GoalTrackingRepository;
 import com.aijournal.ai.repository.MoodHistoryRepository;
 import com.aijournal.ai.service.impl.AiServiceImpl;
 import com.aijournal.ai.strategy.AiProviderStrategy.*;
@@ -28,9 +27,6 @@ class AiServiceTest {
 
     @Mock
     private MoodHistoryRepository moodHistoryRepository;
-
-    @Mock
-    private GoalTrackingRepository goalTrackingRepository;
 
     @InjectMocks
     private AiServiceImpl aiService;

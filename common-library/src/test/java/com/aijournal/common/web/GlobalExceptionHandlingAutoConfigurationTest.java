@@ -6,9 +6,11 @@ import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.common.exception.ResourceNotFoundException;
 import com.aijournal.common.exception.UnauthorizedException;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -57,6 +59,21 @@ class GlobalExceptionHandlingAutoConfigurationTest {
         ResponseEntity<ApiResponse<Void>> response = handler.handleAccessDenied(new AccessDeniedException("Access is denied"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    @Test
+    void handleNoResourceFound_ReturnsFourOhFour_NotSwallowedByTheCatchAll() {
+        // Regression guard: found live while verifying that 5 removed dead
+        // pseudo-AI endpoints (ai-service) actually 404 as intended - without
+        // an explicit handler here, the catch-all @ExceptionHandler(Exception.class)
+        // intercepted Spring MVC's own NoResourceFoundException (the real
+        // Spring Boot 3.2+ replacement for "no handler found") first and
+        // turned a real, expected 404 into a misleading 500.
+        ResponseEntity<ApiResponse<Void>> response = handler.handleNoResourceFound(
+                new NoResourceFoundException(HttpMethod.POST, "api/v1/ai/habits"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody().isSuccess()).isFalse();
     }
 

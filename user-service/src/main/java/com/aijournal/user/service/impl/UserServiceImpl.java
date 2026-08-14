@@ -61,7 +61,14 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public void deleteUserAccount(Long userId) {
-        userProfileRepository.deleteById(userId);
-        userPreferencesRepository.deleteById(userId);
+        // Both rows are created lazily (get-or-create in getProfile/getPreferences
+        // above) - a user who requests deletion without ever having viewed
+        // either would make deleteById throw EmptyResultDataAccessException.
+        if (userProfileRepository.existsById(userId)) {
+            userProfileRepository.deleteById(userId);
+        }
+        if (userPreferencesRepository.existsById(userId)) {
+            userPreferencesRepository.deleteById(userId);
+        }
     }
 }

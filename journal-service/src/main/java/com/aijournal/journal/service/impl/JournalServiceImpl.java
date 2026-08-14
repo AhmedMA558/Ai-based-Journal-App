@@ -229,11 +229,18 @@ public class JournalServiceImpl implements JournalService {
     @Transactional
     public void permanentDeleteJournal(Long userId, Long journalId) {
         Long activeUserId = userId != null ? userId : 1L;
-        findOwnedJournal(activeUserId, journalId); // ownership check only - 404s if not found/owned
+        // Ownership check via a native COUNT, not findOwnedJournal() -
+        // findOwnedJournal goes through @SQLRestriction("is_deleted = false")
+        // and would 404 exactly the journals this method needs to reach
+        // (a journal must normally be trashed via softDeleteJournal first,
+        // before "empty trash"/permanent-delete can remove it for good).
+        if (journalRepository.countByIdAndUserId(journalId, activeUserId) == 0) {
+            throw new ResourceNotFoundException("Journal", "id", journalId);
+        }
         // A plain journalRepository.delete(journal) would hit the exact same
         // @SQLDelete interception softDeleteJournal relies on, silently
         // turning "permanent" delete into the same soft-delete UPDATE - this
-        // JPQL bulk delete bypasses that annotation entirely for a real row
+        // native delete bypasses that annotation entirely for a real row
         // removal (see JournalRepository.hardDeleteByIdAndUserId's comment).
         journalRepository.hardDeleteByIdAndUserId(journalId, activeUserId);
         publishJournalDeletedEvent(journalId, activeUserId);

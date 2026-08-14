@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import Navbar from './components/Navbar';
@@ -79,19 +79,29 @@ export default function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Fetch real notifications whenever the drawer opens, matching
-  // SettingsModal's established on-open fetch convention.
-  useEffect(() => {
-    if (!isNotificationsOpen) return;
-    let cancelled = false;
+  // Fetches notifications, guarded against a stale response landing after a
+  // fresher one (request-id-ref pattern, same shape as AnalyticsView's own
+  // guard) - reused both on auth (so the unread badge is correct immediately
+  // on login, not just after the drawer has already been opened once) and
+  // on drawer-open (to pick up anything new while it was closed).
+  const notificationsRequestId = useRef(0);
+  const refreshNotifications = () => {
+    const requestId = ++notificationsRequestId.current;
     notificationService.list()
       .then((res) => {
-        if (!cancelled) setNotifications(res?.data?.data?.content || []);
+        if (requestId === notificationsRequestId.current) {
+          setNotifications(res?.data?.data?.content || []);
+        }
       })
       .catch(() => {
         // Fail soft - the drawer just shows its empty state.
       });
-    return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    refreshNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNotificationsOpen]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -100,9 +110,16 @@ export default function App() {
   // already-authenticated page reload) to drive the non-blocking email
   // verification banner - never gates access, purely a nag. Also exposed to
   // SettingsModal so a successful verify clears the banner without a reload.
+  // Same request-id-ref stale-response guard as refreshNotifications above.
+  const emailVerifiedRequestId = useRef(0);
   const refreshEmailVerified = () => {
+    const requestId = ++emailVerifiedRequestId.current;
     authService.getCurrentUser()
-      .then((user) => setEmailVerified(Boolean(user?.emailVerified)))
+      .then((user) => {
+        if (requestId === emailVerifiedRequestId.current) {
+          setEmailVerified(Boolean(user?.emailVerified));
+        }
+      })
       .catch(() => {
         // Fail soft - no banner shown rather than a broken one.
       });
@@ -111,6 +128,8 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
     refreshEmailVerified();
+    refreshNotifications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
   const handleMarkAllRead = async () => {
@@ -165,6 +184,13 @@ export default function App() {
   const handleLogout = () => {
     authService.logout();
     setIsAuthenticated(false);
+    // App never unmounts across a login -> logout -> different-login cycle
+    // in the same tab, so per-account UI state must be reset explicitly here
+    // - otherwise a dismissed banner or a stale notification list/badge from
+    // the previous account would leak into the next one that logs in.
+    setEmailVerified(true);
+    setVerificationBannerDismissed(false);
+    setNotifications([]);
     showToast('Logged out.', 'info');
   };
 
