@@ -1,9 +1,3 @@
-# Note: gateway-service's application.yml hardcodes its Eureka defaultZone
-# with no ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:...} override support
-# (unlike the other 9 Eureka-registering services) - that env var from
-# app-config is harmless here but ineffective. Out of scope for this
-# manifest set; the hardcoded value already matches this Service's name
-# (discovery-server), so it still resolves correctly.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
