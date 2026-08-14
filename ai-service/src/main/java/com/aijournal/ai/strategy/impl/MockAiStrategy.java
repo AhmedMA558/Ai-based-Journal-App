@@ -49,23 +49,8 @@ public class MockAiStrategy implements AiProviderStrategy {
     }
 
     @Override
-    public List<String> detectHabits(String content) {
-        return List.of("Daily Journaling", "Evening Meditation");
-    }
-
-    @Override
-    public List<String> extractGoals(String content) {
-        return List.of("Complete software architecture", "Read 20 pages daily");
-    }
-
-    @Override
     public SentimentResult analyzeSentiment(String content) {
         return new SentimentResult("POSITIVE", 0.90);
-    }
-
-    @Override
-    public WritingImprovementResult suggestWritingImprovements(String content) {
-        return new WritingImprovementResult("Great sentence structure!", "85/100", "Consider using more vivid adjectives.");
     }
 
     @Override
@@ -76,14 +61,5 @@ public class MockAiStrategy implements AiProviderStrategy {
     @Override
     public GrammarResult fixGrammar(String content) {
         return new GrammarResult(content, content);
-    }
-
-    @Override
-    public ReflectionResult generateDailyReflection(String content) {
-        return new ReflectionResult(
-                List.of("What made today special?", "What can you improve tomorrow?"),
-                List.of("Did you achieve your primary goal?"),
-                List.of("Keep up the awesome work!")
-        );
     }
 }

@@ -487,7 +487,7 @@ class JournalServiceTest {
 
     @Test
     void permanentDeleteJournal_NotOwnedByCaller_ThrowsAndDoesNotDelete() {
-        when(journalRepository.findByIdAndUserId(1L, 2L)).thenReturn(Optional.empty());
+        when(journalRepository.countByIdAndUserId(1L, 2L)).thenReturn(0L);
 
         assertThatThrownBy(() -> journalService.permanentDeleteJournal(2L, 1L))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -502,9 +502,8 @@ class JournalServiceTest {
         // journalRepository.delete(journal) call gets silently rewritten by
         // Journal's @SQLDelete into the same soft-delete UPDATE
         // softDeleteJournal relies on - "permanent" delete must instead go
-        // through the JPQL bulk-delete method that bypasses that annotation.
-        Journal existing = existingJournal(1L, 1L);
-        when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
+        // through the native bulk-delete method that bypasses that annotation.
+        when(journalRepository.countByIdAndUserId(1L, 1L)).thenReturn(1L);
 
         journalService.permanentDeleteJournal(1L, 1L);
 
@@ -513,9 +512,26 @@ class JournalServiceTest {
     }
 
     @Test
+    void permanentDeleteJournal_AlreadyTrashedJournal_StillDeletesIt() {
+        // Regression guard for the actual bug: findByIdAndUserId (used by
+        // every other ownership check in this class) is subject to
+        // @SQLRestriction("is_deleted = false") and would 404 a soft-deleted
+        // journal - "empty trash" must be able to reach it, so the ownership
+        // check here uses countByIdAndUserId (native SQL, ignores the
+        // restriction) instead. findByIdAndUserId is deliberately left
+        // unstubbed (would return Optional.empty() by default) to prove this
+        // path never calls it.
+        when(journalRepository.countByIdAndUserId(1L, 1L)).thenReturn(1L);
+
+        journalService.permanentDeleteJournal(1L, 1L);
+
+        verify(journalRepository).hardDeleteByIdAndUserId(1L, 1L);
+        verify(journalRepository, never()).findByIdAndUserId(any(), any());
+    }
+
+    @Test
     void permanentDeleteJournal_PublishesJournalDeletedEvent() {
-        Journal existing = existingJournal(1L, 1L);
-        when(journalRepository.findByIdAndUserId(1L, 1L)).thenReturn(Optional.of(existing));
+        when(journalRepository.countByIdAndUserId(1L, 1L)).thenReturn(1L);
 
         journalService.permanentDeleteJournal(1L, 1L);
 

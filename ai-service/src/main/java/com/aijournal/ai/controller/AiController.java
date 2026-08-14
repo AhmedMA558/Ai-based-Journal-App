@@ -1,6 +1,5 @@
 package com.aijournal.ai.controller;
 
-import com.aijournal.ai.entity.GoalTracking;
 import com.aijournal.ai.entity.MoodHistory;
 import com.aijournal.ai.service.AiService;
 import com.aijournal.ai.strategy.AiProviderStrategy.*;
@@ -16,7 +15,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/ai")
-@Tag(name = "AI Features API", description = "Summaries, Mood Detection with Emojis, Recommendations, Auto-Tags, Habits, Goals, Writing Improvements, and AI Chat")
+@Tag(name = "AI Features API", description = "Summaries, Mood Detection with Emojis, Recommendations, Auto-Tags, and AI Chat")
 public class AiController {
 
     private final AiService aiService;
@@ -75,45 +74,6 @@ public class AiController {
         Long uid = userId != null ? userId : 1L;
         String answer = aiService.chatWithJournal(uid, request.get("query"), request.getOrDefault("context", ""));
         return ResponseEntity.ok(ApiResponse.success("AI Response generated", answer));
-    }
-
-    @PostMapping("/habits")
-    @Operation(summary = "AI Habit Detection (Late sleeping, Gym, Reading, Gaming, etc.)")
-    public ResponseEntity<ApiResponse<List<String>>> detectHabits(@RequestBody Map<String, String> request) {
-        List<String> habits = aiService.detectHabits(request.get("content"));
-        return ResponseEntity.ok(ApiResponse.success(habits));
-    }
-
-    @PostMapping("/goals")
-    @Operation(summary = "Extract Goals & Track Progress")
-    public ResponseEntity<ApiResponse<List<GoalTracking>>> extractGoals(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
-            @RequestParam(required = false) Long journalId,
-            @RequestBody Map<String, String> request) {
-        Long uid = userId != null ? userId : 1L;
-        List<GoalTracking> goals = aiService.extractAndSaveGoals(uid, journalId != null ? journalId : 0L, request.get("content"));
-        return ResponseEntity.ok(ApiResponse.success("Goals extracted and saved", goals));
-    }
-
-    @PostMapping("/sentiment")
-    @Operation(summary = "Analyze Sentiment (Positive, Negative, Neutral)")
-    public ResponseEntity<ApiResponse<SentimentResult>> analyzeSentiment(@RequestBody Map<String, String> request) {
-        SentimentResult result = aiService.analyzeSentiment(request.get("content"));
-        return ResponseEntity.ok(ApiResponse.success(result));
-    }
-
-    @PostMapping("/writing-improvements")
-    @Operation(summary = "Suggest Grammar, Clarity, and Vocabulary Improvements")
-    public ResponseEntity<ApiResponse<WritingImprovementResult>> suggestWritingImprovements(@RequestBody Map<String, String> request) {
-        WritingImprovementResult result = aiService.suggestWritingImprovements(request.get("content"));
-        return ResponseEntity.ok(ApiResponse.success(result));
-    }
-
-    @PostMapping("/daily-reflection")
-    @Operation(summary = "Generate AI Daily Reflection Questions & Follow-ups")
-    public ResponseEntity<ApiResponse<ReflectionResult>> generateDailyReflection(@RequestBody Map<String, String> request) {
-        ReflectionResult result = aiService.generateDailyReflection(request.get("content"));
-        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     @PostMapping("/rephrase")

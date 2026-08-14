@@ -291,6 +291,10 @@ public class AuthServiceImpl implements AuthService {
             throw new ForbiddenException("This account has been disabled.");
         }
 
+        if (StringUtils.hasText(request.getCode()) && StringUtils.hasText(request.getRecoveryCode())) {
+            throw new BadRequestException("Provide either a code or a recovery code, not both.");
+        }
+
         boolean verified;
         if (StringUtils.hasText(request.getCode())) {
             String decryptedSecret = totpEncryptionService.decrypt(user.getTotpSecret());

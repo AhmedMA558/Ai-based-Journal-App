@@ -124,4 +124,23 @@ class RecommendationServiceTest {
         assertThat(service.getJournalPrompts("gratitude")).isNotEmpty();
         assertThat(service.getJournalPrompts("anything-unrecognized")).isNotEmpty();
     }
+
+    @Test
+    void getJournalPrompts_RecognizedCategories_ReturnGenuinelyDifferentContent() {
+        // Regression guard: the category parameter used to be silently
+        // ignored, always returning the same 3 hardcoded prompts regardless
+        // of what was requested.
+        List<String> gratitude = service.getJournalPrompts("gratitude");
+        List<String> goals = service.getJournalPrompts("GOALS");
+        List<String> reflection = service.getJournalPrompts("reflection");
+
+        assertThat(gratitude).isNotEqualTo(goals);
+        assertThat(gratitude).isNotEqualTo(reflection);
+        assertThat(goals).isNotEqualTo(reflection);
+    }
+
+    @Test
+    void getJournalPrompts_NullOrBlankCategory_ReturnsDefaultPrompts() {
+        assertThat(service.getJournalPrompts(null)).isEqualTo(service.getJournalPrompts(""));
+    }
 }
