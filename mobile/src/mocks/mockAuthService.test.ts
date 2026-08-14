@@ -1,4 +1,4 @@
-import { mockAuthService, __resetMfaOverrideForTests } from './mockAuthService';
+import { mockAuthService, __resetMfaOverrideForTests, __resetEmailVerifiedOverrideForTests } from './mockAuthService';
 import { MOCK_MFA_CODE, mockUser } from './fixtures';
 
 // mockAuthService keeps MFA enrollment state in a module-level variable (not
@@ -7,6 +7,7 @@ import { MOCK_MFA_CODE, mockUser } from './fixtures';
 // explicitly between tests instead.
 beforeEach(() => {
   __resetMfaOverrideForTests();
+  __resetEmailVerifiedOverrideForTests();
 });
 
 describe('mockAuthService MFA flow', () => {
@@ -71,5 +72,28 @@ describe('mockAuthService forgot/reset password flow', () => {
 
   it('resetPassword with an unknown code rejects', async () => {
     await expect(mockAuthService.resetPassword('WRONG-CODE', 'NewPass123!')).rejects.toThrow('Invalid or expired reset code');
+  });
+});
+
+describe('mockAuthService email verification flow', () => {
+  it('starts unverified by default', async () => {
+    const user = await mockAuthService.getCurrentUser();
+    expect(user.emailVerified).toBe(false);
+  });
+
+  it('verifyEmail with the fixture code marks the account verified', async () => {
+    await mockAuthService.verifyEmail('VERIFY-12345');
+    const user = await mockAuthService.getCurrentUser();
+    expect(user.emailVerified).toBe(true);
+  });
+
+  it('verifyEmail with an unknown code rejects and leaves the account unverified', async () => {
+    await expect(mockAuthService.verifyEmail('WRONG-CODE')).rejects.toThrow('Invalid or expired verification code');
+    const user = await mockAuthService.getCurrentUser();
+    expect(user.emailVerified).toBe(false);
+  });
+
+  it('resendVerificationEmail resolves', async () => {
+    await expect(mockAuthService.resendVerificationEmail()).resolves.toBeUndefined();
   });
 });

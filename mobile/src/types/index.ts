@@ -35,6 +35,7 @@ export interface CurrentUser {
   username: string;
   email: string;
   fullName: string;
+  emailVerified?: boolean;
 }
 
 export interface MoodDetectionResult {

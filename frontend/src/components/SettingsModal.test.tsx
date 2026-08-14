@@ -17,6 +17,8 @@ vi.mock('@/services/authService', async () => {
       setupMfa: vi.fn(),
       enableMfa: vi.fn(),
       disableMfa: vi.fn(),
+      verifyEmail: vi.fn(),
+      resendVerificationEmail: vi.fn(),
     },
   };
 });
@@ -42,6 +44,8 @@ const mockedGetMfaStatus = vi.mocked(authService.getMfaStatus);
 const mockedSetupMfa = vi.mocked(authService.setupMfa);
 const mockedEnableMfa = vi.mocked(authService.enableMfa);
 const mockedDisableMfa = vi.mocked(authService.disableMfa);
+const mockedVerifyEmail = vi.mocked(authService.verifyEmail);
+const mockedResendVerificationEmail = vi.mocked(authService.resendVerificationEmail);
 const mockedGetProfile = vi.mocked(userService.getProfile);
 const mockedUpdateProfile = vi.mocked(userService.updateProfile);
 const mockedListUsers = vi.mocked(adminService.listUsers);
@@ -62,7 +66,7 @@ function seedFakeJwt(payload: Record<string, unknown>) {
 describe('SettingsModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetCurrentUser.mockResolvedValue({ username: 'Alex', email: 'alex@example.com', fullName: 'Alex Example' } as any);
+    mockedGetCurrentUser.mockResolvedValue({ username: 'Alex', email: 'alex@example.com', fullName: 'Alex Example', emailVerified: false } as any);
     mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '' } as any);
     mockedGetMfaStatus.mockResolvedValue({ mfaEnabled: false } as any);
   });
@@ -184,6 +188,76 @@ describe('SettingsModal', () => {
 
     expect(await screen.findByText('New passwords do not match.')).toBeInTheDocument();
     expect(mockedChangePassword).not.toHaveBeenCalled();
+  });
+
+  it('shows the code input and resend link when the email is unverified', async () => {
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+
+    expect(await screen.findByText('Not verified')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter the code emailed to you')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resend code' })).toBeInTheDocument();
+  });
+
+  it('verifies the email with a valid code and updates the badge', async () => {
+    mockedVerifyEmail.mockResolvedValue({} as any);
+    const onEmailVerified = vi.fn();
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} onEmailVerified={onEmailVerified} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+    await screen.findByText('Not verified');
+
+    await user.type(screen.getByPlaceholderText('Enter the code emailed to you'), 'ABCDE-12345');
+    await user.click(screen.getByRole('button', { name: 'Verify' }));
+
+    await waitFor(() => expect(mockedVerifyEmail).toHaveBeenCalledWith('ABCDE-12345'));
+    expect(await screen.findByText('Verified')).toBeInTheDocument();
+    expect(onEmailVerified).toHaveBeenCalledTimes(1);
+    // Once verified, the code input/resend link disappear - nothing left to do.
+    expect(screen.queryByPlaceholderText('Enter the code emailed to you')).not.toBeInTheDocument();
+  });
+
+  it('shows an inline error and does not update the badge on an invalid code', async () => {
+    mockedVerifyEmail.mockRejectedValue(new Error('Invalid or expired verification code'));
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+    await screen.findByText('Not verified');
+
+    await user.type(screen.getByPlaceholderText('Enter the code emailed to you'), 'WRONG-CODE');
+    await user.click(screen.getByRole('button', { name: 'Verify' }));
+
+    expect(await screen.findByText('Invalid or expired verification code')).toBeInTheDocument();
+    expect(screen.getByText('Not verified')).toBeInTheDocument();
+  });
+
+  it('resends the verification code', async () => {
+    mockedResendVerificationEmail.mockResolvedValue({} as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+    await screen.findByText('Not verified');
+
+    await user.click(screen.getByRole('button', { name: 'Resend code' }));
+
+    await waitFor(() => expect(mockedResendVerificationEmail).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/new verification code has been sent/)).toBeInTheDocument();
+  });
+
+  it('shows a verified badge with no code input when the email is already verified', async () => {
+    mockedGetCurrentUser.mockResolvedValue({ username: 'Alex', email: 'alex@example.com', fullName: 'Alex Example', emailVerified: true } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+
+    expect(await screen.findByText('Verified')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Enter the code emailed to you')).not.toBeInTheDocument();
   });
 
   it('switches to the appearance tab and renders the theme customizer', async () => {

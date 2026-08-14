@@ -9,8 +9,9 @@ import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { EmailVerificationBanner } from '@/components/EmailVerificationBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
-import { journalService, recommendationService } from '@/services';
+import { authService, journalService, recommendationService } from '@/services';
 import { session } from '@/services/session';
 import { getPendingCount } from '@/lib/offlineQueue';
 import { useAuthContext } from '@/context/AuthContext';
@@ -35,6 +36,8 @@ export default function DashboardScreen() {
   const [error, setError] = useState('');
   const [pendingCount, setPendingCount] = useState(0);
   const [recommendation, setRecommendation] = useState(DEFAULT_RECOMMENDATION);
+  const [emailVerified, setEmailVerified] = useState(true);
+  const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -57,6 +60,13 @@ export default function DashboardScreen() {
       if (suggestion) setRecommendation(suggestion);
     } catch {
       // Keep the existing recommendation (default or last-successful fetch).
+    }
+
+    try {
+      const user = await authService.getCurrentUser();
+      setEmailVerified(Boolean(user?.emailVerified));
+    } catch {
+      // Fail soft - no banner shown rather than a broken one.
     }
   }, []);
 
@@ -112,6 +122,13 @@ export default function DashboardScreen() {
             </View>
 
             <OfflineBanner pendingCount={pendingCount} />
+
+            {!emailVerified && !verificationBannerDismissed && (
+              <EmailVerificationBanner
+                onPress={() => navigation.navigate('Tabs', { screen: 'Settings' })}
+                onDismiss={() => setVerificationBannerDismissed(true)}
+              />
+            )}
 
             <View className="flex-row gap-3 mb-5">
               <GlassPanel className="flex-1 p-4 items-start">

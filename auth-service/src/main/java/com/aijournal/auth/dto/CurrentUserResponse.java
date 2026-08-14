@@ -9,16 +9,18 @@ public class CurrentUserResponse {
     private String email;
     private String fullName;
     private List<String> roles;
+    private Boolean emailVerified;
 
     public CurrentUserResponse() {
     }
 
-    public CurrentUserResponse(Long id, String username, String email, String fullName, List<String> roles) {
+    public CurrentUserResponse(Long id, String username, String email, String fullName, List<String> roles, Boolean emailVerified) {
         this.id = id;
         this.username = username;
         this.email = email;
         this.fullName = fullName;
         this.roles = roles;
+        this.emailVerified = emailVerified;
     }
 
     public Long getId() { return id; }
@@ -31,4 +33,6 @@ public class CurrentUserResponse {
     public void setFullName(String fullName) { this.fullName = fullName; }
     public List<String> getRoles() { return roles; }
     public void setRoles(List<String> roles) { this.roles = roles; }
+    public Boolean getEmailVerified() { return emailVerified; }
+    public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
 }

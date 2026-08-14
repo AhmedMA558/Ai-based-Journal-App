@@ -96,6 +96,17 @@ export const authService = {
     await api.post('/api/v1/auth/password/reset', { resetCode, newPassword });
   },
 
+  // Authenticated (not public like password reset) - the caller is always
+  // logged in by the time they'd submit a code, since register() issues
+  // tokens unconditionally (non-blocking email verification).
+  async verifyEmail(code: string): Promise<void> {
+    await api.post('/api/v1/auth/verify-email', { code });
+  },
+
+  async resendVerificationEmail(): Promise<void> {
+    await api.post('/api/v1/auth/verify-email/resend');
+  },
+
   async logout(): Promise<void> {
     const refreshToken = await session.getRefreshToken();
     if (refreshToken) {
