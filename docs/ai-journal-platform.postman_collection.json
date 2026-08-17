@@ -1,193 +1,1809 @@
 {
-	"info": {
-		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-		"name": "AI Journaling Microservices Platform API",
-		"description": "Complete Postman API Collection for Gateway, Auth, User, Journal, AI, Search, Recommendation, Notification, Analytics, and File Services.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Auth Service",
-			"item": [
-				{
-					"name": "Register User",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Password123!\",\n  \"fullName\": \"John Doe\"\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/auth/register",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "auth", "register"]
-						}
-					}
-				},
-				{
-					"name": "Login User",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"usernameOrEmail\": \"johndoe\",\n  \"password\": \"Password123!\"\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/auth/login",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "auth", "login"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Journal Service",
-			"item": [
-				{
-					"name": "Create Journal Entry",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"},
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Achieved Q3 Milestones and Afternoon Park Walk\",\n  \"content\": \"Today was an extraordinarily productive day. I completed all Q3 software architecture deliverables early and took a peaceful 30-minute walk in Central Park. Feeling super happy and refreshed!\",\n  \"mood\": \"Happy\",\n  \"location\": \"Central Park\",\n  \"weather\": \"Sunny 24°C\",\n  \"tags\": [\"career\", \"health\", \"happiness\"]\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/journals",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "journals"]
-						}
-					}
-				},
-				{
-					"name": "Get User Journals",
-					"request": {
-						"method": "GET",
-						"header": [
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"url": {
-							"raw": "http://localhost:8080/api/v1/journals?page=0&size=10",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "journals"],
-							"query": [
-								{"key": "page", "value": "0"},
-								{"key": "size", "value": "10"}
-							]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "AI Service",
-			"item": [
-				{
-					"name": "Summarize Journal Entry",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"},
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"content\": \"Today I completed my major software architecture project and spent quality time outdoors. Felt a wave of joy and calm.\"\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/ai/summarize",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "ai", "summarize"]
-						}
-					}
-				},
-				{
-					"name": "Detect Mood",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"},
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"content\": \"Feeling a bit overwhelmed with tight deadlines and upcoming exams.\"\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/ai/mood",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "ai", "mood"]
-						}
-					}
-				},
-				{
-					"name": "Chat with Journal (RAG)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{"key": "Content-Type", "value": "application/json"},
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"query\": \"What were my biggest achievements this month?\"\n}"
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/v1/ai/chat",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "ai", "chat"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Search Service",
-			"item": [
-				{
-					"name": "Natural Language Semantic Search",
-					"request": {
-						"method": "GET",
-						"header": [
-							{"key": "Authorization", "value": "Bearer {{access_token}}"}
-						],
-						"url": {
-							"raw": "http://localhost:8080/api/v1/search/semantic?query=Show entries where I was happy",
-							"protocol": "http",
-							"host": ["localhost"],
-							"port": "8080",
-							"path": ["api", "v1", "search", "semantic"],
-							"query": [
-								{"key": "query", "value": "Show entries where I was happy"}
-							]
-						}
-					}
-				}
-			]
-		}
-	]
+  "info": {
+    "_postman_id": "51f85c57-af3d-4c2a-bddc-0b5a8511a8e9",
+    "name": "AI Journal Platform - Full API Suite",
+    "description": "Complete, accurate collection covering every real endpoint exposed through the gateway (localhost:8080) as of this repo's current `main` branch (post-Phase 22). Replaces the previous 3 overlapping/stale collections (root `AI_Journal_Platform.postman_collection.json` and 2 near-duplicates under `docs/`), none of which reflected MFA, password reset, email verification, admin, or the current notification/recommendation/analytics endpoints.\n\nQuick start: run **Register User**, then **Login User** (auto-saves `accessToken`/`refreshToken`/`userId` as collection variables via its test script) - every other request inherits the bearer token automatically. If the account has MFA enabled, Login returns a challenge instead of tokens; run **Verify MFA Challenge** next using the code from an authenticator app seeded via **Setup MFA**.\n\nTwo endpoints in the Notifications folder (`POST /send-email`, `POST /notifications`) are `ROLE_SYSTEM`-only and will correctly 403 with a normal user's JWT - included for API-contract completeness, not because a client should call them directly.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "journalId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "challengeToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resetCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verificationCode",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "mfaCode",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth Service",
+      "description": "Registration, login (incl. MFA challenge), token refresh, password management, and email verification. All public except /me, /password, /mfa/*, /verify-email*.",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Creates an account with emailVerified=false and mfaEnabled=false. Auto-saves the issued tokens.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"username\": \"jdoe\",\n    \"email\": \"jdoe@example.com\",\n    \"password\": \"SecurePass123!\",\n    \"fullName\": \"Jane Doe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "    const data = pm.response.json().data;",
+                  "    if (data && data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', String(data.userId));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User (auto-saves tokens)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Returns AuthResponse{accessToken,refreshToken,userId} for a normal account, or MfaChallengeResponse{mfaRequired:true,challengeToken} if the account has MFA enabled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"usernameOrEmail\": \"jdoe\",\n    \"password\": \"SecurePass123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json().data;",
+                  "    if (data && data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', String(data.userId));",
+                  "    } else if (data && data.mfaRequired) {",
+                  "        pm.collectionVariables.set('challengeToken', data.challengeToken);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify MFA Challenge",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mfa/verify",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "mfa",
+                "verify"
+              ]
+            },
+            "description": "Completes login after a Login response with mfaRequired:true. Send either `code` (TOTP) or `recoveryCode`, never both.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"challengeToken\": \"{{challengeToken}}\",\n    \"code\": \"{{mfaCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json().data;",
+                  "    if (data && data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', String(data.userId));",
+                  "    } else if (data && data.mfaRequired) {",
+                  "        pm.collectionVariables.set('challengeToken', data.challengeToken);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh Access Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Rotates the refresh token; re-checks the account is still enabled.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const data = pm.response.json().data;",
+                  "    if (data && data.accessToken) {",
+                  "        pm.collectionVariables.set('accessToken', data.accessToken);",
+                  "        pm.collectionVariables.set('refreshToken', data.refreshToken);",
+                  "        pm.collectionVariables.set('userId', String(data.userId));",
+                  "    } else if (data && data.mfaRequired) {",
+                  "        pm.collectionVariables.set('challengeToken', data.challengeToken);",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Revokes the given refresh token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User (/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Returns id, username, email, fullName, roles, mfaEnabled, emailVerified."
+          },
+          "response": []
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password"
+              ]
+            },
+            "description": "Requires the current password. Revokes all existing refresh tokens on success.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"currentPassword\": \"SecurePass123!\",\n    \"newPassword\": \"EvenMoreSecure456!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password/forgot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password",
+                "forgot"
+              ]
+            },
+            "description": "Always returns the same generic message regardless of whether the email is registered (enumeration-safe). Sends a real reset code via email (MailHog in dev).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"jdoe@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/password/reset",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "password",
+                "reset"
+              ]
+            },
+            "description": "Single-use code from the forgot-password email. Revokes all existing refresh tokens on success.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"resetCode\": \"{{resetCode}}\",\n    \"newPassword\": \"EvenMoreSecure456!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get MFA Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mfa/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "mfa",
+                "status"
+              ]
+            },
+            "description": "Returns {mfaEnabled}."
+          },
+          "response": []
+        },
+        {
+          "name": "Setup MFA",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mfa/setup",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "mfa",
+                "setup"
+              ]
+            },
+            "description": "Generates and persists a TOTP secret (mfaEnabled stays false until Enable MFA confirms it). Returns {secret, otpAuthUri} for QR-code enrollment."
+          },
+          "response": []
+        },
+        {
+          "name": "Enable MFA",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mfa/enable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "mfa",
+                "enable"
+              ]
+            },
+            "description": "Confirms setup with a real 6-digit code from an authenticator app seeded with Setup MFA's secret. Returns 10 recovery codes once, in plaintext.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"{{mfaCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Disable MFA",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/mfa/disable",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "mfa",
+                "disable"
+              ]
+            },
+            "description": "Requires both the current password and a valid code as a safety check.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"password\": \"EvenMoreSecure456!\",\n    \"code\": \"{{mfaCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-email"
+              ]
+            },
+            "description": "Code from the verification email sent at registration. Idempotent no-op if already verified.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"{{verificationCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Resend Verification Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/verify-email/resend",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "verify-email",
+                "resend"
+              ]
+            },
+            "description": "Generates and sends a fresh code, invalidating any earlier one. 400s if already verified."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Admin (Auth Service)",
+      "description": "hasRole('ADMIN')-gated user management. The seeded dev bootstrap admin is admin/AdminBootstrap123! (rotate before any real deployment).",
+      "item": [
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/admin/users?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Paginated UserSummaryResponse list."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User Roles",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/admin/users/{{userId}}/roles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "admin",
+                "users",
+                "{{userId}}",
+                "roles"
+              ]
+            },
+            "description": "ROLE_USER is always retained server-side regardless of what's sent. Rejects self-demotion from ADMIN.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"roles\": [\n        \"ROLE_USER\",\n        \"ROLE_ADMIN\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Account Status",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/admin/users/{{userId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "admin",
+                "users",
+                "{{userId}}",
+                "status"
+              ]
+            },
+            "description": "Disabling also revokes all of that user's refresh tokens. Rejects self-disable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"enabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Journal Service",
+      "description": "CRUD + pin/favorite/archive + soft (trash) and permanent delete. Content is encrypted at rest (AES/GCM) and transparently decrypted in every response here.",
+      "item": [
+        {
+          "name": "Create Journal Entry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals"
+              ]
+            },
+            "description": "Auto-saves the created id. Untitled/blank title defaults to 'Untitled Journal Entry'; mood defaults per Journal.mood's field initializer (see root CLAUDE.md's documented defaulting quirk).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"A productive day\",\n    \"content\": \"Shipped a real feature today and it felt great.\",\n    \"mood\": \"HAPPY\",\n    \"tags\": [\n        \"work\",\n        \"gratitude\"\n    ],\n    \"isDraft\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const data = pm.response.json().data;",
+                  "    if (data && data.id) {",
+                  "        pm.collectionVariables.set('journalId', String(data.id));",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Journals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals?page=0&size=10&sortBy=createdAt&sortDir=DESC",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt"
+                },
+                {
+                  "key": "sortDir",
+                  "value": "DESC"
+                }
+              ]
+            },
+            "description": "Excludes soft-deleted (trashed) entries via @SQLRestriction."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Journal By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update Journal Entry",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}"
+              ]
+            },
+            "description": "Any field omitted (e.g. content) keeps its existing value rather than being overwritten with null.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"A productive day (edited)\",\n    \"content\": \"Updated reflection after a good night's sleep.\",\n    \"mood\": \"HAPPY\",\n    \"tags\": [\n        \"work\",\n        \"gratitude\",\n        \"sleep\"\n    ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pinned Journals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/pinned?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "pinned"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Get Favorite Journals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/favorites?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "favorites"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Get Archived Journals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/archived?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "archived"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Pin",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}/pin",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}",
+                "pin"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Favorite",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}/favorite",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}",
+                "favorite"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Toggle Archive",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}/archive",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}",
+                "archive"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Soft Delete (Trash)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}"
+              ]
+            },
+            "description": "Moves to trash (is_deleted=true) - recoverable in principle, not exposed via a restore endpoint today."
+          },
+          "response": []
+        },
+        {
+          "name": "Permanent Delete",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/journals/{{journalId}}/permanent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "journals",
+                "{{journalId}}",
+                "permanent"
+              ]
+            },
+            "description": "Genuinely removes the row (bypasses the soft-delete restriction via native SQL - Phase 22 fix). Works whether or not the journal was trashed first."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. AI Features (ai-service)",
+      "description": "Backed by python-ai-service (Flask). Falls back to a lightweight deterministic mock strategy if the Flask backend is unreachable (ai.provider=mock).",
+      "item": [
+        {
+          "name": "Summarize Entry",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/summarize",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "summarize"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"Today I went for a long walk and reflected on my goals for the year. I felt calm and motivated afterward.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Detect Mood",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/mood?journalId={{journalId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "mood"
+              ],
+              "query": [
+                {
+                  "key": "journalId",
+                  "value": "{{journalId}}"
+                }
+              ]
+            },
+            "description": "Also persists a MoodHistory row when journalId is a real, owned journal.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"I'm so excited about this new opportunity!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Emotion Timeline",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/emotion-timeline?period=weekly",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "emotion-timeline"
+              ],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "weekly"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Get AI Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/recommendations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "recommendations"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"Feeling stressed about an upcoming deadline.\",\n    \"mood\": \"STRESSED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Tags",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/tags",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "tags"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"Spent the afternoon cooking a new recipe with my family.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Chat With Journal (RAG)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/chat",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "chat"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"query\": \"What have I been grateful for lately?\",\n    \"context\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Rephrase Text",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/rephrase",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "rephrase"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"i went to the store and got some stuff\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Fix Grammar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/ai/grammar",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "ai",
+                "grammar"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"content\": \"Me and him goes to the park yesterday.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Search Service",
+      "description": "Elasticsearch-backed, userId-scoped. `query`/`mood`/`tag` are independently optional and combinable on the fulltext endpoint.",
+      "item": [
+        {
+          "name": "Full-Text Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search?query=grateful&mood=HAPPY&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "grateful"
+                },
+                {
+                  "key": "mood",
+                  "value": "HAPPY"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Semantic Search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/search/semantic?query=days where I felt happy&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "search",
+                "semantic"
+              ],
+              "query": [
+                {
+                  "key": "query",
+                  "value": "days where I felt happy"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Fuzzy, relevance-ranked full-text search across title/content - not ML-embedding-based semantic search."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. User Profile & Preferences",
+      "description": "Profile/preferences rows are created lazily (get-or-create) on first GET.",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "profile"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "profile"
+              ]
+            },
+            "description": "All 5 fields are overwritten unconditionally - send the full shape, not a partial patch.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"bio\": \"Journaling enthusiast.\",\n    \"avatarUrl\": \"\",\n    \"phoneNumber\": \"\",\n    \"country\": \"US\",\n    \"city\": \"Austin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Preferences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "preferences"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Update Preferences",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/preferences",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "preferences"
+              ]
+            },
+            "description": {
+              "darkMode": true,
+              "timeZone": "America/Chicago",
+              "language": "en",
+              "emailNotifications": true,
+              "pushNotifications": true,
+              "dailyReminderTime": "20:00"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Account (GDPR)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/account",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "account"
+              ]
+            },
+            "description": "Deletes profile+preferences rows if they exist (Phase 22 fix - no longer crashes for a never-touched-profile user)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "7. Recommendation Service",
+      "description": "Mood-aware curated (non-LLM) content, real caller: Mindora's Dashboard.",
+      "item": [
+        {
+          "name": "Get Personalized Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recommendations?currentMood=HAPPY",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "recommendations"
+              ],
+              "query": [
+                {
+                  "key": "currentMood",
+                  "value": "HAPPY"
+                }
+              ]
+            },
+            "description": "If currentMood is omitted, it's computed from the caller's 5 most recent real journal entries (forwards this request's own Authorization header to journal-service)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Journal Prompts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recommendations/prompts?category=GRATITUDE",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "recommendations",
+                "prompts"
+              ],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "GRATITUDE"
+                }
+              ]
+            },
+            "description": "category is genuinely honored (GRATITUDE/REFLECTION/GOALS each return distinct content, Phase 22 fix) - unrecognized/omitted falls back to a default bucket."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "8. Analytics Service",
+      "description": "Computed live from the caller's real journal history (up to the most recent 500 entries) - fetches journal-service the same way recommendation-service does.",
+      "item": [
+        {
+          "name": "Get Journal Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/analytics/insights",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "analytics",
+                "insights"
+              ]
+            },
+            "description": "totalWordsWritten, mostCommonEmotions, topTopics, mostProductiveDays, writingFrequency, currentStreakDays, longestStreakDays. No mostMentionedPeople/Places - deliberately dropped rather than faked (no NER infra)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9. Notifications",
+      "description": "GET/read-all/device-token are for the caller's own data. POST / and /send-email are ROLE_SYSTEM-only (403 with a normal user JWT) - included for contract completeness.",
+      "item": [
+        {
+          "name": "List My Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications?page=0&size=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Mark All As Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/read-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "read-all"
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "Register Device Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/device-token",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "device-token"
+              ]
+            },
+            "description": {
+              "expoPushToken": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+              "platform": "android"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unregister Device Token",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/device-token?expoPushToken=ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "device-token"
+              ],
+              "query": [
+                {
+                  "key": "expoPushToken",
+                  "value": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        },
+        {
+          "name": "[ROLE_SYSTEM only] Send Email",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/send-email",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "send-email"
+              ]
+            },
+            "description": "Expect 403 unless the bearer token carries ROLE_SYSTEM - real callers mint a short-lived internal token themselves (auth-service), never a normal user JWT.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"to\": \"someone@example.com\",\n    \"subject\": \"Test\",\n    \"body\": \"Hello from Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "[ROLE_SYSTEM only] Create Notification",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ]
+            },
+            "description": "Expect 403 with a normal user JWT - same restriction and reasoning as Send Email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"userId\": \"{{userId}}\",\n    \"type\": \"ACCOUNT_SECURITY\",\n    \"message\": \"Your password was changed.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10. File Attachments",
+      "description": "Local-disk storage today (no S3). Download rejects any path not prefixed with the caller's own user-{userId}/.",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/files/upload",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "upload"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "description": "Stores under user-{{userId}}/. Response includes the real storedPath to use in Download File."
+          },
+          "response": []
+        },
+        {
+          "name": "Download File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/files/download?path=user-{{userId}}/REPLACE_WITH_STORED_PATH",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "download"
+              ],
+              "query": [
+                {
+                  "key": "path",
+                  "value": "user-{{userId}}/REPLACE_WITH_STORED_PATH"
+                }
+              ]
+            },
+            "description": ""
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
 }
