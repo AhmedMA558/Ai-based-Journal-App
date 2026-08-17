@@ -77,7 +77,7 @@ mvn clean package -DskipTests
 docker compose up --build -d
 ```
 
-Frontend: `http://localhost:3000`. Gateway: `http://localhost:8080`. RabbitMQ management UI: `http://localhost:15672` (guest/guest). Every service also exposes Swagger UI at `http://localhost:<port>/swagger-ui.html` and a raw OpenAPI spec at `/v3/api-docs`. For exercising the full API through the gateway without a UI, import [docs/ai-journal-platform.postman_collection.json](docs/ai-journal-platform.postman_collection.json) - it covers every real endpoint, auto-saves your access token on login, and documents the couple of internal `ROLE_SYSTEM`-only routes that will correctly 403 with a normal user's JWT.
+Frontend: `http://localhost:3000`. Gateway: `http://localhost:8080`. RabbitMQ management UI: `http://localhost:15672` (guest/guest). Every service also exposes Swagger UI at `http://localhost:<port>/swagger-ui.html` and a raw OpenAPI spec at `/v3/api-docs` - a versioned, diffable snapshot of each is also committed under [docs/openapi/](docs/openapi/) for browsing without a running stack. For exercising the full API through the gateway without a UI, import [docs/ai-journal-platform.postman_collection.json](docs/ai-journal-platform.postman_collection.json) - it covers every real endpoint, auto-saves your access token on login, and documents the couple of internal `ROLE_SYSTEM`-only routes that will correctly 403 with a normal user's JWT.
 
 Without `.env`/`JWT_SECRET` set, every backend service fails to start on purpose (`${JWT_SECRET:?...}` in `docker-compose.yml`) - this is a deliberate fail-fast, not a bug.
 
@@ -121,5 +121,5 @@ Some backend tests (journal-service's repository/messaging tests, user-service's
 - `python-ai-service/` - Flask NLP service, called by `ai-service`.
 - `frontend/` - React 19 + TypeScript + Tailwind v4 SPA.
 - `k8s/` - Kubernetes manifests for every service.
-- `docs/` - architecture/ER diagrams and a Postman collection covering the full API.
+- `docs/` - architecture/ER diagrams, a Postman collection, and committed OpenAPI spec snapshots covering the full API.
 - `CLIENT_HANDOFF_GUIDE.md` - a feature walkthrough/demo script, not developer documentation.
