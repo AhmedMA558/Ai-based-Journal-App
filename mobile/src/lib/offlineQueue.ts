@@ -32,6 +32,14 @@ export async function getPendingCount(): Promise<number> {
   return (await getQueue()).length;
 }
 
+// Called on logout - a queued offline op belongs to the account that queued
+// it. Left uncleared, a reconnect after a different account logs into the
+// same device would replay it against that new account's session (the shared
+// `api` instance carries whatever token is currently in SecureStore).
+export async function clearOfflineQueue(): Promise<void> {
+  await AsyncStorage.removeItem(QUEUE_KEY);
+}
+
 export async function enqueue(op: QueuedOp): Promise<void> {
   const queue = await getQueue();
   await setQueue([...queue, op]);

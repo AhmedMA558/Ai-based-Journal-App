@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getCachedJournals, setCachedJournals } from './offlineCache';
+import { clearOfflineCache, getCachedJournals, setCachedJournals } from './offlineCache';
 import type { Journal } from '@/types';
 
 const journal: Journal = {
@@ -29,5 +29,14 @@ describe('offlineCache', () => {
     await setCachedJournals([journal]);
     await setCachedJournals([]);
     expect(await getCachedJournals()).toEqual([]);
+  });
+
+  it('clearOfflineCache removes the cached list entirely', async () => {
+    // Regression guard: a logged-out account's offline cache used to survive
+    // into the next account's session on the same device - clearOfflineCache
+    // is called from authService.logout() specifically to close that gap.
+    await setCachedJournals([journal]);
+    await clearOfflineCache();
+    expect(await getCachedJournals()).toBeNull();
   });
 });

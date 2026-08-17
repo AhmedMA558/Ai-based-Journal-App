@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { Sparkles, Save, X, Smile, Tag, FileText, Mic, AlertCircle, CheckCircle2, Wand2, Clock } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MoodWheel from './MoodWheel';
@@ -108,6 +108,12 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
   const [isListening, setIsListening] = useState(false);
   const [detectingMood, setDetectingMood] = useState(false);
+  // Shared "only the latest call wins" guard for mood detection - it's
+  // triggered from two separate call sites (the debounced effect below and
+  // handleDetectMood's button), so a plain per-effect `cancelled` flag isn't
+  // enough; a request-id ref covers both without either site needing to know
+  // about the other.
+  const moodDetectRequestId = useRef(0);
   const [summarizing, setSummarizing] = useState(false);
   const [aiWriting, setAiWriting] = useState(false);
   const [summary, setSummary] = useState('');
@@ -135,9 +141,11 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     if (!content.trim() || content.trim().length < 3 || isManualOverride) return;
 
     const timer = setTimeout(async () => {
+      const requestId = ++moodDetectRequestId.current;
       setDetectingMood(true);
       try {
         const res = await aiService.detectMood(content);
+        if (requestId !== moodDetectRequestId.current) return;
         if (res?.data?.data && res.data.data.primaryMood) {
           const detectedKey = normalizeMood(res.data.data.primaryMood);
           const detectedEmoji = res.data.data.emoji || getEmojiForMood(detectedKey);
@@ -152,7 +160,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
       } catch {
         // Asynchronous AI error fallback
       } finally {
-        setDetectingMood(false);
+        if (requestId === moodDetectRequestId.current) setDetectingMood(false);
       }
     }, 250);
 
@@ -260,9 +268,11 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
 
   const handleDetectMood = async () => {
     if (!content.trim()) return;
+    const requestId = ++moodDetectRequestId.current;
     setDetectingMood(true);
     try {
       const res = await aiService.detectMood(content);
+      if (requestId !== moodDetectRequestId.current) return;
       if (res?.data?.data && res.data.data.primaryMood) {
         const detectedKey = normalizeMood(res.data.data.primaryMood);
         const detectedEmoji = res.data.data.emoji || getEmojiForMood(detectedKey);
@@ -280,7 +290,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
     } catch {
       // Mood detection fallback
     } finally {
-      setDetectingMood(false);
+      if (requestId === moodDetectRequestId.current) setDetectingMood(false);
     }
   };
 

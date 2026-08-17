@@ -84,8 +84,8 @@ export const authService = {
   // recoveryCodes are plaintext and shown exactly once.
   enableMfa: async (code) => (await api.post('/api/v1/auth/mfa/enable', { code }))?.data?.data,
 
-  disableMfa: async (password, code) =>
-    (await api.post('/api/v1/auth/mfa/disable', { password, code }))?.data?.data,
+  disableMfa: async (password, code, recoveryCode) =>
+    (await api.post('/api/v1/auth/mfa/disable', { password, code, recoveryCode }))?.data?.data,
 
   // Always resolves with the same generic message regardless of whether the
   // email is registered - the backend deliberately never reveals that.

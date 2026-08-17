@@ -14,4 +14,8 @@ export const adminService = {
   updateStatus: async (userId, enabled) => {
     return await api.put(`/api/v1/auth/admin/users/${userId}/status`, { enabled });
   },
+
+  resetMfa: async (userId) => {
+    return await api.post(`/api/v1/auth/admin/users/${userId}/mfa-reset`);
+  },
 };

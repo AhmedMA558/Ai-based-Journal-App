@@ -54,4 +54,16 @@ public class FileController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(data);
     }
+
+    @DeleteMapping
+    @Operation(summary = "Delete an attachment file (e.g. replacing a profile avatar)")
+    public ResponseEntity<ApiResponse<Void>> deleteFile(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestParam("path") String path) {
+        if (path.contains("..") || !path.startsWith("user-" + userId + "/")) {
+            throw new ForbiddenException("You do not have access to this file");
+        }
+        fileStorageStrategy.deleteFile(path);
+        return ResponseEntity.ok(ApiResponse.success("File deleted successfully", null));
+    }
 }

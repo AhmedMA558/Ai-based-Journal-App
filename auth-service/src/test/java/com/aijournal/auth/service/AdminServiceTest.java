@@ -4,6 +4,7 @@ import com.aijournal.auth.dto.UserSummaryResponse;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.MfaChallengeRepository;
+import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
@@ -49,6 +50,9 @@ class AdminServiceTest {
 
     @Mock
     private MfaChallengeRepository mfaChallengeRepository;
+
+    @Mock
+    private MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
 
     @Mock
     private RestTemplate restTemplate;
@@ -169,6 +173,34 @@ class AdminServiceTest {
     @Test
     void updateStatus_SelfDisable_ThrowsBadRequest() {
         assertThatThrownBy(() -> adminService.updateStatus(1L, 1L, false))
+                .isInstanceOf(BadRequestException.class);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void resetMfa_ClearsSecretAndRecoveryCodesAndPendingChallenge() {
+        // Escape hatch for a user who lost their authenticator device and has
+        // exhausted their recovery codes too - the self-service recovery-code
+        // path on disableMfa() (AuthServiceImpl) covers the common case, this
+        // covers what's left.
+        User target = user(2L, new Role(1L, Role.RoleName.ROLE_USER));
+        target.setMfaEnabled(true);
+        target.setTotpSecret("encryptedSecret");
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UserSummaryResponse response = adminService.resetMfa(2L, 99L);
+
+        assertThat(response.getMfaEnabled()).isFalse();
+        assertThat(target.getMfaEnabled()).isFalse();
+        assertThat(target.getTotpSecret()).isNull();
+        verify(mfaRecoveryCodeRepository, times(1)).deleteByUser(target);
+        verify(mfaChallengeRepository, times(1)).deleteByUser(target);
+    }
+
+    @Test
+    void resetMfa_SelfTarget_ThrowsBadRequest() {
+        assertThatThrownBy(() -> adminService.resetMfa(1L, 1L))
                 .isInstanceOf(BadRequestException.class);
         verify(userRepository, never()).save(any(User.class));
     }

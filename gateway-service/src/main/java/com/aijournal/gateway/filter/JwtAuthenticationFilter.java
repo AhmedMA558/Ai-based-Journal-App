@@ -26,7 +26,11 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
 
     private static final String HEADER_USER_ID = "X-User-Id";
 
-    private static final List<String> EXCLUDED_PATHS = List.of(
+    // Exact-match only - these are real, complete endpoint paths, not prefixes.
+    // A naive startsWith() here previously let "/api/v1/auth/login-history"
+    // (an authenticated endpoint) match the "/api/v1/auth/login" entry and skip
+    // gateway-level JWT validation entirely.
+    private static final List<String> EXACT_EXCLUDED_PATHS = List.of(
             "/api/v1/auth/login",
             "/api/v1/auth/register",
             "/api/v1/auth/refresh",
@@ -34,7 +38,12 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
             "/api/v1/auth/mfa/verify",
             "/api/v1/auth/password/forgot",
             "/api/v1/auth/password/reset",
-            "/api/v1/auth/oauth2",
+            "/api/v1/auth/oauth2"
+    );
+
+    // Genuine prefixes - these paths have real sub-paths that all need to be excluded
+    // (e.g. /actuator/health, /actuator/info).
+    private static final List<String> PREFIX_EXCLUDED_PATHS = List.of(
             "/swagger-ui",
             "/v3/api-docs",
             "/actuator"
@@ -59,7 +68,7 @@ public class JwtAuthenticationFilter extends AbstractGatewayFilterFactory<JwtAut
     }
 
     private boolean isExcluded(String path) {
-        return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
+        return EXACT_EXCLUDED_PATHS.contains(path) || PREFIX_EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
     }
 
     private Mono<Void> authenticateAndFilter(ServerWebExchange exchange, GatewayFilterChain chain) {

@@ -63,6 +63,35 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void filter_LoginHistoryPath_IsNotTreatedAsExcludedDespitePrefixOverlapWithLogin() {
+        // Regression guard: EXCLUDED_PATHS used to be matched via startsWith(),
+        // so "/api/v1/auth/login-history" (a real, authenticated endpoint)
+        // silently matched the "/api/v1/auth/login" entry and skipped JWT
+        // validation entirely at the gateway.
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/v1/auth/login-history"));
+        GatewayFilterChain chain = mock(GatewayFilterChain.class);
+
+        StepVerifier.create(filter().filter(exchange, chain)).verifyComplete();
+
+        verifyNoInteractions(chain);
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void filter_ActuatorHealthSubPath_StillExcludedViaGenuinePrefixMatch() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/actuator/health"));
+        GatewayFilterChain chain = mock(GatewayFilterChain.class);
+        when(chain.filter(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(filter().filter(exchange, chain)).verifyComplete();
+
+        verify(chain).filter(exchange);
+        assertThat(exchange.getResponse().getStatusCode()).isNull();
+    }
+
+    @Test
     void filter_MissingAuthHeader_Returns401AndDoesNotInvokeChain() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/v1/journals"));

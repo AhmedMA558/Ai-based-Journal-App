@@ -4,6 +4,7 @@ import com.aijournal.auth.dto.UserSummaryResponse;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.MfaChallengeRepository;
+import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
@@ -46,6 +47,7 @@ public class AdminServiceImpl implements AdminService {
     private final RoleRepository roleRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final MfaChallengeRepository mfaChallengeRepository;
+    private final MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
     private final RestTemplate restTemplate = new RestTemplate();
     private Executor notificationExecutor = Executors.newCachedThreadPool();
 
@@ -56,11 +58,13 @@ public class AdminServiceImpl implements AdminService {
     private String notificationServiceUrl;
 
     public AdminServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
-                             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository) {
+                             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
+                             MfaRecoveryCodeRepository mfaRecoveryCodeRepository) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.mfaChallengeRepository = mfaChallengeRepository;
+        this.mfaRecoveryCodeRepository = mfaRecoveryCodeRepository;
     }
 
     @Override
@@ -128,6 +132,26 @@ public class AdminServiceImpl implements AdminService {
             mfaChallengeRepository.deleteByUser(saved);
             notifyAccountEventBestEffort(saved, "Your account was disabled by an administrator.");
         }
+        return toSummary(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserSummaryResponse resetMfa(Long targetUserId, Long callerId) {
+        if (targetUserId.equals(callerId)) {
+            // Forces an admin to use their own normal disable-2FA flow (which
+            // already has a recovery-code path) for their own account, rather
+            // than a second, weaker way to strip their own second factor.
+            throw new BadRequestException("Use the normal disable-2FA flow for your own account.");
+        }
+        User target = getUserOrThrow(targetUserId);
+        target.setMfaEnabled(false);
+        target.setTotpSecret(null);
+        User saved = userRepository.save(target);
+        mfaRecoveryCodeRepository.deleteByUser(saved);
+        mfaChallengeRepository.deleteByUser(saved);
+        notifyAccountEventBestEffort(saved,
+                "Two-factor authentication was reset by an administrator. Please set it up again if you'd like to keep using it.");
         return toSummary(saved);
     }
 

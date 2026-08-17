@@ -5,6 +5,7 @@ import SettingsModal from './SettingsModal';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';
 import { adminService } from '@/services/adminService';
+import { fileService } from '@/services/fileService';
 
 vi.mock('@/services/authService', async () => {
   const actual = await vi.importActual<typeof import('@/services/authService')>('@/services/authService');
@@ -35,6 +36,15 @@ vi.mock('@/services/adminService', () => ({
     listUsers: vi.fn(),
     updateRoles: vi.fn(),
     updateStatus: vi.fn(),
+    resetMfa: vi.fn(),
+  },
+}));
+
+vi.mock('@/services/fileService', () => ({
+  fileService: {
+    upload: vi.fn(),
+    getBlobUrl: vi.fn(),
+    remove: vi.fn(),
   },
 }));
 
@@ -51,6 +61,10 @@ const mockedUpdateProfile = vi.mocked(userService.updateProfile);
 const mockedListUsers = vi.mocked(adminService.listUsers);
 const mockedUpdateRoles = vi.mocked(adminService.updateRoles);
 const mockedUpdateStatus = vi.mocked(adminService.updateStatus);
+const mockedResetMfa = vi.mocked(adminService.resetMfa);
+const mockedUpload = vi.mocked(fileService.upload);
+const mockedGetBlobUrl = vi.mocked(fileService.getBlobUrl);
+const mockedRemove = vi.mocked(fileService.remove);
 
 // authService.isAdmin()/getCurrentUserId() decode the real stored JWT
 // (isAdmin/getCurrentUserId are NOT mocked above via `...actual.authService` -
@@ -156,6 +170,26 @@ describe('SettingsModal', () => {
     await user.click(screen.getByRole('button', { name: /Confirm Disable/ }));
 
     await waitFor(() => expect(mockedDisableMfa).toHaveBeenCalledWith('password123', '123456'));
+    expect(await screen.findByText('Disabled')).toBeInTheDocument();
+  });
+
+  it('disables 2FA using a recovery code instead of a TOTP code', async () => {
+    mockedGetMfaStatus.mockResolvedValue({ mfaEnabled: true } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await user.click(screen.getByText('Security & Sessions'));
+    await screen.findByText('Enabled');
+
+    await user.click(screen.getByRole('button', { name: 'Disable 2FA' }));
+    await user.click(screen.getByRole('button', { name: /Use a recovery code instead/ }));
+
+    const currentPasswordInputs = screen.getAllByPlaceholderText('Current password');
+    await user.type(currentPasswordInputs[currentPasswordInputs.length - 1], 'password123');
+    await user.type(screen.getByPlaceholderText('Recovery code'), 'AAAAA-11111');
+    await user.click(screen.getByRole('button', { name: /Confirm Disable/ }));
+
+    await waitFor(() => expect(mockedDisableMfa).toHaveBeenCalledWith('password123', undefined, 'AAAAA-11111'));
     expect(await screen.findByText('Disabled')).toBeInTheDocument();
   });
 
@@ -375,6 +409,57 @@ describe('SettingsModal', () => {
     expect(await screen.findByRole('button', { name: 'Enable' })).toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     expect(mockedUpdateStatus).toHaveBeenCalledWith(2, false);
+  });
+
+  it('shows a Reset 2FA button only for a user with MFA enabled, and lets an admin reset it', async () => {
+    seedFakeJwt({ userId: 1, roles: ['ROLE_USER', 'ROLE_ADMIN'] });
+    mockedListUsers.mockResolvedValue({
+      data: {
+        data: {
+          content: [
+            { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true, mfaEnabled: true },
+            { id: 3, username: 'carol', email: 'carol@example.com', roles: ['ROLE_USER'], enabled: true, mfaEnabled: false },
+          ],
+        },
+      },
+    } as any);
+    mockedResetMfa.mockResolvedValue({
+      data: { data: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['ROLE_USER'], enabled: true, mfaEnabled: false } },
+    } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await user.click(screen.getByText('Admin'));
+    await screen.findByText(/bob@example.com/);
+
+    // Only bob (mfaEnabled) gets a Reset 2FA button - carol doesn't have one.
+    expect(screen.getAllByRole('button', { name: 'Reset 2FA' })).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'Reset 2FA' }));
+
+    expect(mockedResetMfa).toHaveBeenCalledWith(2);
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Reset 2FA' })).not.toBeInTheDocument());
+  });
+
+  it('uploads a new avatar and best-effort deletes the old one', async () => {
+    mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '', avatarUrl: 'user-1/old.png' } as any);
+    mockedGetBlobUrl.mockResolvedValue('blob:old-preview');
+    mockedUpload.mockResolvedValue({ filePath: 'user-1/new.png' } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/old.png'));
+
+    mockedGetBlobUrl.mockResolvedValue('blob:new-preview');
+    const file = new File(['avatar-bytes'], 'avatar.png', { type: 'image/png' });
+    const fileInput = document.querySelector('input[type="file"]')!;
+    await user.upload(fileInput as HTMLInputElement, file);
+
+    await waitFor(() => expect(mockedUpload).toHaveBeenCalledWith(file));
+    await waitFor(() => expect(mockedRemove).toHaveBeenCalledWith('user-1/old.png'));
+    await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/new.png'));
   });
 
   it('calls onClose when the close button is clicked', async () => {

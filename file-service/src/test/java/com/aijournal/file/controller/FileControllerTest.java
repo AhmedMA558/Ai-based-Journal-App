@@ -65,4 +65,24 @@ class FileControllerTest {
         assertThatThrownBy(() -> fileController.downloadFile(5L, "user-55/secret.jpg"))
                 .isInstanceOf(ForbiddenException.class);
     }
+
+    @Test
+    void deleteFile_OwnPrefixedPath_Succeeds() {
+        ResponseEntity<?> response = fileController.deleteFile(5L, "user-5/old-avatar.jpg");
+
+        assertThat(response.getStatusCode().value()).isEqualTo(200);
+        verify(fileStorageStrategy).deleteFile("user-5/old-avatar.jpg");
+    }
+
+    @Test
+    void deleteFile_AnotherUsersPrefix_ThrowsForbidden() {
+        assertThatThrownBy(() -> fileController.deleteFile(5L, "user-6/secret.jpg"))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void deleteFile_PathTraversalAttempt_ThrowsForbidden() {
+        assertThatThrownBy(() -> fileController.deleteFile(5L, "user-5/../user-6/secret.jpg"))
+                .isInstanceOf(ForbiddenException.class);
+    }
 }

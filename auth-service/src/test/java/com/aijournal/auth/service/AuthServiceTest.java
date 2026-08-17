@@ -548,6 +548,21 @@ class AuthServiceTest {
     }
 
     @Test
+    void setupMfa_AlreadyEnabled_ThrowsBadRequestWithoutOverwritingSecret() {
+        // Without this guard, a stray re-call (double-submit, stale page
+        // reload) would silently overwrite the working secret without ever
+        // disabling MFA - a self-inflicted lockout shaped exactly like losing
+        // the authenticator device.
+        User user = mfaUser(true, "encryptedSecret");
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        assertThrows(BadRequestException.class, () -> authService.setupMfa(1L));
+        assertEquals("encryptedSecret", user.getTotpSecret());
+        verify(userRepository, never()).save(any(User.class));
+        verifyNoInteractions(totpService);
+    }
+
+    @Test
     void enableMfa_ValidCode_SetsEnabledAndReturnsTenRecoveryCodes() {
         User user = mfaUser(false, "encryptedSecret");
         MfaEnableRequest request = new MfaEnableRequest();
@@ -614,6 +629,61 @@ class AuthServiceTest {
         assertNull(user.getTotpSecret());
         verify(mfaRecoveryCodeRepository, times(1)).deleteByUser(user);
         verify(mfaChallengeRepository, times(1)).deleteByUser(user);
+    }
+
+    @Test
+    void disableMfa_ValidRecoveryCode_ClearsSecretWithoutRequiringTotpCode() {
+        // A user who already fell back to a recovery code to log in (lost
+        // their authenticator device) must still be able to disable MFA -
+        // previously disableMfa() only ever accepted a live TOTP code.
+        User user = mfaUser(true, "encryptedSecret");
+        MfaDisableRequest request = new MfaDisableRequest();
+        request.setPassword("password123");
+        request.setRecoveryCode("ABCDE-12345");
+
+        MfaRecoveryCode recoveryCode = new MfaRecoveryCode(1L, user, "hashedCode");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
+        when(mfaRecoveryCodeRepository.findByUserAndUsedFalse(user)).thenReturn(List.of(recoveryCode));
+        when(passwordEncoder.matches("ABCDE-12345", "hashedCode")).thenReturn(true);
+
+        authService.disableMfa(1L, request);
+
+        assertFalse(user.getMfaEnabled());
+        assertNull(user.getTotpSecret());
+        assertTrue(recoveryCode.getUsed());
+        verifyNoInteractions(totpService, totpEncryptionService);
+        verify(mfaRecoveryCodeRepository, times(1)).deleteByUser(user);
+    }
+
+    @Test
+    void disableMfa_BothCodeAndRecoveryCodeProvided_ThrowsBadRequest() {
+        User user = mfaUser(true, "encryptedSecret");
+        MfaDisableRequest request = new MfaDisableRequest();
+        request.setPassword("password123");
+        request.setCode("123456");
+        request.setRecoveryCode("ABCDE-12345");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> authService.disableMfa(1L, request));
+        assertTrue(user.getMfaEnabled());
+        verifyNoInteractions(totpService, totpEncryptionService);
+    }
+
+    @Test
+    void disableMfa_NeitherCodeNorRecoveryCodeProvided_ThrowsUnauthorized() {
+        User user = mfaUser(true, "encryptedSecret");
+        MfaDisableRequest request = new MfaDisableRequest();
+        request.setPassword("password123");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
+
+        assertThrows(UnauthorizedException.class, () -> authService.disableMfa(1L, request));
+        assertTrue(user.getMfaEnabled());
     }
 
     @Test
