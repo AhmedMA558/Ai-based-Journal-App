@@ -2,7 +2,7 @@ import axios from 'axios';
 import api from './api';
 import { session } from './session';
 import { API_BASE_URL } from '@/config/env';
-import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult } from '@/types';
+import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult, LoginHistoryPage } from '@/types';
 
 // Dedicated instance for the refresh call - bypasses api.ts's interceptors so a
 // refresh failure can't recursively trigger another refresh attempt, matching
@@ -66,6 +66,11 @@ export const authService = {
   async getMfaStatus(): Promise<{ mfaEnabled: boolean }> {
     const res = await api.get('/api/v1/auth/mfa/status');
     return res?.data?.data || { mfaEnabled: false };
+  },
+
+  async getLoginHistory(page = 0, size = 10): Promise<LoginHistoryPage> {
+    const res = await api.get(`/api/v1/auth/login-history?page=${page}&size=${size}`);
+    return res?.data?.data || { content: [] };
   },
 
   // Generates (and persists, but does not yet enable) a new TOTP secret -

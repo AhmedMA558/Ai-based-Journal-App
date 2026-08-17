@@ -3,10 +3,14 @@ package com.aijournal.auth.controller;
 import com.aijournal.auth.dto.*;
 import com.aijournal.auth.service.AuthService;
 import com.aijournal.common.dto.ApiResponse;
+import com.aijournal.common.dto.PagedResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +26,13 @@ public class AuthController {
         this.authService = authService;
     }
 
+    // X-Real-IP is set by gateway-service's ClientIpHeaderFilter on every
+    // proxied request; getRemoteAddr() is the fallback for local/non-gateway dev.
+    private String resolveClientIp(HttpServletRequest request) {
+        String realIp = request.getHeader("X-Real-IP");
+        return realIp != null ? realIp : request.getRemoteAddr();
+    }
+
     @PostMapping("/register")
     @Operation(summary = "Register a new user account")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
@@ -32,16 +43,26 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Authenticate user and receive JWT tokens, or an MFA challenge if 2FA is enabled")
-    public ResponseEntity<ApiResponse<Object>> login(@Valid @RequestBody LoginRequest request) {
-        Object response = authService.login(request);
+    public ResponseEntity<ApiResponse<Object>> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        Object response = authService.login(request, resolveClientIp(httpRequest), httpRequest.getHeader("User-Agent"));
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
     }
 
     @PostMapping("/mfa/verify")
     @Operation(summary = "Complete login by verifying a TOTP code or recovery code against an MFA challenge")
-    public ResponseEntity<ApiResponse<AuthResponse>> verifyMfa(@Valid @RequestBody MfaVerifyRequest request) {
-        AuthResponse response = authService.verifyMfa(request);
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyMfa(@Valid @RequestBody MfaVerifyRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.verifyMfa(request, resolveClientIp(httpRequest), httpRequest.getHeader("User-Agent"));
         return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+    }
+
+    @GetMapping("/login-history")
+    @Operation(summary = "List the authenticated user's own recent login attempts, newest first")
+    public ResponseEntity<ApiResponse<PagedResponse<LoginHistoryResponse>>> getLoginHistory(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        return ResponseEntity.ok(ApiResponse.success(authService.getLoginHistory(userId, pageable)));
     }
 
     @PostMapping("/refresh")

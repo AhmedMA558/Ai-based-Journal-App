@@ -1,6 +1,6 @@
 import { session } from '@/services/session';
 import { mockUser, mockMfaUser, MOCK_MFA_CODE, type MockUser } from './fixtures';
-import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult } from '@/types';
+import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult, LoginHistoryPage } from '@/types';
 
 // Mirrors the real authService's exported function signatures exactly (see
 // services/authService.ts) so screens/services/index.ts can swap between the two
@@ -141,6 +141,15 @@ export const mockAuthService = {
 
   async getMfaStatus(): Promise<{ mfaEnabled: boolean }> {
     return delay({ mfaEnabled: await effectiveMfaEnabled() });
+  },
+
+  async getLoginHistory(): Promise<LoginHistoryPage> {
+    return delay({
+      content: [
+        { id: 1, loginTime: new Date().toISOString(), ipAddress: '203.0.113.42', userAgent: 'Mindora/1.0 (Android)', status: 'SUCCESS' },
+        { id: 2, loginTime: new Date(Date.now() - 86400000).toISOString(), ipAddress: '203.0.113.42', userAgent: 'Mindora/1.0 (Android)', status: 'SUCCESS' },
+      ],
+    });
   },
 
   async setupMfa(): Promise<MfaSetupData> {

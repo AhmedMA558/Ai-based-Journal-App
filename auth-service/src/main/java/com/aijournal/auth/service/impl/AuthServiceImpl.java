@@ -2,6 +2,7 @@ package com.aijournal.auth.service.impl;
 
 import com.aijournal.auth.dto.*;
 import com.aijournal.auth.entity.EmailVerificationToken;
+import com.aijournal.auth.entity.LoginHistory;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
 import com.aijournal.auth.entity.PasswordResetToken;
@@ -9,6 +10,7 @@ import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.EmailVerificationTokenRepository;
+import com.aijournal.auth.repository.LoginHistoryRepository;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.PasswordResetTokenRepository;
@@ -16,8 +18,10 @@ import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
 import com.aijournal.auth.service.AuthService;
+import com.aijournal.auth.service.LoginHistoryRecorder;
 import com.aijournal.auth.service.TotpEncryptionService;
 import com.aijournal.auth.service.TotpService;
+import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.exception.BadRequestException;
 import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.common.exception.ResourceNotFoundException;
@@ -28,6 +32,9 @@ import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -55,6 +62,8 @@ public class AuthServiceImpl implements AuthService {
     private static final int PASSWORD_RESET_TTL_MINUTES = 30;
     private static final int EMAIL_VERIFICATION_TTL_HOURS = 24;
     private static final int SYSTEM_TOKEN_TTL_SECONDS = 60;
+    private static final String REGISTRATION_FAILED_MESSAGE =
+            "Registration failed. Please choose a different username or use a different email address.";
     private static final SecureRandom RECOVERY_CODE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
@@ -64,6 +73,8 @@ public class AuthServiceImpl implements AuthService {
     private final MfaRecoveryCodeRepository mfaRecoveryCodeRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailVerificationTokenRepository emailVerificationTokenRepository;
+    private final LoginHistoryRepository loginHistoryRepository;
+    private final LoginHistoryRecorder loginHistoryRecorder;
     private final PasswordEncoder passwordEncoder;
     private final TotpService totpService;
     private final TotpEncryptionService totpEncryptionService;
@@ -93,7 +104,8 @@ public class AuthServiceImpl implements AuthService {
     public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
             MfaRecoveryCodeRepository mfaRecoveryCodeRepository, PasswordResetTokenRepository passwordResetTokenRepository,
-            EmailVerificationTokenRepository emailVerificationTokenRepository,
+            EmailVerificationTokenRepository emailVerificationTokenRepository, LoginHistoryRepository loginHistoryRepository,
+            LoginHistoryRecorder loginHistoryRecorder,
             PasswordEncoder passwordEncoder, TotpService totpService, TotpEncryptionService totpEncryptionService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
@@ -102,6 +114,8 @@ public class AuthServiceImpl implements AuthService {
         this.mfaRecoveryCodeRepository = mfaRecoveryCodeRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.emailVerificationTokenRepository = emailVerificationTokenRepository;
+        this.loginHistoryRepository = loginHistoryRepository;
+        this.loginHistoryRecorder = loginHistoryRecorder;
         this.passwordEncoder = passwordEncoder;
         this.totpService = totpService;
         this.totpEncryptionService = totpEncryptionService;
@@ -110,11 +124,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BadRequestException("Username is already taken");
-        }
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email is already in use");
+        // A single generic message for both collisions - telling the caller
+        // specifically which of username/email is already taken is an
+        // enumeration oracle (can be probed at speed to confirm whether a
+        // given email is a real account), the same class of leak
+        // forgotPassword() was already hardened against.
+        if (userRepository.existsByUsername(request.getUsername()) || userRepository.existsByEmail(request.getEmail())) {
+            throw new BadRequestException(REGISTRATION_FAILED_MESSAGE);
         }
 
         Role userRole = roleRepository.findByName(Role.RoleName.ROLE_USER)
@@ -135,7 +151,18 @@ public class AuthServiceImpl implements AuthService {
                 null,
                 roles);
 
-        User savedUser = userRepository.save(user);
+        User savedUser;
+        try {
+            savedUser = userRepository.save(user);
+        } catch (DataIntegrityViolationException e) {
+            // The existsByUsername/existsByEmail check above and this save()
+            // aren't atomic - two concurrent registrations with the same
+            // username/email can both pass the check before either commits,
+            // and the DB's own unique constraint rejects the second insert.
+            // Surface it as the same clean 400 every other duplicate path
+            // returns, not an opaque 500.
+            throw new BadRequestException(REGISTRATION_FAILED_MESSAGE);
+        }
         AuthResponse response = generateTokensForUser(savedUser);
         sendWelcomeEmailBestEffort(savedUser);
         sendEmailVerificationBestEffort(savedUser);
@@ -245,20 +272,27 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public Object login(LoginRequest request) {
+    public Object login(LoginRequest request, String ipAddress, String userAgent) {
+        // An unresolvable username/email is deliberately never recorded -
+        // login_history.user_id is NOT NULL, so there's no real account to
+        // attach a row to, and "login history" is inherently per-account.
         User user = userRepository.findByUsername(request.getUsernameOrEmail())
                 .orElseGet(() -> userRepository.findByEmail(request.getUsernameOrEmail())
                         .orElseThrow(() -> new UnauthorizedException("Invalid username/email or password")));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "FAILED");
             throw new UnauthorizedException("Invalid username/email or password");
         }
 
         if (!Boolean.TRUE.equals(user.getEnabled())) {
+            loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "FAILED");
             throw new ForbiddenException("This account has been disabled.");
         }
 
         if (Boolean.TRUE.equals(user.getMfaEnabled())) {
+            // Not logged yet - the login isn't complete until verifyMfa()
+            // succeeds, which is where the eventual SUCCESS/FAILED is recorded.
             String challengeToken = UUID.randomUUID().toString();
             MfaChallenge challenge = new MfaChallenge(null, user, challengeToken,
                     Instant.now().plus(MFA_CHALLENGE_TTL_MINUTES, ChronoUnit.MINUTES));
@@ -266,12 +300,13 @@ public class AuthServiceImpl implements AuthService {
             return new MfaChallengeResponse(challengeToken, "Enter your 6-digit authenticator code");
         }
 
+        loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "SUCCESS");
         return generateTokensForUser(user);
     }
 
     @Override
     @Transactional
-    public AuthResponse verifyMfa(MfaVerifyRequest request) {
+    public AuthResponse verifyMfa(MfaVerifyRequest request, String ipAddress, String userAgent) {
         MfaChallenge challenge = mfaChallengeRepository.findByChallengeToken(request.getChallengeToken())
                 .orElseThrow(() -> new UnauthorizedException("Invalid or expired challenge"));
 
@@ -306,11 +341,30 @@ public class AuthServiceImpl implements AuthService {
         }
 
         if (!verified) {
+            loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "FAILED");
             throw new UnauthorizedException("Invalid verification code");
         }
 
         mfaChallengeRepository.delete(challenge);
+        loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "SUCCESS");
         return generateTokensForUser(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PagedResponse<LoginHistoryResponse> getLoginHistory(Long userId, Pageable pageable) {
+        Page<LoginHistory> page = loginHistoryRepository.findByUser_IdOrderByLoginTimeDesc(userId, pageable);
+        return new PagedResponse<>(
+                page.getContent().stream()
+                        .map(h -> new LoginHistoryResponse(h.getId(), h.getLoginTime(), h.getIpAddress(), h.getUserAgent(), h.getStatus()))
+                        .toList(),
+                page.getNumber(),
+                page.getSize(),
+                page.getTotalElements(),
+                page.getTotalPages(),
+                page.isLast(),
+                page.isFirst()
+        );
     }
 
     @Override

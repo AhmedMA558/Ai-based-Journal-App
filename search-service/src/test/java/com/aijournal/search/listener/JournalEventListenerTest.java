@@ -32,8 +32,12 @@ class JournalEventListenerTest {
     private JournalEventListener listener;
 
     @Test
-    void handleJournalCreated_SeedsNeutralMoodAndEmptyTags() {
-        JournalCreatedEvent event = new JournalCreatedEvent(1L, 2L, "Title", "Content", "Home", "Sunny", LocalDateTime.now());
+    void handleJournalCreated_UsesRealMoodAndTagsFromEvent_NotHardcodedNeutral() {
+        // Regression guard: mood/tags used to be entirely absent from this
+        // event, so every indexed document was hardcoded to NEUTRAL/[]
+        // regardless of the journal's real mood/tags - mood/tag search
+        // filters returned zero results, always.
+        JournalCreatedEvent event = new JournalCreatedEvent(1L, 2L, "Title", "Content", "EXCITED", List.of("travel", "gratitude"), "Home", "Sunny", LocalDateTime.now());
 
         listener.handleJournalCreated(event);
 
@@ -41,23 +45,41 @@ class JournalEventListenerTest {
         verify(journalSearchRepository).save(captor.capture());
         assertThat(captor.getValue().getJournalId()).isEqualTo(1L);
         assertThat(captor.getValue().getTitle()).isEqualTo("Title");
+        assertThat(captor.getValue().getMood()).isEqualTo("EXCITED");
+        assertThat(captor.getValue().getTags()).containsExactly("travel", "gratitude");
+    }
+
+    @Test
+    void handleJournalCreated_NullMoodAndTagsOnEvent_FallsBackToNeutralAndEmpty() {
+        // Defensive fallback only - a real journal-service-published event
+        // always carries real values now, but a null-safe default is still
+        // worth keeping rather than NPEing on a malformed/legacy message.
+        JournalCreatedEvent event = new JournalCreatedEvent(1L, 2L, "Title", "Content", null, null, "Home", "Sunny", LocalDateTime.now());
+
+        listener.handleJournalCreated(event);
+
+        ArgumentCaptor<JournalDocument> captor = ArgumentCaptor.forClass(JournalDocument.class);
+        verify(journalSearchRepository).save(captor.capture());
         assertThat(captor.getValue().getMood()).isEqualTo("NEUTRAL");
         assertThat(captor.getValue().getTags()).isEmpty();
     }
 
     @Test
     void handleJournalCreated_RepositoryThrows_ExceptionIsSwallowed() {
-        JournalCreatedEvent event = new JournalCreatedEvent(1L, 2L, "Title", "Content", null, null, LocalDateTime.now());
+        JournalCreatedEvent event = new JournalCreatedEvent(1L, 2L, "Title", "Content", null, null, null, null, LocalDateTime.now());
         doThrow(new RuntimeException("ES down")).when(journalSearchRepository).save(any());
 
         assertThatCode(() -> listener.handleJournalCreated(event)).doesNotThrowAnyException();
     }
 
     @Test
-    void handleJournalUpdated_ExistingDocument_MergesTitleAndContentPreservingMoodAndTags() {
+    void handleJournalUpdated_ExistingDocument_MergesTitleContentMoodAndTagsFromEvent() {
+        // Regression guard: the update handler previously never touched
+        // mood/tags at all, so an existing indexed document's mood/tags
+        // could never change even once a journal's real mood/tags did.
         JournalDocument existing = new JournalDocument("1", 1L, 2L, "Old Title", "Old Content", "HAPPY", List.of("travel"), "2024-01-01T00:00:00");
         when(journalSearchRepository.findById("1")).thenReturn(Optional.of(existing));
-        JournalUpdatedEvent event = new JournalUpdatedEvent(1L, 2L, "New Title", "New Content", LocalDateTime.now());
+        JournalUpdatedEvent event = new JournalUpdatedEvent(1L, 2L, "New Title", "New Content", "SAD", List.of("work"), LocalDateTime.now());
 
         listener.handleJournalUpdated(event);
 
@@ -65,28 +87,29 @@ class JournalEventListenerTest {
         verify(journalSearchRepository).save(captor.capture());
         assertThat(captor.getValue().getTitle()).isEqualTo("New Title");
         assertThat(captor.getValue().getContent()).isEqualTo("New Content");
-        assertThat(captor.getValue().getMood()).isEqualTo("HAPPY");
-        assertThat(captor.getValue().getTags()).containsExactly("travel");
+        assertThat(captor.getValue().getMood()).isEqualTo("SAD");
+        assertThat(captor.getValue().getTags()).containsExactly("work");
     }
 
     @Test
-    void handleJournalUpdated_NoExistingDocument_FindOrCreatesWithNeutralDefaults() {
+    void handleJournalUpdated_NoExistingDocument_FindOrCreatesWithRealMoodAndTags() {
         when(journalSearchRepository.findById("5")).thenReturn(Optional.empty());
-        JournalUpdatedEvent event = new JournalUpdatedEvent(5L, 2L, "Title", "Content", LocalDateTime.now());
+        JournalUpdatedEvent event = new JournalUpdatedEvent(5L, 2L, "Title", "Content", "CALM", List.of("meditation"), LocalDateTime.now());
 
         listener.handleJournalUpdated(event);
 
         ArgumentCaptor<JournalDocument> captor = ArgumentCaptor.forClass(JournalDocument.class);
         verify(journalSearchRepository).save(captor.capture());
         assertThat(captor.getValue().getJournalId()).isEqualTo(5L);
-        assertThat(captor.getValue().getMood()).isEqualTo("NEUTRAL");
         assertThat(captor.getValue().getTitle()).isEqualTo("Title");
+        assertThat(captor.getValue().getMood()).isEqualTo("CALM");
+        assertThat(captor.getValue().getTags()).containsExactly("meditation");
     }
 
     @Test
     void handleJournalUpdated_RepositoryThrows_ExceptionIsSwallowed() {
         when(journalSearchRepository.findById(eq("1"))).thenThrow(new RuntimeException("ES down"));
-        JournalUpdatedEvent event = new JournalUpdatedEvent(1L, 2L, "Title", "Content", LocalDateTime.now());
+        JournalUpdatedEvent event = new JournalUpdatedEvent(1L, 2L, "Title", "Content", null, null, LocalDateTime.now());
 
         assertThatCode(() -> listener.handleJournalUpdated(event)).doesNotThrowAnyException();
     }

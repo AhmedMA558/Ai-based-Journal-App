@@ -26,17 +26,19 @@ spring:
             allowedHeaders: "*"
             allowCredentials: true
       routes:
-        # Split from the general auth-service route below so the four
-        # unauthenticated, brute-forceable endpoints get a real rate limit
-        # while everything else under /api/v1/auth/** (e.g. /me, /password,
-        # /mfa/status) stays unthrottled. order: -1 guarantees this route is
-        # matched first for these paths regardless of declaration-order
-        # edge cases in Spring Cloud Gateway's route locator.
+        # Split from the general auth-service route below so the five
+        # unauthenticated, brute-forceable/probeable endpoints get a real
+        # rate limit while everything else under /api/v1/auth/** (e.g. /me,
+        # /password, /mfa/status) stays unthrottled. order: -1 guarantees
+        # this route is matched first for these paths regardless of
+        # declaration-order edge cases in Spring Cloud Gateway's route
+        # locator. register is included here too - unlimited-speed calls
+        # let an attacker probe usernames/emails against real accounts.
         - id: auth-service-sensitive
           uri: http://auth-service:8081
           order: -1
           predicates:
-            - Path=/api/v1/auth/login,/api/v1/auth/mfa/verify,/api/v1/auth/password/forgot,/api/v1/auth/password/reset
+            - Path=/api/v1/auth/login,/api/v1/auth/register,/api/v1/auth/mfa/verify,/api/v1/auth/password/forgot,/api/v1/auth/password/reset
           filters:
             - name: JwtAuthenticationFilter
             - name: RequestRateLimiter

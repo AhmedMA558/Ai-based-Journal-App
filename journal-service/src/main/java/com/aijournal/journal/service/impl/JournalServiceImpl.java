@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 @Service
@@ -77,6 +78,8 @@ public class JournalServiceImpl implements JournalService {
                     saved.getUserId(),
                     saved.getTitle(),
                     saved.getContent(),
+                    saved.getMood(),
+                    new ArrayList<>(saved.getTags()),
                     saved.getLocation(),
                     saved.getWeather(),
                     LocalDateTime.now()
@@ -94,7 +97,13 @@ public class JournalServiceImpl implements JournalService {
     public Journal updateJournal(Long userId, Long journalId, Journal updated) {
         Long activeUserId = userId != null ? userId : 1L;
         Journal existing = findOwnedJournal(activeUserId, journalId);
-        existing.setTitle(updated.getTitle());
+        // title is NOT NULL - a partial-update payload that omits it must leave
+        // the existing title untouched rather than null the column at flush time,
+        // matching the skip-if-null convention already used below for
+        // isDraft/folderId/categoryId.
+        if (updated.getTitle() != null) {
+            existing.setTitle(updated.getTitle());
+        }
         // A partial-update payload that omits content entirely (updated.getContent()
         // == null) must leave the existing content untouched rather than crash -
         // journalEncryptionService.encrypt(null) would NPE. Matches the
@@ -125,6 +134,8 @@ public class JournalServiceImpl implements JournalService {
                     saved.getUserId(),
                     saved.getTitle(),
                     saved.getContent(),
+                    saved.getMood(),
+                    new ArrayList<>(saved.getTags()),
                     LocalDateTime.now()
             );
             rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_UPDATED, event);

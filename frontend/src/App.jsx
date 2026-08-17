@@ -12,6 +12,7 @@ import Toast from './components/Toast';
 import { authService } from './services/authService';
 import { journalService } from './services/journalService';
 import { notificationService } from './services/notificationService';
+import { userService } from './services/userService';
 
 function EditJournalRoute({ onSaveSuccess, showToast }) {
   const { journalId } = useParams();
@@ -78,6 +79,23 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Reconciles the localStorage-seeded initial theme (no flash-of-wrong-theme
+  // on load) with the real cross-device preference once it's fetched - the
+  // server value wins if they differ. userService.getPreferences already
+  // get-or-creates a row server-side, so this never 404s for a first-time user.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    userService.getPreferences()
+      .then((preferences) => {
+        const serverTheme = preferences?.darkMode === false ? 'light' : 'dark';
+        setTheme((prev) => (prev === serverTheme ? prev : serverTheme));
+      })
+      .catch(() => {
+        // Fail soft - localStorage's value keeps driving the theme.
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated]);
 
   // Fetches notifications, guarded against a stale response landing after a
   // fresher one (request-id-ref pattern, same shape as AnalyticsView's own
@@ -168,7 +186,14 @@ export default function App() {
   }, []);
 
   const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      // Best-effort, fire-and-forget - a failed sync must never block the
+      // toggle itself; localStorage (already updated by the effect above)
+      // keeps this tab correct regardless.
+      userService.updatePreferences({ darkMode: next === 'dark' }).catch(() => {});
+      return next;
+    });
   };
 
   const showToast = (message, type = 'info') => {

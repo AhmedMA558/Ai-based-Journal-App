@@ -113,6 +113,28 @@ class UserServiceTest {
     }
 
     @Test
+    void updatePreferences_PartialUpdate_LeavesOmittedFieldsUnchanged() {
+        // Regression guard: a partial PUT (e.g. {"darkMode": false}, the only
+        // shape any real caller sends today) used to null out every other
+        // NOT NULL column it omitted instead of leaving them untouched.
+        UserPreferences existing = new UserPreferences(5L, true, "America/Chicago", "en", true, true, "20:00");
+        when(userPreferencesRepository.findById(5L)).thenReturn(Optional.of(existing));
+        when(userPreferencesRepository.save(any(UserPreferences.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserPreferences partialUpdate = new UserPreferences();
+        partialUpdate.setDarkMode(false);
+
+        UserPreferences result = userService.updatePreferences(5L, partialUpdate);
+
+        assertThat(result.getDarkMode()).isFalse();
+        assertThat(result.getTimeZone()).isEqualTo("America/Chicago");
+        assertThat(result.getLanguage()).isEqualTo("en");
+        assertThat(result.getEmailNotifications()).isTrue();
+        assertThat(result.getPushNotifications()).isTrue();
+        assertThat(result.getDailyReminderTime()).isEqualTo("20:00");
+    }
+
+    @Test
     void deleteUserAccount_DeletesFromBothRepositories() {
         when(userProfileRepository.existsById(6L)).thenReturn(true);
         when(userPreferencesRepository.existsById(6L)).thenReturn(true);

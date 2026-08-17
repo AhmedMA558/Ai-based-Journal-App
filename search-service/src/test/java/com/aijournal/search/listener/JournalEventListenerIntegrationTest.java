@@ -59,13 +59,14 @@ class JournalEventListenerIntegrationTest {
         when(journalSearchRepository.save(org.mockito.ArgumentMatchers.any(JournalDocument.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        JournalCreatedEvent event = new JournalCreatedEvent(10L, 20L, "Real Title", "Real Content", null, null, LocalDateTime.now());
+        JournalCreatedEvent event = new JournalCreatedEvent(10L, 20L, "Real Title", "Real Content", "PROUD", java.util.List.of("milestone"), null, null, LocalDateTime.now());
         rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_CREATED, event);
 
         verify(journalSearchRepository, timeout(10_000)).save(argThat(doc ->
                 doc.getJournalId().equals(10L)
                         && "Real Title".equals(doc.getTitle())
-                        && "NEUTRAL".equals(doc.getMood())
+                        && "PROUD".equals(doc.getMood())
+                        && doc.getTags().contains("milestone")
         ));
     }
 }
