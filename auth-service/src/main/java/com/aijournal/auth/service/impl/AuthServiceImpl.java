@@ -371,6 +371,14 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public MfaSetupResponse setupMfa(Long userId) {
         User user = getUserOrThrow(userId);
+        if (Boolean.TRUE.equals(user.getMfaEnabled())) {
+            // Without this guard, a stray re-call (double-submit, stale "Set up
+            // 2FA" page reload) would silently overwrite the working secret
+            // without ever disabling MFA - locking the user out exactly like
+            // losing their authenticator device would, since the old secret
+            // their app is still configured with would stop matching.
+            throw new BadRequestException("MFA is already enabled. Disable it first to re-enroll.");
+        }
         String secret = totpService.generateSecret();
         user.setTotpSecret(totpEncryptionService.encrypt(secret));
         userRepository.save(user);
@@ -415,8 +423,26 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("MFA is not enabled");
         }
 
-        String decryptedSecret = totpEncryptionService.decrypt(user.getTotpSecret());
-        if (!totpService.verify(decryptedSecret, request.getCode())) {
+        // A recovery code is accepted here too, same either/or shape as
+        // verifyMfa() - a user who already fell back to a recovery code to log
+        // in (lost their authenticator device) would otherwise have no way to
+        // ever disable MFA. The password check above still applies either way;
+        // the recovery code only replaces the TOTP-code verification.
+        if (StringUtils.hasText(request.getCode()) && StringUtils.hasText(request.getRecoveryCode())) {
+            throw new BadRequestException("Provide either a code or a recovery code, not both.");
+        }
+
+        boolean verified;
+        if (StringUtils.hasText(request.getCode())) {
+            String decryptedSecret = totpEncryptionService.decrypt(user.getTotpSecret());
+            verified = totpService.verify(decryptedSecret, request.getCode());
+        } else if (StringUtils.hasText(request.getRecoveryCode())) {
+            verified = consumeRecoveryCode(user, request.getRecoveryCode());
+        } else {
+            verified = false;
+        }
+
+        if (!verified) {
             throw new UnauthorizedException("Invalid verification code");
         }
 

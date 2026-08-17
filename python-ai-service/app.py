@@ -141,6 +141,74 @@ def mood():
         }
     }), 200
 
+# Independent word lists from /mood's mood-category lists, scoped specifically
+# to sentiment polarity (positive/negative), not mood category.
+POSITIVE_SENTIMENT_WORDS = ['happy', 'glad', 'great', 'good', 'love', 'excited', 'grateful',
+    'thankful', 'wonderful', 'amazing', 'joy', 'proud', 'relaxed', 'calm', 'peaceful',
+    'blessed', 'hopeful', 'excellent', 'fantastic', 'awesome', 'enjoy', 'delighted']
+NEGATIVE_SENTIMENT_WORDS = ['sad', 'angry', 'upset', 'terrible', 'horrible', 'hate', 'furious',
+    'stressed', 'anxious', 'worried', 'awful', 'bad', 'miserable', 'lonely', 'hurt',
+    'disappointed', 'frustrated', 'exhausted', 'overwhelmed', 'grief', 'tears', 'worst']
+
+# 2b. Real-time Sentiment Polarity Engine - a distinct classification from
+# /mood (mood category vs. simple positive/negative/neutral polarity), used to
+# populate mood_history.sentiment/sentiment_score. Same HuggingFace-then-keyword
+# two-tier shape as /mood.
+@app.route('/api/v1/ai/sentiment', methods=['POST'])
+def sentiment():
+    data = request.get_json() or {}
+    content = data.get('content', '').lower()
+    if not content:
+        return jsonify({"success": False, "message": "Content is required"}), 400
+
+    if HF_API_KEY:
+        try:
+            hf_url = "https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english"
+            headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+            res = requests.post(hf_url, headers=headers, json={"inputs": content[:512]}, timeout=3)
+            if res.status_code == 200:
+                hf_res = res.json()
+                if isinstance(hf_res, list) and len(hf_res) > 0:
+                    top = hf_res[0][0]
+                    label = "POSITIVE" if top['label'].upper() == "POSITIVE" else "NEGATIVE"
+                    return jsonify({
+                        "success": True,
+                        "data": {
+                            "sentiment": label,
+                            "score": round(float(top['score']), 4),
+                            "provider": "huggingface-distilbert"
+                        }
+                    }), 200
+        except Exception:
+            pass
+
+    positive_hits = sum(1 for w in POSITIVE_SENTIMENT_WORDS if w in content)
+    negative_hits = sum(1 for w in NEGATIVE_SENTIMENT_WORDS if w in content)
+    total_hits = positive_hits + negative_hits
+
+    if total_hits == 0:
+        sentiment_label = "NEUTRAL"
+        score = 0.5
+    elif positive_hits > negative_hits:
+        sentiment_label = "POSITIVE"
+        score = round(positive_hits / total_hits, 4)
+    elif negative_hits > positive_hits:
+        sentiment_label = "NEGATIVE"
+        score = round(negative_hits / total_hits, 4)
+    else:
+        sentiment_label = "NEUTRAL"
+        score = 0.5
+
+    return jsonify({
+        "success": True,
+        "message": "Sentiment analyzed via Python AI Engine",
+        "data": {
+            "sentiment": sentiment_label,
+            "score": score,
+            "provider": "python-flask-ai"
+        }
+    }), 200
+
 # 3. Real-time AI Rephrasing Engine
 @app.route('/api/v1/ai/rephrase', methods=['POST'])
 def rephrase():

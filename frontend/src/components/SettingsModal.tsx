@@ -1,11 +1,12 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, ShieldCheck, Palette, Server, AlertCircle, Users } from 'lucide-react';
+import { X, User, ShieldCheck, Palette, Server, AlertCircle, Users, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
 import { userService } from '@/services/userService';
 import { adminService } from '@/services/adminService';
+import { fileService } from '@/services/fileService';
 import ThemeCustomizer from './ThemeCustomizer';
 
 type SettingsTab = 'profile' | 'security' | 'appearance' | 'services' | 'admin';
@@ -124,6 +125,11 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const avatarObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -146,6 +152,66 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
       cancelled = true;
     };
   }, [isOpen]);
+
+  // Fetches and displays the current avatar as an object URL - the download
+  // endpoint requires a bearer token a plain <img src> can't attach. Revokes
+  // the previous object URL before creating a new one so replacing/clearing
+  // the avatar doesn't leak blob URLs.
+  useEffect(() => {
+    let cancelled = false;
+    if (!profile.avatarUrl) {
+      if (avatarObjectUrlRef.current) {
+        URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = null;
+      }
+      setAvatarPreviewUrl(null);
+      return;
+    }
+    fileService
+      .getBlobUrl(profile.avatarUrl)
+      .then((url) => {
+        if (cancelled) return;
+        if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current);
+        avatarObjectUrlRef.current = url;
+        setAvatarPreviewUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarPreviewUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.avatarUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current);
+    };
+  }, []);
+
+  const handleAvatarSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setAvatarError('');
+    setAvatarUploading(true);
+    try {
+      const uploaded = await fileService.upload(file);
+      const newPath = uploaded?.filePath;
+      if (!newPath) throw new Error('Upload did not return a file path.');
+      const oldPath = profile.avatarUrl;
+      setProfile((prev) => ({ ...prev, avatarUrl: newPath }));
+      if (oldPath) {
+        // Best-effort - a failed cleanup of the old file must never block the
+        // new avatar from taking effect.
+        fileService.remove(oldPath).catch(() => {});
+      }
+    } catch (err: any) {
+      setAvatarError(err?.message || 'Failed to upload avatar.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -185,6 +251,39 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   return (
     <form onSubmit={handleSave} className="flex flex-col gap-5">
       <h3 className="text-[1.1rem] font-bold">User Profile</h3>
+
+      <div className="flex items-center gap-4">
+        <div className="relative w-16 h-16 shrink-0">
+          {avatarPreviewUrl ? (
+            <img src={avatarPreviewUrl} alt="Profile avatar" className="w-16 h-16 rounded-full object-cover" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-white/[0.06] flex items-center justify-center">
+              <User size={28} className="text-[#64748b]" />
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => avatarInputRef.current?.click()}
+            disabled={avatarUploading}
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#6366f1] flex items-center justify-center border-2 border-[#0f172a]"
+            title="Change avatar"
+          >
+            <Camera size={12} color="white" />
+          </button>
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarSelect}
+          />
+        </div>
+        <div>
+          <div className="text-[0.85rem] font-semibold">Profile Photo</div>
+          <div className="text-xs text-[#64748b]">{avatarUploading ? 'Uploading...' : 'PNG or JPG, click the camera to change'}</div>
+          {avatarError && <div className="text-xs text-[#f87171] mt-1">{avatarError}</div>}
+        </div>
+      </div>
 
       <div>
         <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Username</label>
@@ -546,6 +645,7 @@ function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps)
   const [showDisableForm, setShowDisableForm] = useState(false);
   const [disablePassword, setDisablePassword] = useState('');
   const [disableCode, setDisableCode] = useState('');
+  const [disableUseRecoveryCode, setDisableUseRecoveryCode] = useState(false);
   const [disableError, setDisableError] = useState('');
   const [disableSaving, setDisableSaving] = useState(false);
 
@@ -589,11 +689,16 @@ function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps)
     setDisableError('');
     setDisableSaving(true);
     try {
-      await authService.disableMfa(disablePassword, disableCode);
+      if (disableUseRecoveryCode) {
+        await authService.disableMfa(disablePassword, undefined, disableCode);
+      } else {
+        await authService.disableMfa(disablePassword, disableCode);
+      }
       onStatusChange(false);
       setShowDisableForm(false);
       setDisablePassword('');
       setDisableCode('');
+      setDisableUseRecoveryCode(false);
     } catch (err: any) {
       setDisableError(err?.message || 'Failed to disable 2FA.');
     } finally {
@@ -704,10 +809,20 @@ function TwoFactorSection({ mfaEnabled, onStatusChange }: TwoFactorSectionProps)
             type="text"
             required
             className="glass-input"
-            placeholder="6-digit authenticator code"
+            placeholder={disableUseRecoveryCode ? 'Recovery code' : '6-digit authenticator code'}
             value={disableCode}
             onChange={(e) => setDisableCode(e.target.value)}
           />
+          <button
+            type="button"
+            onClick={() => {
+              setDisableUseRecoveryCode((prev) => !prev);
+              setDisableCode('');
+            }}
+            className="text-[0.75rem] text-[#818cf8] self-start underline"
+          >
+            {disableUseRecoveryCode ? 'Use my authenticator code instead' : "Lost your device? Use a recovery code instead"}
+          </button>
           {disableError && <p className="text-[0.8rem] text-[#f87171]">{disableError}</p>}
           <div className="flex gap-2">
             <button type="submit" disabled={disableSaving} className="btn-secondary px-5 text-[0.85rem]">
@@ -828,6 +943,19 @@ function AdminUserRow({ user, isSelf, onUpdated }: AdminUserRowProps) {
     }
   };
 
+  const handleResetMfa = async () => {
+    setError('');
+    setBusy(true);
+    try {
+      const res: any = await adminService.resetMfa(user.id);
+      onUpdated(res?.data?.data || { ...user, mfaEnabled: false });
+    } catch (err: any) {
+      setError(err?.message || 'Failed to reset 2FA.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-2 py-3 px-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -871,6 +999,17 @@ function AdminUserRow({ user, isSelf, onUpdated }: AdminUserRowProps) {
             >
               {user.enabled ? 'Disable' : 'Enable'}
             </button>
+            {user.mfaEnabled && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleResetMfa}
+                className="btn-secondary py-[0.35rem] px-3 text-[0.75rem]"
+                title="Escape hatch for a lost authenticator with no usable recovery codes left"
+              >
+                Reset 2FA
+              </button>
+            )}
           </div>
         )}
       </div>

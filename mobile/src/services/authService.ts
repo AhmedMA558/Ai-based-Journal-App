@@ -1,6 +1,8 @@
 import axios from 'axios';
 import api from './api';
 import { session } from './session';
+import { clearOfflineQueue } from '@/lib/offlineQueue';
+import { clearOfflineCache } from '@/lib/offlineCache';
 import { API_BASE_URL } from '@/config/env';
 import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult, LoginHistoryPage } from '@/types';
 
@@ -118,6 +120,11 @@ export const authService = {
       refreshClient.post('/api/v1/auth/logout', { refreshToken }).catch(() => {});
     }
     await session.clear();
+    // Any still-unsynced offline journal edit belongs to the account that's
+    // logging out - leaving it queued would replay it against whichever
+    // account logs into this device next.
+    await clearOfflineQueue();
+    await clearOfflineCache();
   },
 
   isAuthenticated: () => session.isAuthenticated(),

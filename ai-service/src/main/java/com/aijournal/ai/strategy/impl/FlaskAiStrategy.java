@@ -1,6 +1,8 @@
 package com.aijournal.ai.strategy.impl;
 
 import com.aijournal.ai.strategy.AiProviderStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
@@ -14,6 +16,7 @@ import java.util.Map;
 @Component("flaskAiStrategy")
 public class FlaskAiStrategy implements AiProviderStrategy {
 
+    private static final Logger log = LoggerFactory.getLogger(FlaskAiStrategy.class);
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE = new ParameterizedTypeReference<>() {
     };
     private static final String CONTENT_KEY = "content";
@@ -51,7 +54,7 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("summarize call to python-ai-service failed, falling back to raw content: {}", e.getMessage());
         }
         return new SummaryResult(content, content, "• Logged entry.");
     }
@@ -79,9 +82,14 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("detectMood call to python-ai-service failed, falling back to NEUTRAL: {}", e.getMessage());
         }
-        return new MoodResult("HAPPY", 0.90, "😊");
+        // NEUTRAL at 0.0 confidence - not a fabricated real-looking result. This
+        // gets persisted permanently to mood_history via AiServiceImpl.detectAndSaveMood,
+        // so a fake HAPPY/90% here would be indistinguishable from a real detection.
+        // 0.0 confidence makes this fallback trivially recognizable as "no real
+        // detection happened" by anyone who later looks at the stored data.
+        return new MoodResult("NEUTRAL", 0.0, "😐");
     }
 
     @Override
@@ -106,7 +114,7 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("generateRecommendations call to python-ai-service failed, falling back to defaults: {}", e.getMessage());
         }
         return List.of("Take 5 deep breaths.", "Reflect on 3 good things today.");
     }
@@ -132,7 +140,7 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("generateTags call to python-ai-service failed, falling back to defaults: {}", e.getMessage());
         }
         return List.of("#journal", "#reflection");
     }
@@ -155,14 +163,38 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("chatWithJournal call to python-ai-service failed, falling back to generic response: {}", e.getMessage());
         }
         return "AI response to: " + query;
     }
 
     @Override
     public SentimentResult analyzeSentiment(String content) {
-        return new SentimentResult("POSITIVE", 0.92);
+        try {
+            String url = flaskBaseUrl + "/api/v1/ai/sentiment";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of(CONTENT_KEY, content), headers);
+
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
+                    MAP_RESPONSE_TYPE);
+            Map<String, Object> body = response.getBody();
+            if (response.getStatusCode().is2xxSuccessful() && body != null) {
+                Map<String, Object> data = castToMap(body.get("data"));
+                if (!data.isEmpty() && data.get("sentiment") != null) {
+                    String sentiment = (String) data.get("sentiment");
+                    double score = data.get("score") != null ? ((Number) data.get("score")).doubleValue() : 0.5;
+                    return new SentimentResult(sentiment, score);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("analyzeSentiment call to python-ai-service failed, falling back to NEUTRAL: {}", e.getMessage());
+        }
+        // NEUTRAL at 0.0 confidence, not a fabricated POSITIVE - same reasoning
+        // as detectMood's fallback: this gets persisted to mood_history.sentiment
+        // permanently, so a fixed non-zero-confidence value here would be
+        // indistinguishable from a real classification.
+        return new SentimentResult("NEUTRAL", 0.0);
     }
 
     @Override
@@ -183,7 +215,7 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("rephrase call to python-ai-service failed, falling back to original content: {}", e.getMessage());
         }
         return new RephraseResult(content, content);
     }
@@ -206,7 +238,7 @@ public class FlaskAiStrategy implements AiProviderStrategy {
                 }
             }
         } catch (Exception e) {
-            // Fallback
+            log.warn("fixGrammar call to python-ai-service failed, falling back to original content: {}", e.getMessage());
         }
         return new GrammarResult(content, content);
     }

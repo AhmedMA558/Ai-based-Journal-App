@@ -123,9 +123,6 @@ class JournalServiceTest {
 
     @Test
     void createJournal_ExplicitNullMood_DefaultsToHappy() {
-        // Journal's field initializer defaults mood to "NEUTRAL", so the service's own
-        // null-guard only actually fires when a caller (e.g. JSON body with "mood": null)
-        // explicitly nulls it out - this proves that guard is live, not dead code.
         Journal input = new Journal();
         input.setMood(null);
 
@@ -135,12 +132,20 @@ class JournalServiceTest {
     }
 
     @Test
-    void createJournal_MoodOmitted_RetainsEntityDefaultNeutral() {
+    void createJournal_MoodOmitted_AlsoDefaultsToHappy_NotStaleFieldInitializer() {
+        // Regression guard: Journal.mood used to have a field initializer
+        // ("NEUTRAL"), which made this scenario indistinguishable at the
+        // entity level from an explicitly-set mood - the service's own
+        // null-guard a few lines below only ever fired when a caller sent a
+        // literal "mood": null in the JSON body, never for the far more
+        // common case of just omitting the key. Now that the initializer is
+        // gone, `new Journal()` with mood never touched is genuinely null,
+        // same as the explicit-null case above - both correctly get "HAPPY".
         Journal input = new Journal();
 
         Journal created = journalService.createJournal(5L, input);
 
-        assertThat(created.getMood()).isEqualTo("NEUTRAL");
+        assertThat(created.getMood()).isEqualTo("HAPPY");
     }
 
     @Test
@@ -386,15 +391,39 @@ class JournalServiceTest {
     }
 
     @Test
-    void updateJournal_NullTags_DefaultsToEmptySet() {
+    void updateJournal_NullTags_KeepsExistingTagsInsteadOfWiping() {
+        // Regression guard: tags used to be set unconditionally
+        // (updated.getTags() != null ? ... : new HashSet<>()), so a partial-
+        // update payload that simply omitted tags (reachable via Swagger/
+        // curl, not the shipped clients which always send both) silently
+        // wiped every tag instead of leaving them untouched - matches the
+        // skip-if-null convention already used for content/title/isDraft/etc.
         Journal existing = existingJournal(10L, 1L);
+        existing.setTags(Set.of("original-tag"));
         when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
         Journal updates = new Journal();
         updates.setTags(null);
 
         Journal result = journalService.updateJournal(1L, 10L, updates);
 
-        assertThat(result.getTags()).isNotNull().isEmpty();
+        assertThat(result.getTags()).containsExactly("original-tag");
+    }
+
+    @Test
+    void updateJournal_NullMood_KeepsExistingMoodInsteadOfResettingToDefault() {
+        // Regression guard: mood used to be set unconditionally
+        // (existing.setMood(updated.getMood())), so a partial-update payload
+        // that omitted mood silently reset it to Journal's field-initializer
+        // default ("NEUTRAL") instead of leaving the real mood untouched.
+        Journal existing = existingJournal(10L, 1L);
+        existing.setMood("EXCITED");
+        when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        Journal updates = new Journal();
+        updates.setMood(null);
+
+        Journal result = journalService.updateJournal(1L, 10L, updates);
+
+        assertThat(result.getMood()).isEqualTo("EXCITED");
     }
 
     @Test

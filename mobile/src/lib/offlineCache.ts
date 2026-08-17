@@ -19,3 +19,9 @@ export async function getCachedJournals(): Promise<Journal[] | null> {
 export async function setCachedJournals(list: Journal[]): Promise<void> {
   await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
+
+// Called on logout - see clearOfflineQueue's comment for why this must not
+// survive into a different account's session on the same device.
+export async function clearOfflineCache(): Promise<void> {
+  await AsyncStorage.removeItem(CACHE_KEY);
+}

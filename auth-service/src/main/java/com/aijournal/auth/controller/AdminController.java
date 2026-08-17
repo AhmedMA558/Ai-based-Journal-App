@@ -64,4 +64,14 @@ public class AdminController {
         UserSummaryResponse response = adminService.updateStatus(id, callerId, request.getEnabled());
         return ResponseEntity.ok(ApiResponse.success("Account status updated", response));
     }
+
+    @PostMapping("/users/{id}/mfa-reset")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Reset (disable) a user's 2FA - escape hatch for a lost authenticator with no usable recovery codes left")
+    public ResponseEntity<ApiResponse<UserSummaryResponse>> resetMfa(
+            @RequestHeader("X-User-Id") Long callerId,
+            @PathVariable Long id) {
+        UserSummaryResponse response = adminService.resetMfa(id, callerId);
+        return ResponseEntity.ok(ApiResponse.success("2FA reset", response));
+    }
 }

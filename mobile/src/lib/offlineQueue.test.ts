@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   applyPendingOps,
+  clearOfflineQueue,
   dropQueuedCreate,
   enqueue,
   getPendingCount,
@@ -46,6 +47,21 @@ describe('queue persistence', () => {
     await enqueue({ type: 'create', localId: 'local-1', payload: newEntry, queuedAt: 1 });
     await enqueue({ type: 'delete', id: 2, queuedAt: 2 });
     expect(await getPendingCount()).toBe(2);
+  });
+
+  it('clearOfflineQueue drops every pending op', async () => {
+    // Regression guard: a logged-out account's still-unsynced offline edits
+    // used to survive into the next account's session on the same device -
+    // clearOfflineQueue is called from authService.logout() specifically to
+    // close that gap, so a reconnect never replays User A's edit under
+    // User B's session.
+    await enqueue({ type: 'create', localId: 'local-1', payload: newEntry, queuedAt: 1 });
+    await enqueue({ type: 'delete', id: 2, queuedAt: 2 });
+
+    await clearOfflineQueue();
+
+    expect(await getQueue()).toEqual([]);
+    expect(await getPendingCount()).toBe(0);
   });
 
   it('updateQueuedCreate folds an edit into the still-pending create, not a separate op', async () => {

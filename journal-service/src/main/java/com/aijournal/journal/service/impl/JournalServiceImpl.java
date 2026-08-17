@@ -118,10 +118,14 @@ public class JournalServiceImpl implements JournalService {
             existing.setContent(journalEncryptionService.encrypt(updated.getContent()));
             existing.setContentEncrypted(true);
         }
-        existing.setMood(updated.getMood());
+        // mood/tags now skip-if-null like every sibling field here - a PUT that
+        // omits them (e.g. Swagger/curl, not the shipped clients which always
+        // send both) must leave them unchanged instead of silently resetting
+        // mood to Journal's field-initializer default and wiping every tag.
+        if (updated.getMood() != null) existing.setMood(updated.getMood());
         existing.setLocation(updated.getLocation());
         existing.setWeather(updated.getWeather());
-        existing.setTags(updated.getTags() != null ? updated.getTags() : new HashSet<>());
+        if (updated.getTags() != null) existing.setTags(updated.getTags());
         if (updated.getIsDraft() != null) existing.setIsDraft(updated.getIsDraft());
         if (updated.getFolderId() != null) existing.setFolderId(updated.getFolderId());
         if (updated.getCategoryId() != null) existing.setCategoryId(updated.getCategoryId());

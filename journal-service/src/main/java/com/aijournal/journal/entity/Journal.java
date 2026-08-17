@@ -48,8 +48,16 @@ public class Journal {
     @Column(name = "is_archived", nullable = false)
     private Boolean isArchived = false;
 
+    // Deliberately no field initializer - see JournalServiceImpl.updateJournal's
+    // skip-if-null guard on this field. Jackson's no-arg-constructor-then-
+    // apply-present-keys deserialization means a field initializer here would
+    // make an omitted "mood" key in a partial-update JSON body indistinguishable
+    // from a real value ("NEUTRAL"), silently defeating the guard - the exact
+    // bug already found and fixed once for UserPreferences. createJournal's own
+    // `if (journal.getMood() == null) journal.setMood("HAPPY")` explicitly
+    // handles the create-path default instead.
     @Column(length = 50)
-    private String mood = "NEUTRAL";
+    private String mood;
 
     @Column(length = 100)
     private String location;
@@ -66,10 +74,16 @@ public class Journal {
     @Column(name = "reading_time_minutes", nullable = false)
     private Integer readingTimeMinutes = 1;
 
+    // Deliberately no field initializer - same reasoning as mood above. Safe
+    // on the read path: Hibernate always populates a real (possibly empty)
+    // collection for a loaded @ElementCollection, never leaves it null -
+    // only a fresh Jackson-deserialized (not-yet-persisted) instance can see
+    // a genuinely null value here, which is exactly the omitted-key case
+    // this guard needs to detect.
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "journal_tags", joinColumns = @JoinColumn(name = "journal_id"))
     @Column(name = "tag_name")
-    private Set<String> tags = new HashSet<>();
+    private Set<String> tags;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
