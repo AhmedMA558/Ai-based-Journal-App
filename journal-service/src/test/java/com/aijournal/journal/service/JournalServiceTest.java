@@ -157,6 +157,8 @@ class JournalServiceTest {
         Journal input = new Journal();
         input.setTitle("My Entry");
         input.setContent("content");
+        input.setMood("HAPPY");
+        input.setTags(Set.of("gratitude"));
 
         journalService.createJournal(9L, input);
 
@@ -164,6 +166,11 @@ class JournalServiceTest {
         verify(rabbitTemplate).convertAndSend(eq(JournalEventRouting.EXCHANGE_NAME), eq(JournalEventRouting.ROUTING_KEY_CREATED), captor.capture());
         assertThat(captor.getValue().getUserId()).isEqualTo(9L);
         assertThat(captor.getValue().getTitle()).isEqualTo("My Entry");
+        // Regression guard: the client already finalizes mood/tags before
+        // create (no separate async AI step populates them afterward), so
+        // the event must carry the real values, not a hardcoded NEUTRAL/[].
+        assertThat(captor.getValue().getMood()).isEqualTo("HAPPY");
+        assertThat(captor.getValue().getTags()).containsExactly("gratitude");
     }
 
     @Test
@@ -309,6 +316,27 @@ class JournalServiceTest {
     }
 
     @Test
+    void updateJournal_PublishesRabbitMqEventWithRealMoodAndTags_NotStaleDefaults() {
+        // Regression guard: JournalCreatedEvent/JournalUpdatedEvent used to
+        // carry no mood/tags at all, so search-service's index permanently
+        // showed NEUTRAL/[] for every journal ever created, and never
+        // updated even when the journal's real mood/tags changed - mood/tag
+        // search filters returned zero results, always.
+        Journal existing = existingJournal(10L, 1L);
+        when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        Journal updates = new Journal();
+        updates.setMood("EXCITED");
+        updates.setTags(Set.of("travel"));
+
+        journalService.updateJournal(1L, 10L, updates);
+
+        ArgumentCaptor<JournalUpdatedEvent> captor = ArgumentCaptor.forClass(JournalUpdatedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(JournalEventRouting.EXCHANGE_NAME), eq(JournalEventRouting.ROUTING_KEY_UPDATED), captor.capture());
+        assertThat(captor.getValue().getMood()).isEqualTo("EXCITED");
+        assertThat(captor.getValue().getTags()).containsExactly("travel");
+    }
+
+    @Test
     void updateJournal_NotOwnedByCaller_ThrowsResourceNotFoundException() {
         when(journalRepository.findByIdAndUserId(10L, 2L)).thenReturn(Optional.empty());
 
@@ -335,6 +363,26 @@ class JournalServiceTest {
 
         assertThat(result.getContent()).isEqualTo("original private content");
         assertThat(result.getTitle()).isEqualTo("New Title");
+    }
+
+    @Test
+    void updateJournal_NullTitle_KeepsExistingTitleInsteadOfCrashing() {
+        // Regression guard: title is NOT NULL - a partial-update payload
+        // that omits it used to null the column unconditionally, only
+        // surfacing as a DataIntegrityViolationException -> 500 at flush
+        // time (not testable at this layer, since flush is a JPA/DB
+        // concern this Mockito test doesn't exercise) - matches the
+        // skip-if-null convention already used for content/isDraft/etc.
+        Journal existing = existingJournal(10L, 1L);
+        existing.setTitle("Original Title");
+        when(journalRepository.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(existing));
+        Journal updates = new Journal();
+        updates.setTitle(null);
+        updates.setContent("some content");
+
+        Journal result = journalService.updateJournal(1L, 10L, updates);
+
+        assertThat(result.getTitle()).isEqualTo("Original Title");
     }
 
     @Test

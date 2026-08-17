@@ -11,7 +11,7 @@ import { ErrorBanner } from '@/components/ErrorBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { cn } from '@/lib/utils';
 import { authService, userService } from '@/services';
-import type { CurrentUser, ProfileData, MfaSetupData } from '@/types';
+import type { CurrentUser, ProfileData, MfaSetupData, LoginHistoryEntry } from '@/types';
 
 type SettingsTab = 'profile' | 'security';
 
@@ -195,10 +195,67 @@ function SecuritySection() {
             ) : (
               <TwoFactorSection mfaEnabled={mfaEnabled} onStatusChange={setMfaEnabled} />
             )}
+
+            <LoginHistorySection />
           </View>
         </FadeInView>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function LoginHistorySection() {
+  const [entries, setEntries] = useState<LoginHistoryEntry[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setError('');
+    authService.getLoginHistory(0, 10)
+      .then((res) => {
+        if (!cancelled) setEntries(res?.content || []);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Could not load recent logins.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <GlassPanel className="p-4 gap-3">
+      <View>
+        <Text className="text-text-primary text-sm font-semibold">Recent Logins</Text>
+        <Text className="text-text-muted text-xs">The last few times this account signed in, successful or not.</Text>
+      </View>
+
+      {error ? (
+        <ErrorBanner message={error} />
+      ) : entries === null ? (
+        <SkeletonBlock className="h-16" />
+      ) : entries.length === 0 ? (
+        <Text className="text-text-muted text-xs">No login history yet.</Text>
+      ) : (
+        <View className="gap-2">
+          {entries.map((entry) => (
+            <View key={entry.id} className="flex-row items-center justify-between gap-3 py-2 border-b border-white/5">
+              <View className="flex-1 pr-2">
+                <Text className="text-text-secondary text-xs">{new Date(entry.loginTime).toLocaleString()}</Text>
+                <Text className="text-text-muted text-xs" numberOfLines={1}>
+                  {entry.ipAddress || 'Unknown IP'}{entry.userAgent ? ` · ${entry.userAgent}` : ''}
+                </Text>
+              </View>
+              <View className={cn('py-1 px-2 rounded-md', entry.status === 'SUCCESS' ? 'bg-[rgba(34,197,94,0.15)]' : 'bg-[rgba(239,68,68,0.15)]')}>
+                <Text className={cn('text-xs font-bold', entry.status === 'SUCCESS' ? 'text-[#4ade80]' : 'text-[#f87171]')}>
+                  {entry.status === 'SUCCESS' ? 'Success' : 'Failed'}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </GlassPanel>
   );
 }
 

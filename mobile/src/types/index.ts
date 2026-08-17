@@ -76,3 +76,15 @@ export interface Insights {
   mostProductiveDays: string[];
   topTopics: string[];
 }
+
+export interface LoginHistoryEntry {
+  id: number;
+  loginTime: string;
+  ipAddress?: string;
+  userAgent?: string;
+  status: string;
+}
+
+export interface LoginHistoryPage {
+  content: LoginHistoryEntry[];
+}

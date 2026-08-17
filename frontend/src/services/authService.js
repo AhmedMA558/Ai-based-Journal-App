@@ -71,6 +71,11 @@ export const authService = {
 
   getMfaStatus: async () => (await api.get('/api/v1/auth/mfa/status'))?.data?.data,
 
+  // Real login-attempt log (successes and failures against a resolvable
+  // account) - returns a PagedResponse<{id,loginTime,ipAddress,userAgent,status}>.
+  getLoginHistory: async (page = 0, size = 20) =>
+    (await api.get(`/api/v1/auth/login-history?page=${page}&size=${size}`))?.data?.data,
+
   // Generates (and persists, but does not yet enable) a new TOTP secret -
   // returns {secret, otpAuthUri} for QR code rendering.
   setupMfa: async () => (await api.post('/api/v1/auth/mfa/setup'))?.data?.data,

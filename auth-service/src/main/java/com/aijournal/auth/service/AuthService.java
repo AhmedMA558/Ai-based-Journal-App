@@ -1,15 +1,20 @@
 package com.aijournal.auth.service;
 
 import com.aijournal.auth.dto.*;
+import com.aijournal.common.dto.PagedResponse;
+import org.springframework.data.domain.Pageable;
 
 public interface AuthService {
     AuthResponse register(RegisterRequest request);
     // AuthResponse when MFA is off (unchanged shape), MfaChallengeResponse when it's on.
-    Object login(LoginRequest request);
+    // ipAddress/userAgent are the real client's, resolved by the controller,
+    // recorded to LoginHistory best-effort on both the success and failure paths.
+    Object login(LoginRequest request, String ipAddress, String userAgent);
     AuthResponse refreshToken(RefreshTokenRequest request);
     void logout(String refreshToken);
 
-    AuthResponse verifyMfa(MfaVerifyRequest request);
+    AuthResponse verifyMfa(MfaVerifyRequest request, String ipAddress, String userAgent);
+    PagedResponse<LoginHistoryResponse> getLoginHistory(Long userId, Pageable pageable);
     MfaSetupResponse setupMfa(Long userId);
     MfaEnableResponse enableMfa(Long userId, MfaEnableRequest request);
     void disableMfa(Long userId, MfaDisableRequest request);

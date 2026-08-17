@@ -40,16 +40,18 @@ public class JournalEventListener {
                     ? event.getCreatedAt().toString()
                     : String.valueOf(System.currentTimeMillis());
 
-            // mood/tags aren't produced yet at journal-creation time (that's ai-service's
-            // job, not wired into this event) - seed neutral defaults rather than fabricate data.
+            // mood/tags are already final by the time this event is published -
+            // the client sets them directly on the journal at create time (mood
+            // detection, if used, happens client-side before save, not as an
+            // async follow-up) - so the real values are always available here.
             JournalDocument doc = new JournalDocument(
                     id,
                     event.getJournalId(),
                     event.getUserId(),
                     event.getTitle(),
                     event.getContent(),
-                    "NEUTRAL",
-                    List.of(),
+                    event.getMood() != null ? event.getMood() : "NEUTRAL",
+                    event.getTags() != null ? event.getTags() : List.of(),
                     createdAt
             );
             journalSearchRepository.save(doc);
@@ -75,6 +77,8 @@ public class JournalEventListener {
             ));
             doc.setTitle(event.getTitle());
             doc.setContent(event.getContent());
+            doc.setMood(event.getMood() != null ? event.getMood() : "NEUTRAL");
+            doc.setTags(event.getTags() != null ? event.getTags() : List.of());
             journalSearchRepository.save(doc);
         } catch (Exception e) {
             log.error("Failed to index journal.updated event for journalId={}", event.getJournalId(), e);

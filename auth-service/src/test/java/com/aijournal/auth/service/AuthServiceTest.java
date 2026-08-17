@@ -2,6 +2,7 @@ package com.aijournal.auth.service;
 
 import com.aijournal.auth.dto.*;
 import com.aijournal.auth.entity.EmailVerificationToken;
+import com.aijournal.auth.entity.LoginHistory;
 import com.aijournal.auth.entity.MfaChallenge;
 import com.aijournal.auth.entity.MfaRecoveryCode;
 import com.aijournal.auth.entity.PasswordResetToken;
@@ -9,6 +10,8 @@ import com.aijournal.auth.entity.RefreshToken;
 import com.aijournal.auth.entity.Role;
 import com.aijournal.auth.entity.User;
 import com.aijournal.auth.repository.EmailVerificationTokenRepository;
+import com.aijournal.auth.repository.LoginHistoryRepository;
+import com.aijournal.auth.service.LoginHistoryRecorder;
 import com.aijournal.auth.repository.MfaChallengeRepository;
 import com.aijournal.auth.repository.MfaRecoveryCodeRepository;
 import com.aijournal.auth.repository.PasswordResetTokenRepository;
@@ -16,6 +19,7 @@ import com.aijournal.auth.repository.RefreshTokenRepository;
 import com.aijournal.auth.repository.RoleRepository;
 import com.aijournal.auth.repository.UserRepository;
 import com.aijournal.auth.service.impl.AuthServiceImpl;
+import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.exception.BadRequestException;
 import com.aijournal.common.exception.ForbiddenException;
 import com.aijournal.common.exception.UnauthorizedException;
@@ -27,6 +31,11 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -69,6 +78,12 @@ class AuthServiceTest {
 
     @Mock
     private EmailVerificationTokenRepository emailVerificationTokenRepository;
+
+    @Mock
+    private LoginHistoryRepository loginHistoryRepository;
+
+    @Mock
+    private LoginHistoryRecorder loginHistoryRecorder;
 
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -217,42 +232,105 @@ class AuthServiceTest {
     }
 
     @Test
-    void register_DuplicateUsername_ThrowsBadRequest() {
+    void register_DuplicateUsername_ThrowsBadRequestWithGenericMessage() {
         RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
         when(userRepository.existsByUsername("testuser")).thenReturn(true);
+
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.register(request));
+        // Regression guard: the message must not reveal *which specific
+        // field* collided - a distinct "username is taken" vs. "email is in
+        // use" message is an enumeration oracle, the same class of leak
+        // forgotPassword() was already hardened against. The message may
+        // still mention both words generically (e.g. "choose a different
+        // username or email"), it just can't confirm which one is real.
+        assertFalse(ex.getMessage().toLowerCase().contains("username is"));
+        assertFalse(ex.getMessage().toLowerCase().contains("email is"));
+    }
+
+    @Test
+    void register_DuplicateEmail_ThrowsBadRequestWithIdenticalGenericMessageAsDuplicateUsername() {
+        RegisterRequest usernameCollisionRequest = new RegisterRequest("testuser", "unique@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("testuser")).thenReturn(true);
+        BadRequestException usernameCollision = assertThrows(BadRequestException.class,
+                () -> authService.register(usernameCollisionRequest));
+
+        reset(userRepository);
+        RegisterRequest emailCollisionRequest = new RegisterRequest("newuser", "test@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("newuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
+        BadRequestException emailCollision = assertThrows(BadRequestException.class,
+                () -> authService.register(emailCollisionRequest));
+
+        // A duplicate-username and a duplicate-email registration must be
+        // indistinguishable to the caller - the same enumeration-safety bar
+        // forgotPassword() already holds.
+        assertEquals(usernameCollision.getMessage(), emailCollision.getMessage());
+    }
+
+    @Test
+    void register_ConcurrentUsernameCollision_ThrowsCleanBadRequestNotRawServerError() {
+        // The existsByUsername/existsByEmail check and save() aren't atomic -
+        // this simulates the DB's own unique constraint catching a race that
+        // the pre-check missed, and asserts it surfaces as the same clean 400
+        // every other duplicate path returns, not an opaque 500.
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
+        when(userRepository.existsByUsername("testuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(roleRepository.findByName(Role.RoleName.ROLE_USER))
+                .thenReturn(Optional.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        when(userRepository.save(any(User.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         assertThrows(BadRequestException.class, () -> authService.register(request));
     }
 
     @Test
-    void login_Success() {
+    void login_Success_RecordsSuccessLoginHistory() {
         LoginRequest request = new LoginRequest("testuser", "password123");
         User user = mfaUser(false, null);
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
 
-        AuthResponse response = (AuthResponse) authService.login(request);
+        AuthResponse response = (AuthResponse) authService.login(request, "203.0.113.1", "TestAgent/1.0");
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
         assertNotNull(response.getAccessToken());
         assertFalse(response.isMfaRequired());
+
+        verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "SUCCESS");
     }
 
     @Test
-    void login_InvalidPassword_ThrowsUnauthorized() {
+    void login_InvalidPassword_ThrowsUnauthorizedAndRecordsFailedLoginHistory() {
         LoginRequest request = new LoginRequest("testuser", "wrongpassword");
         User user = mfaUser(false, null);
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("wrongpassword", "encodedPassword")).thenReturn(false);
 
-        assertThrows(UnauthorizedException.class, () -> authService.login(request));
+        assertThrows(UnauthorizedException.class, () -> authService.login(request, "203.0.113.1", "TestAgent/1.0"));
+
+        verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "FAILED");
     }
 
     @Test
-    void login_DisabledAccount_ThrowsForbidden() {
+    void login_UnknownUsername_ThrowsUnauthorizedAndNeverRecordsLoginHistory() {
+        // login_history.user_id is NOT NULL - there's no real account to
+        // attach a row to for an unresolvable username/email, so this must
+        // be a clean no-op on the login-history side, not an attempted (and
+        // failing) save against a null user.
+        LoginRequest request = new LoginRequest("nosuchuser", "password123");
+        when(userRepository.findByUsername("nosuchuser")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("nosuchuser")).thenReturn(Optional.empty());
+
+        assertThrows(UnauthorizedException.class, () -> authService.login(request, "203.0.113.1", "TestAgent/1.0"));
+        verifyNoInteractions(loginHistoryRecorder);
+    }
+
+    @Test
+    void login_DisabledAccount_ThrowsForbiddenAndRecordsFailedLoginHistory() {
         LoginRequest request = new LoginRequest("testuser", "password123");
         User user = mfaUser(false, null);
         user.setEnabled(false);
@@ -260,27 +338,31 @@ class AuthServiceTest {
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
 
-        assertThrows(ForbiddenException.class, () -> authService.login(request));
+        assertThrows(ForbiddenException.class, () -> authService.login(request, "203.0.113.1", "TestAgent/1.0"));
+
+        verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "FAILED");
     }
 
     @Test
-    void login_MfaEnabled_ReturnsChallengeNotTokens() {
+    void login_MfaEnabled_ReturnsChallengeNotTokensAndDoesNotRecordLoginHistoryYet() {
         LoginRequest request = new LoginRequest("testuser", "password123");
         User user = mfaUser(true, "encryptedSecret");
 
         when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
         when(passwordEncoder.matches("password123", "encodedPassword")).thenReturn(true);
 
-        Object result = authService.login(request);
+        Object result = authService.login(request, "203.0.113.1", "TestAgent/1.0");
 
         assertInstanceOf(MfaChallengeResponse.class, result);
         assertTrue(((MfaChallengeResponse) result).isMfaRequired());
         verify(mfaChallengeRepository, times(1)).save(any(MfaChallenge.class));
         verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
+        // Not logged yet - the login isn't complete until verifyMfa() succeeds.
+        verifyNoInteractions(loginHistoryRecorder);
     }
 
     @Test
-    void verifyMfa_ValidCode_ReturnsAuthResponseAndDeletesChallenge() {
+    void verifyMfa_ValidCode_ReturnsAuthResponseAndDeletesChallengeAndRecordsSuccessLoginHistory() {
         User user = mfaUser(true, "encryptedSecret");
         MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));
         MfaVerifyRequest request = new MfaVerifyRequest();
@@ -291,11 +373,13 @@ class AuthServiceTest {
         when(totpEncryptionService.decrypt("encryptedSecret")).thenReturn("plainSecret");
         when(totpService.verify("plainSecret", "123456")).thenReturn(true);
 
-        AuthResponse response = authService.verifyMfa(request);
+        AuthResponse response = authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0");
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
         verify(mfaChallengeRepository, times(1)).delete(challenge);
+
+        verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "SUCCESS");
     }
 
     @Test
@@ -308,12 +392,12 @@ class AuthServiceTest {
 
         when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
 
-        assertThrows(UnauthorizedException.class, () -> authService.verifyMfa(request));
+        assertThrows(UnauthorizedException.class, () -> authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0"));
         verify(mfaChallengeRepository, times(1)).delete(challenge);
     }
 
     @Test
-    void verifyMfa_InvalidCode_ThrowsUnauthorized() {
+    void verifyMfa_InvalidCode_ThrowsUnauthorizedAndRecordsFailedLoginHistory() {
         User user = mfaUser(true, "encryptedSecret");
         MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));
         MfaVerifyRequest request = new MfaVerifyRequest();
@@ -324,8 +408,10 @@ class AuthServiceTest {
         when(totpEncryptionService.decrypt("encryptedSecret")).thenReturn("plainSecret");
         when(totpService.verify("plainSecret", "000000")).thenReturn(false);
 
-        assertThrows(UnauthorizedException.class, () -> authService.verifyMfa(request));
+        assertThrows(UnauthorizedException.class, () -> authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0"));
         verify(mfaChallengeRepository, never()).delete(any());
+
+        verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "FAILED");
     }
 
     @Test
@@ -339,7 +425,7 @@ class AuthServiceTest {
 
         when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
 
-        assertThrows(BadRequestException.class, () -> authService.verifyMfa(request));
+        assertThrows(BadRequestException.class, () -> authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0"));
         verify(mfaChallengeRepository, never()).delete(any());
         verifyNoInteractions(totpService, totpEncryptionService);
     }
@@ -358,7 +444,7 @@ class AuthServiceTest {
         when(mfaRecoveryCodeRepository.findByUserAndUsedFalse(user)).thenReturn(List.of(recoveryCode));
         when(passwordEncoder.matches("ABCDE-12345", "hashedCode")).thenReturn(true);
 
-        AuthResponse response = authService.verifyMfa(request);
+        AuthResponse response = authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0");
 
         assertNotNull(response);
         assertTrue(recoveryCode.getUsed());
@@ -381,10 +467,25 @@ class AuthServiceTest {
 
         when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
 
-        assertThrows(ForbiddenException.class, () -> authService.verifyMfa(request));
+        assertThrows(ForbiddenException.class, () -> authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0"));
         verify(mfaChallengeRepository, times(1)).delete(challenge);
         verify(totpService, never()).verify(anyString(), anyString());
         verifyNoInteractions(refreshTokenRepository);
+    }
+
+    @Test
+    void getLoginHistory_ReturnsPagedResponseMappedFromRepository() {
+        User user = mfaUser(false, null);
+        LoginHistory entry = new LoginHistory(1L, user, "203.0.113.1", "TestAgent/1.0", "SUCCESS");
+        Pageable pageable = PageRequest.of(0, 20);
+        Page<LoginHistory> page = new PageImpl<>(List.of(entry), pageable, 1);
+        when(loginHistoryRepository.findByUser_IdOrderByLoginTimeDesc(1L, pageable)).thenReturn(page);
+
+        PagedResponse<LoginHistoryResponse> response = authService.getLoginHistory(1L, pageable);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals("SUCCESS", response.getContent().get(0).getStatus());
+        assertEquals("203.0.113.1", response.getContent().get(0).getIpAddress());
     }
 
     @Test

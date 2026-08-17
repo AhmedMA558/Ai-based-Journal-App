@@ -298,6 +298,83 @@ function SecurityTab({ isOpen, onEmailVerified }: { isOpen: boolean; onEmailVeri
       ) : (
         <TwoFactorSection mfaEnabled={mfaEnabled} onStatusChange={setMfaEnabled} />
       )}
+
+      <LoginHistorySection isOpen={isOpen} />
+    </div>
+  );
+}
+
+interface LoginHistoryEntry {
+  id: number;
+  loginTime: string;
+  ipAddress?: string;
+  userAgent?: string;
+  status: string;
+}
+
+function LoginHistorySection({ isOpen }: { isOpen: boolean }) {
+  const [entries, setEntries] = useState<LoginHistoryEntry[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setError('');
+    authService.getLoginHistory(0, 10)
+      .then((res) => {
+        if (!cancelled) setEntries(res?.content || []);
+      })
+      .catch(() => {
+        if (!cancelled) setError('Could not load recent logins.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="flex flex-col gap-3 p-[0.85rem] bg-white/[0.03] rounded-xl">
+      <div>
+        <div className="text-[0.9rem] font-semibold">Recent Logins</div>
+        <div className="text-xs text-[#64748b]">The last few times this account signed in, successful or not.</div>
+      </div>
+
+      {error ? (
+        <div className="bg-[rgba(239,68,68,0.15)] border border-[rgba(239,68,68,0.3)] text-[#f87171] py-2 px-3 rounded-lg flex items-center gap-2 text-[0.8rem]">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      ) : entries === null ? (
+        <div className="skeleton-pulse h-16 rounded-lg" />
+      ) : entries.length === 0 ? (
+        <div className="text-[0.8rem] text-[#64748b]">No login history yet.</div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {entries.map((entry) => (
+            <div key={entry.id} className="flex items-center justify-between gap-3 py-2 border-b border-white/[0.05] last:border-b-0">
+              <div className="min-w-0">
+                <div className="text-[0.82rem] text-[#e2e8f0]">
+                  {new Date(entry.loginTime).toLocaleString()}
+                </div>
+                <div className="text-xs text-[#64748b] truncate">
+                  {entry.ipAddress || 'Unknown IP'}
+                  {entry.userAgent ? ` · ${entry.userAgent}` : ''}
+                </div>
+              </div>
+              <span
+                className={cn(
+                  'text-xs py-[0.2rem] px-2 rounded-md font-bold shrink-0',
+                  entry.status === 'SUCCESS'
+                    ? 'bg-[rgba(34,197,94,0.15)] text-[#4ade80]'
+                    : 'bg-[rgba(239,68,68,0.15)] text-[#f87171]'
+                )}
+              >
+                {entry.status === 'SUCCESS' ? 'Success' : 'Failed'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

@@ -48,13 +48,18 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserPreferences updatePreferences(Long userId, UserPreferences updated) {
+        // Skip-if-null, unlike updateProfile above which always sends the
+        // full shape - a partial PUT (e.g. just {"darkMode": false}, the only
+        // shape any real caller sends today) must not null out the other
+        // NOT NULL columns (darkMode/timeZone/language/emailNotifications/
+        // pushNotifications) it omitted.
         UserPreferences existing = getPreferences(userId);
-        existing.setDarkMode(updated.getDarkMode());
-        existing.setTimeZone(updated.getTimeZone());
-        existing.setLanguage(updated.getLanguage());
-        existing.setEmailNotifications(updated.getEmailNotifications());
-        existing.setPushNotifications(updated.getPushNotifications());
-        existing.setDailyReminderTime(updated.getDailyReminderTime());
+        if (updated.getDarkMode() != null) existing.setDarkMode(updated.getDarkMode());
+        if (updated.getTimeZone() != null) existing.setTimeZone(updated.getTimeZone());
+        if (updated.getLanguage() != null) existing.setLanguage(updated.getLanguage());
+        if (updated.getEmailNotifications() != null) existing.setEmailNotifications(updated.getEmailNotifications());
+        if (updated.getPushNotifications() != null) existing.setPushNotifications(updated.getPushNotifications());
+        if (updated.getDailyReminderTime() != null) existing.setDailyReminderTime(updated.getDailyReminderTime());
         return userPreferencesRepository.save(existing);
     }
 

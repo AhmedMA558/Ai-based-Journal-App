@@ -19,6 +19,7 @@ import org.testcontainers.containers.RabbitMQContainer;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -73,7 +74,7 @@ class JournalEventPublishingTest {
 
     @Test
     void publishJournalCreatedEvent_ArrivesOnCreatedQueueWithCorrectShape() {
-        JournalCreatedEvent event = new JournalCreatedEvent(1L, 42L, "Title", "Content", "Home", "Sunny", LocalDateTime.now());
+        JournalCreatedEvent event = new JournalCreatedEvent(1L, 42L, "Title", "Content", "HAPPY", List.of("tag1"), "Home", "Sunny", LocalDateTime.now());
 
         rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_CREATED, event);
 
@@ -82,11 +83,15 @@ class JournalEventPublishingTest {
         JournalCreatedEvent receivedEvent = (JournalCreatedEvent) received;
         assertThat(receivedEvent.getUserId()).isEqualTo(42L);
         assertThat(receivedEvent.getTitle()).isEqualTo("Title");
+        // Regression guard: mood/tags used to be entirely absent from this
+        // event, silently keeping search's mood/tag filters permanently dead.
+        assertThat(receivedEvent.getMood()).isEqualTo("HAPPY");
+        assertThat(receivedEvent.getTags()).containsExactly("tag1");
     }
 
     @Test
     void publishJournalUpdatedEvent_ArrivesOnUpdatedQueueWithCorrectShape() {
-        JournalUpdatedEvent event = new JournalUpdatedEvent(2L, 43L, "Updated Title", "Updated Content", LocalDateTime.now());
+        JournalUpdatedEvent event = new JournalUpdatedEvent(2L, 43L, "Updated Title", "Updated Content", "SAD", List.of("tag2"), LocalDateTime.now());
 
         rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, JournalEventRouting.ROUTING_KEY_UPDATED, event);
 
@@ -95,11 +100,13 @@ class JournalEventPublishingTest {
         JournalUpdatedEvent receivedEvent = (JournalUpdatedEvent) received;
         assertThat(receivedEvent.getUserId()).isEqualTo(43L);
         assertThat(receivedEvent.getTitle()).isEqualTo("Updated Title");
+        assertThat(receivedEvent.getMood()).isEqualTo("SAD");
+        assertThat(receivedEvent.getTags()).containsExactly("tag2");
     }
 
     @Test
     void wrongRoutingKey_MessageNeverArrives_RegressionGuardForPhase1BugClass() {
-        JournalCreatedEvent event = new JournalCreatedEvent(3L, 44L, "Ghost", "Ghost content", null, null, LocalDateTime.now());
+        JournalCreatedEvent event = new JournalCreatedEvent(3L, 44L, "Ghost", "Ghost content", null, null, null, null, LocalDateTime.now());
 
         rabbitTemplate.convertAndSend(JournalEventRouting.EXCHANGE_NAME, "journal.nonexistent.routing.key", event);
 
