@@ -237,7 +237,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                   required
                   autoFocus
                   className="glass-input pl-[2.6rem]"
-                  placeholder="alex@example.com"
+                  placeholder="Enter your email"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                 />
@@ -367,7 +367,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             <Sparkles size={32} color="#ffffff" />
           </div>
           <h1 className="text-[2rem] font-extrabold mb-2">
-            {isLogin ? 'Welcome Back to AURA' : 'Create Your AURA Account'}
+            {isLogin ? 'Welcome Back to Mindora' : 'Create Your Mindora Account'}
           </h1>
           <p className="text-[#94a3b8] text-[0.9rem]">
             {isLogin ? 'Sign in to access your AI-powered journals & insights' : 'Join the next-generation intelligent journaling platform'}
@@ -396,7 +396,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                   type="text"
                   required
                   className="glass-input pl-[2.6rem]"
-                  placeholder="John Doe"
+                  placeholder="Enter your full name"
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                 />
@@ -412,7 +412,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                 type="text"
                 required
                 className="glass-input pl-[2.6rem]"
-                placeholder={isLogin ? 'alex_dev or alex@example.com' : 'alex_dev'}
+                placeholder={isLogin ? 'Username or email' : 'Choose a username'}
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
               />
@@ -428,7 +428,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                   type="email"
                   required
                   className="glass-input pl-[2.6rem]"
-                  placeholder="alex@example.com"
+                  placeholder="Enter your email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
