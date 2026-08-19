@@ -225,14 +225,12 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private String randomEmailVerificationCode() {
-        // Same XXXXX-XXXXX generation shape as randomRecoveryCode()/randomPasswordResetCode().
-        StringBuilder sb = new StringBuilder(11);
-        String chars = "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no O/I to avoid ambiguity
-        for (int i = 0; i < 10; i++) {
-            if (i == 5) sb.append('-');
-            sb.append(chars.charAt(RECOVERY_CODE_RANDOM.nextInt(chars.length())));
-        }
-        return sb.toString();
+        // A real numeric OTP - 6 digits, matching the MFA TOTP code convention
+        // already used elsewhere in this app, rather than the alphanumeric
+        // XXXXX-XXXXX shape used for recovery/reset codes (which are meant to
+        // be written down and typed once, not entered quickly like an OTP).
+        int code = 100000 + RECOVERY_CODE_RANDOM.nextInt(900000);
+        return String.valueOf(code);
     }
 
     @Override

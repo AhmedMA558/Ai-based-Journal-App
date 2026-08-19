@@ -539,10 +539,13 @@ function EmailVerificationSection({ emailVerified, onVerified }: EmailVerificati
           <input
             type="text"
             required
+            inputMode="numeric"
+            pattern="[0-9]{4,6}"
+            maxLength={6}
             className="glass-input"
-            placeholder="Enter the code emailed to you"
+            placeholder="Enter the 6-digit code emailed to you"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
           />
           {message && <p className="text-[0.8rem] text-[#94a3b8]">{message}</p>}
           <div className="flex items-center gap-3">
@@ -606,7 +609,10 @@ function PasswordChangeSection() {
       <input
         type="password"
         required
-        minLength={6}
+        minLength={8}
+        maxLength={12}
+        pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,12}"
+        title="8-12 characters, including one uppercase letter, one number, and one special character"
         className="glass-input"
         placeholder="New password"
         value={newPassword}
@@ -620,6 +626,9 @@ function PasswordChangeSection() {
         value={confirmNewPassword}
         onChange={(e) => setConfirmNewPassword(e.target.value)}
       />
+      <p className="text-[0.75rem] text-[#64748b]">
+        8-12 characters, with at least one uppercase letter, one number, and one special character.
+      </p>
       {message && <p className="text-[0.8rem] text-[#94a3b8]">{message}</p>}
       <button type="submit" disabled={saving} className="btn-secondary self-start px-5 text-[0.85rem]">
         {saving ? 'Updating...' : 'Update Password'}
