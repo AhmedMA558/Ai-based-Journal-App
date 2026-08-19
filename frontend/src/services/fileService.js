@@ -1,12 +1,19 @@
 import api from './api';
 
 export const fileService = {
-  // Multipart body - axios sets the multipart boundary automatically as long
-  // as no explicit Content-Type header is passed alongside a FormData body.
+  // Multipart body - axios normally sets the multipart boundary
+  // automatically for a FormData body, but only when no Content-Type header
+  // is already present. api.js's instance sets a default 'application/json'
+  // Content-Type for every request, which axios treats as already-explicit
+  // and does NOT override - without clearing it per-request here, every
+  // upload went out labeled application/json with a multipart body inside
+  // it, and Spring's multipart resolver correctly (if confusingly) rejected
+  // it as "not a multipart request" regardless of file size. Found live
+  // while reproducing a broken avatar upload.
   upload: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    return (await api.post('/api/v1/files/upload', formData))?.data?.data;
+    return (await api.post('/api/v1/files/upload', formData, { headers: { 'Content-Type': undefined } }))?.data?.data;
   },
 
   // The download endpoint requires a bearer token, which a plain <img src>
