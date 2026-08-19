@@ -51,6 +51,30 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
+
+  /* Every scrollable panel (Settings modal, the AI Chat prompt bar, the
+     theme picker dropdown, ...) was rendering the browser's stark default
+     scrollbar - an opaque white bar with square edges that looks broken
+     against this dark glassmorphism UI. A thin, translucent, themed
+     scrollbar applied once here fixes every scroll container in the app. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.35);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.55);
+  }
 }
 
 /* Component classes live in Tailwind's `components` layer so that any

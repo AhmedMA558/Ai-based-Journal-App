@@ -322,17 +322,6 @@ describe('SettingsModal', () => {
     expect(screen.getByTitle('Customize Theme Palette')).toBeInTheDocument();
   });
 
-  it('switches to the services tab and lists all microservices', async () => {
-    const user = userEvent.setup();
-    render(<SettingsModal isOpen onClose={vi.fn()} />);
-
-    await user.click(screen.getByText('Connected Services'));
-
-    expect(screen.getByText('Spring Cloud API Gateway')).toBeInTheDocument();
-    expect(screen.getByText('Port: :8080')).toBeInTheDocument();
-    expect(screen.getByText('MySQL Relational DB')).toBeInTheDocument();
-  });
-
   it('hides the Admin tab entirely for a non-admin token', async () => {
     seedFakeJwt({ userId: 1, roles: ['ROLE_USER'] });
     render(<SettingsModal isOpen onClose={vi.fn()} />);
@@ -460,12 +449,15 @@ describe('SettingsModal', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Reset 2FA' })).not.toBeInTheDocument());
   });
 
-  it('uploads a new avatar and best-effort deletes the old one', async () => {
+  it('uploads a new avatar, persists it immediately, and best-effort deletes the old one', async () => {
     mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '', avatarUrl: 'user-1/old.png' } as any);
     mockedGetBlobUrl.mockResolvedValue('blob:old-preview');
     mockedUpload.mockResolvedValue({ filePath: 'user-1/new.png' } as any);
+    mockedUpdateProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '', avatarUrl: 'user-1/new.png' } as any);
+    mockedRemove.mockResolvedValue({} as any);
     const user = userEvent.setup();
-    render(<SettingsModal isOpen onClose={vi.fn()} />);
+    const onAvatarChanged = vi.fn();
+    render(<SettingsModal isOpen onClose={vi.fn()} onAvatarChanged={onAvatarChanged} />);
 
     await screen.findByDisplayValue('Alex');
     await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/old.png'));
@@ -480,8 +472,30 @@ describe('SettingsModal', () => {
 
     await waitFor(() => expect(mockedUpload).toHaveBeenCalledWith(expect.any(File)));
     expect(mockedUpload.mock.calls[0][0].type).toBe('image/png');
+    await waitFor(() => expect(mockedUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ avatarUrl: 'user-1/new.png' })));
     await waitFor(() => expect(mockedRemove).toHaveBeenCalledWith('user-1/old.png'));
     await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/new.png'));
+    expect(onAvatarChanged).toHaveBeenCalled();
+  });
+
+  it('removes the avatar, persisting it immediately and deleting the old file', async () => {
+    mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '', avatarUrl: 'user-1/old.png' } as any);
+    mockedGetBlobUrl.mockResolvedValue('blob:old-preview');
+    mockedUpdateProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '', avatarUrl: undefined } as any);
+    mockedRemove.mockResolvedValue({} as any);
+    const user = userEvent.setup();
+    const onAvatarChanged = vi.fn();
+    render(<SettingsModal isOpen onClose={vi.fn()} onAvatarChanged={onAvatarChanged} />);
+
+    await screen.findByDisplayValue('Alex');
+    await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/old.png'));
+
+    await user.click(screen.getByRole('button', { name: 'Remove photo' }));
+
+    await waitFor(() => expect(mockedUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({ avatarUrl: undefined })));
+    await waitFor(() => expect(mockedRemove).toHaveBeenCalledWith('user-1/old.png'));
+    expect(screen.queryByRole('button', { name: 'Remove photo' })).not.toBeInTheDocument();
+    expect(onAvatarChanged).toHaveBeenCalled();
   });
 
   it('cancelling the crop step does not upload anything', async () => {

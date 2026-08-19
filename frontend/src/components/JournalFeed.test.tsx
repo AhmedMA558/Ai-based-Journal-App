@@ -25,8 +25,6 @@ describe('JournalFeed', () => {
     mockedDeleteJournal.mockReset();
     mockedGetAllJournals.mockResolvedValue(SAMPLE_JOURNALS as any);
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    (URL as any).createObjectURL = vi.fn(() => 'blob:mock-url');
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   });
 
   it('loads and displays journals', async () => {
@@ -112,20 +110,4 @@ describe('JournalFeed', () => {
     expect(onNewJournal).toHaveBeenCalledTimes(1);
   });
 
-  it('exports to Markdown, JSON, and CSV, triggering a download each time', async () => {
-    const showToast = vi.fn();
-    const user = userEvent.setup();
-    render(<JournalFeed onNewJournal={vi.fn()} onEditJournal={vi.fn()} showToast={showToast} />);
-    await screen.findByText('Hackathon Day');
-
-    await user.click(screen.getByText('Export MD'));
-    await user.click(screen.getByText('Export JSON'));
-    await user.click(screen.getByText('Export CSV'));
-
-    expect(URL.createObjectURL).toHaveBeenCalledTimes(3);
-    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(3);
-    expect(showToast).toHaveBeenCalledWith('Exported entries to Markdown (.md)', 'success');
-    expect(showToast).toHaveBeenCalledWith('Exported entries to JSON (.json)', 'success');
-    expect(showToast).toHaveBeenCalledWith('Exported entries to CSV (.csv)', 'success');
-  });
 });

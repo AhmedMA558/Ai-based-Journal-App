@@ -1,5 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
-import { BookOpen, Plus, Download, Edit3, Trash2, LayoutGrid, List, Filter, AlertCircle } from 'lucide-react';
+import { BookOpen, Plus, Edit3, Trash2, LayoutGrid, List, Filter, AlertCircle } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
 import { MOOD_META, MOOD_FILTERS, type Mood, type MoodFilter } from '@/lib/moods';
@@ -24,15 +24,6 @@ interface JournalFeedProps {
 
 function getMoodEmoji(mood?: string): string {
   return MOOD_META[(mood || '').toUpperCase() as Mood]?.emoji || '😐';
-}
-
-function downloadBlob(content: string, mimeType: string, filename: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
 }
 
 export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: JournalFeedProps) {
@@ -87,41 +78,13 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
     }
   };
 
-  const exportToMarkdown = () => {
-    const mdContent = journals
-      .map((j) => `# ${j.title}\n**Date**: ${j.createdAt || 'N/A'}\n**Mood**: ${j.mood || 'HAPPY'}\n\n${j.content}\n\n---\n`)
-      .join('\n');
-    downloadBlob(mdContent, 'text/markdown', `journals_export_${Date.now()}.md`);
-    if (showToast) showToast('Exported entries to Markdown (.md)', 'success');
-  };
-
-  const exportToJSON = () => {
-    const jsonStr = JSON.stringify(journals, null, 2);
-    downloadBlob(jsonStr, 'application/json', `journals_export_${Date.now()}.json`);
-    if (showToast) showToast('Exported entries to JSON (.json)', 'success');
-  };
-
-  const exportToCSV = () => {
-    const headers = ['ID', 'Title', 'Content', 'Mood', 'Date'];
-    const rows = journals.map((j) => [
-      j.id,
-      `"${(j.title || '').replace(/"/g, '""')}"`,
-      `"${(j.content || '').replace(/"/g, '""')}"`,
-      j.mood || 'HAPPY',
-      j.createdAt || '',
-    ]);
-    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    downloadBlob(csvContent, 'text/csv', `journals_export_${Date.now()}.csv`);
-    if (showToast) showToast('Exported entries to CSV (.csv)', 'success');
-  };
-
   return (
     <div className="p-8 max-w-[1200px] mx-auto flex flex-col gap-7 animate-fade-in">
       {/* Feed Header Bar */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-[2rem] font-extrabold">My Journal Library</h1>
-          <p className="text-[#94a3b8] text-[0.9rem]">Browse, filter, edit, delete, and export your AI-analyzed entries</p>
+          <p className="text-[#94a3b8] text-[0.9rem]">Browse, filter, edit, and delete your AI-analyzed entries</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -146,17 +109,6 @@ export default function JournalFeed({ onNewJournal, onEditJournal, showToast }: 
               <List size={16} />
             </button>
           </div>
-
-          {/* Multi-Format Exporter */}
-          <button onClick={exportToMarkdown} className="btn-secondary text-[0.85rem]">
-            <Download size={16} /> Export MD
-          </button>
-          <button onClick={exportToJSON} className="btn-secondary text-[0.85rem]">
-            <Download size={16} /> Export JSON
-          </button>
-          <button onClick={exportToCSV} className="btn-secondary text-[0.85rem]">
-            <Download size={16} /> Export CSV
-          </button>
 
           <button onClick={onNewJournal} className="btn-primary">
             <Plus size={18} /> New Entry
