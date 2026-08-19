@@ -23,15 +23,13 @@ describe('Navbar', () => {
 
   it('renders the brand and all navigation items', () => {
     render(<Navbar {...baseProps} />);
-    expect(screen.getByText('AURA')).toBeInTheDocument();
+    expect(screen.getByText('Mindora')).toBeInTheDocument();
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('My Journals')).toBeInTheDocument();
     expect(screen.getByText('Mood Calendar')).toBeInTheDocument();
     expect(screen.getByText('AI Assistant')).toBeInTheDocument();
-    expect(screen.getByText('Elastic Search')).toBeInTheDocument();
+    expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByText('Mood Analytics')).toBeInTheDocument();
-    expect(screen.getByText('Python AI')).toBeInTheDocument();
-    expect(screen.getByText('ES 8.x')).toBeInTheDocument();
   });
 
   it('falls back to "Journaler" when no user_name is stored, and shows a stored one', () => {
@@ -65,7 +63,7 @@ describe('Navbar', () => {
 
     await user.click(screen.getByTitle('Collapse Sidebar'));
 
-    expect(screen.queryByText('AURA')).not.toBeInTheDocument();
+    expect(screen.queryByText('Mindora')).not.toBeInTheDocument();
     expect(screen.queryByText('Dashboard')).not.toBeInTheDocument();
     expect(screen.queryByText('Badges')).not.toBeInTheDocument();
     expect(screen.queryByText('Journaler')).not.toBeInTheDocument();

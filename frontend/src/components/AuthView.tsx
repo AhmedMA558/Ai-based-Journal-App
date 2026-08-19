@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { Sparkles, Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle } from 'lucide-react';
 import { authService } from '@/services/authService';
+import MindoraMark from './MindoraMark';
 
 interface AuthViewProps {
   onLoginSuccess: () => void;
@@ -420,7 +421,7 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex p-3 rounded-2xl bg-[linear-gradient(135deg,#6366f1,#a855f7)] shadow-[0_8px_24px_rgba(99,102,241,0.4)] mb-4">
-            <Sparkles size={32} color="#ffffff" />
+            <MindoraMark size={34} />
           </div>
           <h1 className="text-[2rem] font-extrabold mb-2">
             {isLogin ? 'Welcome Back to Mindora' : 'Create Your Mindora Account'}

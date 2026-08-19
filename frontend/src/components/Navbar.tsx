@@ -14,6 +14,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import MindoraMark from './MindoraMark';
 
 interface NavbarProps {
   activeTab: string;
@@ -51,15 +52,15 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
       {/* Brand Header */}
       <div className="flex items-center gap-3 mb-9">
         <div className="bg-[linear-gradient(135deg,var(--accent-indigo,#6366f1),var(--accent-purple,#a855f7))] rounded-xl w-[42px] h-[42px] flex items-center justify-center shrink-0 shadow-[0_4px_12px_rgba(99,102,241,0.4)]">
-          <Sparkles size={24} color="#ffffff" />
+          <MindoraMark size={26} />
         </div>
         {!collapsed && (
           <div>
             <h2 className="text-[1.4rem] font-extrabold bg-[linear-gradient(135deg,#ffffff,#94a3b8)] bg-clip-text text-transparent">
-              AURA
+              Mindora
             </h2>
             <span className="text-xs text-[var(--accent-indigo,#6366f1)] font-semibold tracking-wider">
-              AI SAAS PLATFORM
+              AI Journaling Companion
             </span>
           </div>
         )}
@@ -94,15 +95,13 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
           icon={<Sparkles size={20} />}
           label="AI Assistant"
           active={activeTab === 'ai-chat'}
-          badge="Python AI"
           collapsed={collapsed}
           onClick={() => setActiveTab('ai-chat')}
         />
         <NavItem
           icon={<Search size={20} />}
-          label="Elastic Search"
+          label="Search"
           active={activeTab === 'search'}
-          badge="ES 8.x"
           collapsed={collapsed}
           onClick={() => setActiveTab('search')}
         />

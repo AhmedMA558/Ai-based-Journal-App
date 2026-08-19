@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class TotpService {
 
-    private static final String ISSUER = "AURA Journal";
+    private static final String ISSUER = "Mindora";
 
     private final SecretGenerator secretGenerator = new DefaultSecretGenerator();
     private final CodeVerifier codeVerifier;
