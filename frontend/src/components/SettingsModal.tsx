@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, ShieldCheck, Palette, Server, AlertCircle, Users, Camera } from 'lucide-react';
+import { X, User, ShieldCheck, Palette, AlertCircle, Users, Camera } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { cn } from '@/lib/utils';
 import { authService } from '@/services/authService';
@@ -12,7 +12,7 @@ import AvatarCropModal from './AvatarCropModal';
 
 const MAX_AVATAR_SOURCE_BYTES = 10 * 1024 * 1024; // 10MB - generous for a phone photo, well under server limits
 
-type SettingsTab = 'profile' | 'security' | 'appearance' | 'services' | 'admin';
+type SettingsTab = 'profile' | 'security' | 'appearance' | 'admin';
 
 interface AdminUser {
   id: number;
@@ -29,6 +29,7 @@ interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onEmailVerified?: () => void;
+  onAvatarChanged?: () => void;
 }
 
 interface CurrentUser {
@@ -45,7 +46,7 @@ interface ProfileData {
   city?: string;
 }
 
-export default function SettingsModal({ isOpen, onClose, onEmailVerified }: SettingsModalProps) {
+export default function SettingsModal({ isOpen, onClose, onEmailVerified, onAvatarChanged }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const isAdmin = authService.isAdmin();
 
@@ -79,7 +80,6 @@ export default function SettingsModal({ isOpen, onClose, onEmailVerified }: Sett
               <SettingsTabBtn icon={<User size={16} />} label="Profile & User" active={activeTab === 'profile'} onClick={() => setActiveTab('profile')} />
               <SettingsTabBtn icon={<ShieldCheck size={16} />} label="Security & Sessions" active={activeTab === 'security'} onClick={() => setActiveTab('security')} />
               <SettingsTabBtn icon={<Palette size={16} />} label="Appearance & Themes" active={activeTab === 'appearance'} onClick={() => setActiveTab('appearance')} />
-              <SettingsTabBtn icon={<Server size={16} />} label="Connected Services" active={activeTab === 'services'} onClick={() => setActiveTab('services')} />
               {isAdmin && (
                 <SettingsTabBtn icon={<Users size={16} />} label="Admin" active={activeTab === 'admin'} onClick={() => setActiveTab('admin')} />
               )}
@@ -87,7 +87,7 @@ export default function SettingsModal({ isOpen, onClose, onEmailVerified }: Sett
 
             {/* Inner Tab Content */}
             <div className="flex-1 p-6 overflow-y-auto">
-              {activeTab === 'profile' && <ProfileTab isOpen={isOpen} />}
+              {activeTab === 'profile' && <ProfileTab isOpen={isOpen} onAvatarChanged={onAvatarChanged} />}
               {activeTab === 'security' && <SecurityTab isOpen={isOpen} onEmailVerified={onEmailVerified} />}
 
               {activeTab === 'appearance' && (
@@ -100,18 +100,6 @@ export default function SettingsModal({ isOpen, onClose, onEmailVerified }: Sett
                 </div>
               )}
 
-              {activeTab === 'services' && (
-                <div className="flex flex-col gap-4">
-                  <h3 className="text-[1.1rem] font-bold">Microservices Status</h3>
-                  <ServiceRow name="Spring Cloud API Gateway" port="8080" status="Online" />
-                  <ServiceRow name="Python Flask AI Engine" port="5000" status="Online (96% Accuracy)" />
-                  <ServiceRow name="Journal Microservice" port="8083" status="Online" />
-                  <ServiceRow name="Elasticsearch Search Service" port="8085 / 9200" status="Online" />
-                  <ServiceRow name="RabbitMQ Event Bus" port="5672" status="Online" />
-                  <ServiceRow name="MySQL Relational DB" port="3307" status="Online" />
-                </div>
-              )}
-
               {activeTab === 'admin' && isAdmin && <AdminTab isOpen={isOpen} />}
             </div>
           </div>
@@ -121,7 +109,7 @@ export default function SettingsModal({ isOpen, onClose, onEmailVerified }: Sett
   );
 }
 
-function ProfileTab({ isOpen }: { isOpen: boolean }) {
+function ProfileTab({ isOpen, onAvatarChanged }: { isOpen: boolean; onAvatarChanged?: () => void }) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profile, setProfile] = useState<ProfileData>({});
   const [loading, setLoading] = useState(true);
@@ -209,6 +197,9 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
     setPendingAvatarFile(file);
   };
 
+  // Persists immediately (not deferred until "Save Profile") so the header
+  // and sidebar avatar pills pick up the new photo right away instead of
+  // only after an unrelated Save click elsewhere in this form.
   const handleAvatarCropped = async (blob: Blob) => {
     setPendingAvatarFile(null);
     const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
@@ -219,14 +210,38 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
       const newPath = uploaded?.filePath;
       if (!newPath) throw new Error('Upload did not return a file path.');
       const oldPath = profile.avatarUrl;
-      setProfile((prev) => ({ ...prev, avatarUrl: newPath }));
+      const updated = await userService.updateProfile({ ...profile, avatarUrl: newPath });
+      setProfile(updated || { ...profile, avatarUrl: newPath });
       if (oldPath) {
         // Best-effort - a failed cleanup of the old file must never block the
         // new avatar from taking effect.
         fileService.remove(oldPath).catch(() => {});
       }
+      onAvatarChanged?.();
     } catch (err: any) {
       setAvatarError(err?.message || 'Failed to upload avatar.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  // Persists the removal immediately for the same reason - the photo must
+  // actually be gone from the account (and the header/sidebar) the moment
+  // the user asks for that, not silently reappear if the modal is closed
+  // without an unrelated Save click. The old file is deleted from
+  // file-service's storage best-effort, mirroring handleAvatarCropped above.
+  const handleAvatarRemove = async () => {
+    if (!profile.avatarUrl) return;
+    setAvatarError('');
+    setAvatarUploading(true);
+    const oldPath = profile.avatarUrl;
+    try {
+      const updated = await userService.updateProfile({ ...profile, avatarUrl: undefined });
+      setProfile(updated || { ...profile, avatarUrl: undefined });
+      fileService.remove(oldPath).catch(() => {});
+      onAvatarChanged?.();
+    } catch (err: any) {
+      setAvatarError(err?.message || 'Failed to remove avatar.');
     } finally {
       setAvatarUploading(false);
     }
@@ -300,6 +315,15 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
         <div>
           <div className="text-[0.85rem] font-semibold">Profile Photo</div>
           <div className="text-xs text-[#64748b]">{avatarUploading ? 'Uploading...' : 'PNG or JPG, click the camera to change'}</div>
+          {profile.avatarUrl && !avatarUploading && (
+            <button
+              type="button"
+              onClick={handleAvatarRemove}
+              className="text-xs text-[#f87171] underline hover:opacity-80 mt-1"
+            >
+              Remove photo
+            </button>
+          )}
           {avatarError && <div className="text-xs text-[#f87171] mt-1">{avatarError}</div>}
         </div>
       </div>
@@ -1078,22 +1102,3 @@ function SettingsTabBtn({ icon, label, active, onClick }: SettingsTabBtnProps) {
   );
 }
 
-interface ServiceRowProps {
-  name: string;
-  port: string;
-  status: string;
-}
-
-function ServiceRow({ name, port, status }: ServiceRowProps) {
-  return (
-    <div className="flex items-center justify-between py-3 px-4 bg-white/[0.03] rounded-xl border border-white/[0.06]">
-      <div>
-        <div className="text-[0.85rem] font-semibold text-[#f8fafc]">{name}</div>
-        <div className="text-xs text-[#64748b]">Port: :{port}</div>
-      </div>
-      <span className="text-[0.7rem] text-[#4ade80] bg-[rgba(74,222,128,0.15)] py-[0.2rem] px-[0.55rem] rounded-md font-bold">
-        {status}
-      </span>
-    </div>
-  );
-}

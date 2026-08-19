@@ -27,7 +27,7 @@ describe('Navbar', () => {
     expect(screen.getByText('Dashboard')).toBeInTheDocument();
     expect(screen.getByText('My Journals')).toBeInTheDocument();
     expect(screen.getByText('Mood Calendar')).toBeInTheDocument();
-    expect(screen.getByText('AI Assistant')).toBeInTheDocument();
+    expect(screen.getByText('Assistant')).toBeInTheDocument();
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByText('Mood Analytics')).toBeInTheDocument();
   });

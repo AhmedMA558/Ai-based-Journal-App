@@ -7,6 +7,7 @@ interface HeaderProps {
   onOpenNotifications: () => void;
   unreadCount?: number;
   onOpenSettings: () => void;
+  avatarUrl?: string | null;
 }
 
 export default function Header({
@@ -16,6 +17,7 @@ export default function Header({
   onOpenNotifications,
   unreadCount = 0,
   onOpenSettings,
+  avatarUrl,
 }: HeaderProps) {
   const username = localStorage.getItem('user_name') || 'Journaler';
 
@@ -63,14 +65,18 @@ export default function Header({
           onClick={onOpenSettings}
           className="flex items-center gap-[0.6rem] bg-white/5 border border-white/10 py-[0.35rem] pr-3 pl-[0.4rem] rounded-2xl cursor-pointer transition-all duration-200"
         >
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[0.85rem]"
-            style={{
-              background: 'linear-gradient(135deg, var(--accent-indigo, #6366f1), var(--accent-purple, #a855f7))',
-            }}
-          >
-            {username.charAt(0).toUpperCase()}
-          </div>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="w-8 h-8 rounded-full object-cover" />
+          ) : (
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-[0.85rem]"
+              style={{
+                background: 'linear-gradient(135deg, var(--accent-indigo, #6366f1), var(--accent-purple, #a855f7))',
+              }}
+            >
+              {username.charAt(0).toUpperCase()}
+            </div>
+          )}
           <span className="text-[0.85rem] font-semibold text-[var(--text-primary)]">{username}</span>
         </div>
       </div>

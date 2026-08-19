@@ -13,6 +13,7 @@ import { authService } from './services/authService';
 import { journalService } from './services/journalService';
 import { notificationService } from './services/notificationService';
 import { userService } from './services/userService';
+import { fileService } from './services/fileService';
 
 function EditJournalRoute({ onSaveSuccess, showToast }) {
   const { journalId } = useParams();
@@ -74,6 +75,8 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [emailVerified, setEmailVerified] = useState(true);
   const [verificationBannerDismissed, setVerificationBannerDismissed] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const avatarObjectUrlRef = useRef(null);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -143,10 +146,47 @@ export default function App() {
       });
   };
 
+  // Same pattern as refreshEmailVerified above - fetched once on auth so the
+  // header/sidebar avatar pill shows the user's real photo immediately
+  // instead of only the letter fallback, and exposed to SettingsModal so a
+  // successful upload/removal updates both without a full reload. Revokes
+  // the previous object URL before creating a new one so uploading a
+  // replacement (or removing the photo) doesn't leak blob URLs.
+  const avatarRequestId = useRef(0);
+  const refreshAvatar = () => {
+    const requestId = ++avatarRequestId.current;
+    userService.getProfile()
+      .then((profile) => {
+        if (requestId !== avatarRequestId.current) return;
+        if (!profile?.avatarUrl) {
+          if (avatarObjectUrlRef.current) {
+            URL.revokeObjectURL(avatarObjectUrlRef.current);
+            avatarObjectUrlRef.current = null;
+          }
+          setAvatarUrl(null);
+          return;
+        }
+        fileService.getBlobUrl(profile.avatarUrl)
+          .then((url) => {
+            if (requestId !== avatarRequestId.current) return;
+            if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current);
+            avatarObjectUrlRef.current = url;
+            setAvatarUrl(url);
+          })
+          .catch(() => {
+            if (requestId === avatarRequestId.current) setAvatarUrl(null);
+          });
+      })
+      .catch(() => {
+        // Fail soft - the letter-fallback avatar keeps showing.
+      });
+  };
+
   useEffect(() => {
     if (!isAuthenticated) return;
     refreshEmailVerified();
     refreshNotifications();
+    refreshAvatar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated]);
 
@@ -238,6 +278,11 @@ export default function App() {
     setEmailVerified(true);
     setVerificationBannerDismissed(false);
     setNotifications([]);
+    if (avatarObjectUrlRef.current) {
+      URL.revokeObjectURL(avatarObjectUrlRef.current);
+      avatarObjectUrlRef.current = null;
+    }
+    setAvatarUrl(null);
     showToast('Logged out.', 'info');
   };
 
@@ -303,6 +348,7 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onEmailVerified={refreshEmailVerified}
+        onAvatarChanged={refreshAvatar}
       />
       <AchievementsModal
         isOpen={isAchievementsOpen}
@@ -316,6 +362,7 @@ export default function App() {
         onLogout={handleLogout}
         onOpenAchievements={() => setIsAchievementsOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        avatarUrl={avatarUrl}
       />
 
       {/* Main App Section */}
@@ -328,6 +375,7 @@ export default function App() {
           onOpenNotifications={() => setIsNotificationsOpen(true)}
           unreadCount={unreadCount}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          avatarUrl={avatarUrl}
         />
 
         {/* Non-blocking email verification nag - dismissible, never gates access */}

@@ -22,9 +22,10 @@ interface NavbarProps {
   onLogout: () => void;
   onOpenAchievements: () => void;
   onOpenSettings: () => void;
+  avatarUrl?: string | null;
 }
 
-export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchievements, onOpenSettings }: NavbarProps) {
+export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchievements, onOpenSettings, avatarUrl }: NavbarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const username = localStorage.getItem('user_name') || 'Journaler';
 
@@ -37,17 +38,19 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
         collapsed ? 'py-5 px-3' : 'p-6'
       )}
     >
-      {/* Collapse Toggle Button */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className={cn(
-          'absolute top-5 bg-white/[0.08] border border-white/[0.12] text-[#94a3b8] rounded-full w-7 h-7 flex items-center justify-center cursor-pointer z-[5]',
-          collapsed ? 'right-5' : 'right-4'
-        )}
-        title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-      >
-        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-      </button>
+      {/* Collapse Toggle Button - in normal flow (not absolutely positioned)
+          so it never overlaps the brand logo once the sidebar shrinks to
+          80px collapsed: an absolute top-right button and a 42px logo tile
+          both competing for the same corner used to visibly merge together. */}
+      <div className={cn('flex items-center mb-4', collapsed ? 'justify-center' : 'justify-end')}>
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="bg-white/[0.08] border border-white/[0.12] text-[#94a3b8] rounded-full w-7 h-7 flex items-center justify-center cursor-pointer shrink-0"
+          title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+        >
+          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+        </button>
+      </div>
 
       {/* Brand Header */}
       <div className="flex items-center gap-3 mb-9">
@@ -93,7 +96,7 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
         />
         <NavItem
           icon={<Sparkles size={20} />}
-          label="AI Assistant"
+          label="Assistant"
           active={activeTab === 'ai-chat'}
           collapsed={collapsed}
           onClick={() => setActiveTab('ai-chat')}
@@ -133,9 +136,13 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
       <div className="pt-4 border-t border-t-white/[0.08]">
         <div className={cn('flex items-center', collapsed ? 'justify-center' : 'justify-between')}>
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[linear-gradient(135deg,#6366f1,#a855f7)] flex items-center justify-center text-white font-bold shrink-0">
-              {username.charAt(0).toUpperCase()}
-            </div>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-full bg-[linear-gradient(135deg,#6366f1,#a855f7)] flex items-center justify-center text-white font-bold shrink-0">
+                {username.charAt(0).toUpperCase()}
+              </div>
+            )}
             {!collapsed && (
               <div>
                 <div className="text-[0.9rem] font-semibold text-[#f8fafc]">{username}</div>
