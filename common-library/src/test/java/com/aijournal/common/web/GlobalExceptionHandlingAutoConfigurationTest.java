@@ -10,6 +10,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.BeanPropertyBindingResult;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +78,24 @@ class GlobalExceptionHandlingAutoConfigurationTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody().isSuccess()).isFalse();
+    }
+
+    @Test
+    void handleValidation_ReturnsFourHundredWithFieldMessages_NotSwallowedByTheCatchAll() {
+        // Regression guard: found live while verifying the auth-service
+        // password-policy @Pattern - without an explicit handler here, the
+        // catch-all @ExceptionHandler(Exception.class) intercepted Spring's
+        // own @Valid failure first and turned a clean, actionable validation
+        // error into a misleading, unhelpful 500.
+        BeanPropertyBindingResult bindingResult = new BeanPropertyBindingResult(new Object(), "registerRequest");
+        bindingResult.addError(new FieldError("registerRequest", "password", "Password must be 8-12 characters and include at least one uppercase letter, one number, and one special character"));
+        MethodArgumentNotValidException exception = new MethodArgumentNotValidException((org.springframework.core.MethodParameter) null, bindingResult);
+
+        ResponseEntity<ApiResponse<Void>> response = handler.handleValidation(exception);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(response.getBody().isSuccess()).isFalse();
+        assertThat(response.getBody().getMessage()).contains("8-12 characters");
     }
 
     @Test
