@@ -140,10 +140,6 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
             {!collapsed && (
               <div>
                 <div className="text-[0.9rem] font-semibold text-[#f8fafc]">{username}</div>
-                <div className="text-xs text-[#4ade80] flex items-center gap-1">
-                  <span className="w-[6px] h-[6px] rounded-full bg-[#4ade80]" />
-                  <span>10-Min Session</span>
-                </div>
               </div>
             )}
           </div>
