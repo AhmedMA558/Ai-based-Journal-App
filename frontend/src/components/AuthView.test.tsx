@@ -31,9 +31,9 @@ describe('AuthView', () => {
 
   it('shows the login form by default', () => {
     render(<AuthView onLoginSuccess={vi.fn()} />);
-    expect(screen.getByText('Welcome Back to AURA')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('alex_dev or alex@example.com')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('John Doe')).not.toBeInTheDocument();
+    expect(screen.getByText('Welcome Back to Mindora')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Username or email')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Enter your full name')).not.toBeInTheDocument();
   });
 
   it('switches to the register form, revealing full name and email fields', async () => {
@@ -42,9 +42,9 @@ describe('AuthView', () => {
 
     await user.click(screen.getByText(/Don't have an account\?/));
 
-    expect(screen.getByText('Create Your AURA Account')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('John Doe')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('alex@example.com')).toBeInTheDocument();
+    expect(screen.getByText('Create Your Mindora Account')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your full name')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter your email')).toBeInTheDocument();
   });
 
   it('logs in with the entered credentials and calls onLoginSuccess', async () => {
@@ -53,7 +53,7 @@ describe('AuthView', () => {
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
 
@@ -67,7 +67,7 @@ describe('AuthView', () => {
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'wrong');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
 
@@ -82,9 +82,9 @@ describe('AuthView', () => {
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
     await user.click(screen.getByText(/Don't have an account\?/));
-    await user.type(screen.getByPlaceholderText('John Doe'), 'Alex Example');
-    await user.type(screen.getByPlaceholderText('alex_dev'), 'alex_dev');
-    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your full name'), 'Alex Example');
+    await user.type(screen.getByPlaceholderText('Choose a username'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Create Account/ }));
 
@@ -100,7 +100,7 @@ describe('AuthView', () => {
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
 
@@ -117,7 +117,7 @@ describe('AuthView', () => {
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
     await screen.findByText('Two-Factor Verification');
@@ -138,7 +138,7 @@ describe('AuthView', () => {
     const onLoginSuccess = vi.fn();
     render(<AuthView onLoginSuccess={onLoginSuccess} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
     await screen.findByText('Two-Factor Verification');
@@ -159,7 +159,7 @@ describe('AuthView', () => {
     const user = userEvent.setup();
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
     await screen.findByText('Two-Factor Verification');
@@ -178,14 +178,14 @@ describe('AuthView', () => {
     const user = userEvent.setup();
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
-    await user.type(screen.getByPlaceholderText('alex_dev or alex@example.com'), 'alex_dev');
+    await user.type(screen.getByPlaceholderText('Username or email'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
     await screen.findByText('Two-Factor Verification');
 
     await user.click(screen.getByText('Back to Sign In'));
 
-    expect(screen.getByText('Welcome Back to AURA')).toBeInTheDocument();
+    expect(screen.getByText('Welcome Back to Mindora')).toBeInTheDocument();
   });
 
   it('switches to the forgot-password step via the link on the login form', async () => {
@@ -203,7 +203,7 @@ describe('AuthView', () => {
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
     await user.click(screen.getByText('Forgot password?'));
-    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
     await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
 
     expect(mockedForgotPassword).toHaveBeenCalledWith('alex@example.com');
@@ -217,7 +217,7 @@ describe('AuthView', () => {
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
     await user.click(screen.getByText('Forgot password?'));
-    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
     await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
     await screen.findByText('Enter Reset Code');
 
@@ -238,7 +238,7 @@ describe('AuthView', () => {
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
     await user.click(screen.getByText('Forgot password?'));
-    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
     await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
     await screen.findByText('Enter Reset Code');
 
@@ -249,7 +249,7 @@ describe('AuthView', () => {
     await user.click(screen.getByRole('button', { name: /Reset Password/ }));
 
     expect(mockedResetPassword).toHaveBeenCalledWith('ABCDE-12345', 'newpass123');
-    expect(await screen.findByText('Welcome Back to AURA')).toBeInTheDocument();
+    expect(await screen.findByText('Welcome Back to Mindora')).toBeInTheDocument();
     expect(screen.getByText(/Password reset successfully/)).toBeInTheDocument();
   });
 
@@ -260,7 +260,7 @@ describe('AuthView', () => {
     render(<AuthView onLoginSuccess={vi.fn()} />);
 
     await user.click(screen.getByText('Forgot password?'));
-    await user.type(screen.getByPlaceholderText('alex@example.com'), 'alex@example.com');
+    await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
     await user.click(screen.getByRole('button', { name: /Send Reset Code/ }));
     await screen.findByText('Enter Reset Code');
 
