@@ -85,10 +85,10 @@ describe('AuthView', () => {
     await user.type(screen.getByPlaceholderText('Enter your full name'), 'Alex Example');
     await user.type(screen.getByPlaceholderText('Choose a username'), 'alex_dev');
     await user.type(screen.getByPlaceholderText('Enter your email'), 'alex@example.com');
-    await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
+    await user.type(screen.getByPlaceholderText('••••••••••••'), 'Hunter2!');
     await user.click(screen.getByRole('button', { name: /Create Account/ }));
 
-    expect(mockedRegister).toHaveBeenCalledWith('alex_dev', 'alex@example.com', 'hunter2', 'Alex Example');
+    expect(mockedRegister).toHaveBeenCalledWith('alex_dev', 'alex@example.com', 'Hunter2!', 'Alex Example');
     expect(onLoginSuccess).toHaveBeenCalledTimes(1);
   });
 
@@ -223,8 +223,8 @@ describe('AuthView', () => {
 
     await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'ABCDE-12345');
     const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
-    await user.type(passwordInputs[0], 'newpass123');
-    await user.type(passwordInputs[1], 'different');
+    await user.type(passwordInputs[0], 'NewPass1!');
+    await user.type(passwordInputs[1], 'Different1!');
     await user.click(screen.getByRole('button', { name: /Reset Password/ }));
 
     expect(screen.getByText('New passwords do not match.')).toBeInTheDocument();
@@ -244,11 +244,11 @@ describe('AuthView', () => {
 
     await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'ABCDE-12345');
     const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
-    await user.type(passwordInputs[0], 'newpass123');
-    await user.type(passwordInputs[1], 'newpass123');
+    await user.type(passwordInputs[0], 'NewPass1!');
+    await user.type(passwordInputs[1], 'NewPass1!');
     await user.click(screen.getByRole('button', { name: /Reset Password/ }));
 
-    expect(mockedResetPassword).toHaveBeenCalledWith('ABCDE-12345', 'newpass123');
+    expect(mockedResetPassword).toHaveBeenCalledWith('ABCDE-12345', 'NewPass1!');
     expect(await screen.findByText('Welcome Back to Mindora')).toBeInTheDocument();
     expect(screen.getByText(/Password reset successfully/)).toBeInTheDocument();
   });
@@ -266,8 +266,8 @@ describe('AuthView', () => {
 
     await user.type(screen.getByPlaceholderText('XXXXX-XXXXX'), 'BADCODE');
     const passwordInputs = screen.getAllByPlaceholderText('••••••••••••');
-    await user.type(passwordInputs[0], 'newpass123');
-    await user.type(passwordInputs[1], 'newpass123');
+    await user.type(passwordInputs[0], 'NewPass1!');
+    await user.type(passwordInputs[1], 'NewPass1!');
     await user.click(screen.getByRole('button', { name: /Reset Password/ }));
 
     expect(await screen.findByText('Invalid or expired reset code')).toBeInTheDocument();

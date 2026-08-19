@@ -201,11 +201,11 @@ describe('SettingsModal', () => {
     await screen.findByText('Disabled');
 
     await user.type(screen.getByPlaceholderText('Current password'), 'oldpass123');
-    await user.type(screen.getByPlaceholderText('New password'), 'newpass123');
-    await user.type(screen.getByPlaceholderText('Confirm new password'), 'newpass123');
+    await user.type(screen.getByPlaceholderText('New password'), 'NewPass1!');
+    await user.type(screen.getByPlaceholderText('Confirm new password'), 'NewPass1!');
     await user.click(screen.getByRole('button', { name: /Update Password/ }));
 
-    await waitFor(() => expect(mockedChangePassword).toHaveBeenCalledWith('oldpass123', 'newpass123'));
+    await waitFor(() => expect(mockedChangePassword).toHaveBeenCalledWith('oldpass123', 'NewPass1!'));
   });
 
   it('shows a mismatch error without calling changePassword when passwords differ', async () => {
@@ -216,8 +216,8 @@ describe('SettingsModal', () => {
     await screen.findByText('Disabled');
 
     await user.type(screen.getByPlaceholderText('Current password'), 'oldpass123');
-    await user.type(screen.getByPlaceholderText('New password'), 'newpass123');
-    await user.type(screen.getByPlaceholderText('Confirm new password'), 'different');
+    await user.type(screen.getByPlaceholderText('New password'), 'NewPass1!');
+    await user.type(screen.getByPlaceholderText('Confirm new password'), 'Different1!');
     await user.click(screen.getByRole('button', { name: /Update Password/ }));
 
     expect(await screen.findByText('New passwords do not match.')).toBeInTheDocument();
@@ -231,7 +231,7 @@ describe('SettingsModal', () => {
     await user.click(screen.getByText('Security & Sessions'));
 
     expect(await screen.findByText('Not verified')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter the code emailed to you')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter the 6-digit code emailed to you')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resend code' })).toBeInTheDocument();
   });
 
@@ -244,14 +244,14 @@ describe('SettingsModal', () => {
     await user.click(screen.getByText('Security & Sessions'));
     await screen.findByText('Not verified');
 
-    await user.type(screen.getByPlaceholderText('Enter the code emailed to you'), 'ABCDE-12345');
+    await user.type(screen.getByPlaceholderText('Enter the 6-digit code emailed to you'), '123456');
     await user.click(screen.getByRole('button', { name: 'Verify' }));
 
-    await waitFor(() => expect(mockedVerifyEmail).toHaveBeenCalledWith('ABCDE-12345'));
+    await waitFor(() => expect(mockedVerifyEmail).toHaveBeenCalledWith('123456'));
     expect(await screen.findByText('Verified')).toBeInTheDocument();
     expect(onEmailVerified).toHaveBeenCalledTimes(1);
     // Once verified, the code input/resend link disappear - nothing left to do.
-    expect(screen.queryByPlaceholderText('Enter the code emailed to you')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Enter the 6-digit code emailed to you')).not.toBeInTheDocument();
   });
 
   it('shows an inline error and does not update the badge on an invalid code', async () => {
@@ -262,7 +262,7 @@ describe('SettingsModal', () => {
     await user.click(screen.getByText('Security & Sessions'));
     await screen.findByText('Not verified');
 
-    await user.type(screen.getByPlaceholderText('Enter the code emailed to you'), 'WRONG-CODE');
+    await user.type(screen.getByPlaceholderText('Enter the 6-digit code emailed to you'), '000000');
     await user.click(screen.getByRole('button', { name: 'Verify' }));
 
     expect(await screen.findByText('Invalid or expired verification code')).toBeInTheDocument();
@@ -291,7 +291,7 @@ describe('SettingsModal', () => {
     await user.click(screen.getByText('Security & Sessions'));
 
     expect(await screen.findByText('Verified')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Enter the code emailed to you')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Enter the 6-digit code emailed to you')).not.toBeInTheDocument();
   });
 
   it('switches to the appearance tab and renders the theme customizer', async () => {

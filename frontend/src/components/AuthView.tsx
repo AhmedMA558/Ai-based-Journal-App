@@ -315,6 +315,10 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                 <input
                   type="password"
                   required
+                  minLength={8}
+                  maxLength={12}
+                  pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,12}"
+                  title="8-12 characters, including one uppercase letter, one number, and one special character"
                   className="glass-input pl-[2.6rem]"
                   placeholder="••••••••••••"
                   value={newPassword}
@@ -322,6 +326,9 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                 />
                 <Lock size={18} color="#64748b" className={ICON_CLASS} />
               </div>
+              <p className="text-[0.75rem] text-[#64748b] mt-2">
+                8-12 characters, with at least one uppercase letter, one number, and one special character.
+              </p>
             </div>
 
             <div>
@@ -443,6 +450,12 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
               <input
                 type="password"
                 required
+                {...(!isLogin && {
+                  minLength: 8,
+                  maxLength: 12,
+                  pattern: '(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{8,12}',
+                  title: '8-12 characters, including one uppercase letter, one number, and one special character',
+                })}
                 className="glass-input pl-[2.6rem]"
                 placeholder="••••••••••••"
                 value={formData.password}
@@ -450,6 +463,11 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
               />
               <Lock size={18} color="#64748b" className={ICON_CLASS} />
             </div>
+            {!isLogin && (
+              <p className="text-[0.75rem] text-[#64748b] mt-2">
+                8-12 characters, with at least one uppercase letter, one number, and one special character.
+              </p>
+            )}
             {isLogin && (
               <button
                 type="button"
