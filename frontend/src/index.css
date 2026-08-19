@@ -35,23 +35,32 @@
   --text-muted: #94a3b8;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
 }
 
-body {
-  font-family: var(--font-sans);
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  min-height: 100vh;
-  overflow-x: hidden;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Glassmorphism Panel Primitives */
+/* Component classes live in Tailwind's `components` layer so that any
+   utility class applied alongside one of these (e.g. `pl-[2.6rem]` next to
+   `glass-input`) correctly overrides it. Without this, plain unlayered CSS
+   always beats Tailwind's layered utilities regardless of source order or
+   specificity - which was silently breaking every icon-padded input and
+   any other component+utility combo across the app (found live in prod:
+   the AuthView icon overlapping the input placeholder text). */
+@layer components {
 .glass-panel {
   background: var(--panel-bg);
   backdrop-filter: blur(16px);
@@ -209,4 +218,5 @@ body {
   .glass-panel {
     padding: 1rem !important;
   }
+}
 }
