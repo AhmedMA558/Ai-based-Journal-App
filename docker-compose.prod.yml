@@ -80,8 +80,13 @@ services:
     build: ./gateway-service
     container_name: gateway-service-prod
     restart: always
+    # Bound to localhost only: everything reaches this via the host-nginx ->
+    # frontend-container -> gateway proxy chain (see frontend/nginx.conf).
+    # Publishing this on 0.0.0.0 let anyone bypass that chain and hit the
+    # gateway directly with a forged X-Forwarded-For/X-Real-IP header, which
+    # ClientIpHeaderFilter/RateLimiterConfig would otherwise trust unconditionally.
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
     depends_on:

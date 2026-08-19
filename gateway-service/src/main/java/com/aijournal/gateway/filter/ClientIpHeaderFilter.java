@@ -22,6 +22,14 @@ import reactor.core.publisher.Mono;
 // remote address becomes the proxy's own address for every single request -
 // identical for every real client - silently corrupting both the rate
 // limiter's per-client bucketing and every recorded login-history IP.
+//
+// That forwarded header is only trusted when the immediate TCP peer is
+// itself a loopback/private-network address (see TrustedProxyAddresses) -
+// gateway-service's port is published on the host so the frontend container
+// can reach it, which also makes it directly reachable by anyone who
+// bypasses nginx entirely. Without this check, an attacker hitting the
+// gateway's port directly could set an arbitrary X-Forwarded-For and have it
+// trusted unconditionally.
 @Component
 public class ClientIpHeaderFilter implements GlobalFilter, Ordered {
 
@@ -39,13 +47,15 @@ public class ClientIpHeaderFilter implements GlobalFilter, Ordered {
     }
 
     private String resolveClientIp(ServerWebExchange exchange) {
-        String forwardedFor = exchange.getRequest().getHeaders().getFirst(HEADER_FORWARDED_FOR);
-        if (forwardedFor != null && !forwardedFor.isBlank()) {
-            return forwardedFor.split(",")[0].trim();
-        }
-        String realIp = exchange.getRequest().getHeaders().getFirst(HEADER_REAL_IP);
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
+        if (TrustedProxyAddresses.isTrustedPeer(exchange.getRequest().getRemoteAddress())) {
+            String forwardedFor = exchange.getRequest().getHeaders().getFirst(HEADER_FORWARDED_FOR);
+            if (forwardedFor != null && !forwardedFor.isBlank()) {
+                return forwardedFor.split(",")[0].trim();
+            }
+            String realIp = exchange.getRequest().getHeaders().getFirst(HEADER_REAL_IP);
+            if (realIp != null && !realIp.isBlank()) {
+                return realIp.trim();
+            }
         }
         return exchange.getRequest().getRemoteAddress() != null
                 ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()

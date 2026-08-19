@@ -47,4 +47,39 @@ class RateLimiterConfigTest {
                 .expectNext("unknown")
                 .verifyComplete();
     }
+
+    @Test
+    void ipKeyResolver_ForwardedForFromUntrustedPublicPeer_IsIgnored() {
+        // The actual exploit this check exists to close: gateway-service's
+        // port is reachable directly on the host, so without a trust check
+        // an attacker hitting it straight (bypassing nginx) could set a
+        // fresh X-Forwarded-For on every single request and get a brand new
+        // rate-limit bucket key each time - unlimited login/MFA/password-
+        // reset attempts despite the rate limiter existing at all.
+        MockServerWebExchange exchangeA = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "1.1.1.1")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+        MockServerWebExchange exchangeB = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "2.2.2.2")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+
+        String keyA = resolver.resolve(exchangeA).block();
+        String keyB = resolver.resolve(exchangeB).block();
+
+        org.assertj.core.api.Assertions.assertThat(keyA).isEqualTo(keyB).isEqualTo("203.0.113.42");
+    }
+
+    @Test
+    void ipKeyResolver_ForwardedForFromTrustedLocalProxy_IsTrusted() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/auth/login")
+                        .header("X-Forwarded-For", "198.51.100.7, 172.18.0.5")
+                        .remoteAddress(new InetSocketAddress("172.18.0.5", 54321)));
+
+        StepVerifier.create(resolver.resolve(exchange))
+                .expectNext("198.51.100.7")
+                .verifyComplete();
+    }
 }
