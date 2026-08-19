@@ -58,9 +58,17 @@ api.interceptors.response.use(
       }
     }
 
+    // A raw HTML error page (e.g. nginx's own 413/502, not the app's JSON
+    // envelope) must never be shown to the user as-is - substitute a clean
+    // status-based message instead of dumping markup into a toast/banner.
+    const rawStringBody = typeof error.response?.data === 'string' ? error.response.data : null;
+    const isHtmlBody = rawStringBody?.trim().startsWith('<');
+
     const serverMessage = error.response?.data?.message ||
                           error.response?.data?.error ||
-                          (typeof error.response?.data === 'string' ? error.response.data : null) ||
+                          (rawStringBody && !isHtmlBody ? rawStringBody : null) ||
+                          (isHtmlBody && error.response?.status === 413 ? 'That file is too large. Please choose a smaller one.' : null) ||
+                          (isHtmlBody ? `Request failed (${error.response?.status}). Please try again.` : null) ||
                           error.message ||
                           'Network error connecting to Gateway.';
 

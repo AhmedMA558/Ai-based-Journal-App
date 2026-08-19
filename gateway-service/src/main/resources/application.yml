@@ -4,6 +4,15 @@ server:
 spring:
   application:
     name: gateway-service
+  # WebFlux's own default is 256KB - well under a real profile-photo upload
+  # (file-service already allows up to 50MB). Without this, a multipart body
+  # proxied through the reactive gateway can be truncated mid-stream once it
+  # exceeds the default buffer, and the receiving service's multipart parser
+  # then fails with a confusing "Current request is not a multipart request"
+  # rather than a clean size-limit error - found live while reproducing a
+  # broken avatar upload.
+  codec:
+    max-in-memory-size: 20MB
   data:
     redis:
       host: ${SPRING_REDIS_HOST:redis}
