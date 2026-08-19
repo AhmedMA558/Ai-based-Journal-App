@@ -15,21 +15,41 @@ import reactor.core.publisher.Mono;
 // services (auth-service's login-history feature) read this rather than
 // trusting Spring Cloud Gateway's default forwarded-header behavior, which
 // isn't guaranteed without explicit configuration this codebase doesn't have.
+//
+// Prefers an incoming X-Forwarded-For/X-Real-IP (set by a trusted reverse
+// proxy in front of the gateway, e.g. nginx) over the raw TCP peer address.
+// Without this, once ANY reverse proxy sits in front of the gateway, the raw
+// remote address becomes the proxy's own address for every single request -
+// identical for every real client - silently corrupting both the rate
+// limiter's per-client bucketing and every recorded login-history IP.
 @Component
 public class ClientIpHeaderFilter implements GlobalFilter, Ordered {
 
     private static final String HEADER_REAL_IP = "X-Real-IP";
+    private static final String HEADER_FORWARDED_FOR = "X-Forwarded-For";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String clientIp = exchange.getRequest().getRemoteAddress() != null
-                ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
-                : "unknown";
+        String clientIp = resolveClientIp(exchange);
 
         ServerHttpRequest modifiedRequest = exchange.getRequest().mutate()
                 .header(HEADER_REAL_IP, clientIp)
                 .build();
         return chain.filter(exchange.mutate().request(modifiedRequest).build());
+    }
+
+    private String resolveClientIp(ServerWebExchange exchange) {
+        String forwardedFor = exchange.getRequest().getHeaders().getFirst(HEADER_FORWARDED_FOR);
+        if (forwardedFor != null && !forwardedFor.isBlank()) {
+            return forwardedFor.split(",")[0].trim();
+        }
+        String realIp = exchange.getRequest().getHeaders().getFirst(HEADER_REAL_IP);
+        if (realIp != null && !realIp.isBlank()) {
+            return realIp.trim();
+        }
+        return exchange.getRequest().getRemoteAddress() != null
+                ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
+                : "unknown";
     }
 
     @Override
