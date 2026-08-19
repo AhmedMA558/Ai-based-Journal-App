@@ -1,13 +1,15 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-// Axios client with fallback to Gateway
-const API_BASE_URL = window.location.origin.includes('localhost:3000') || window.location.origin.includes('localhost:5173')
-  ? '' // Proxy handles forwarding to localhost:8080
-  : 'http://localhost:8080';
-
+// Axios client — always uses a relative base URL. Both the Vite dev server
+// (vite.config.js's server.proxy) and the production nginx container
+// (nginx.conf's /api/ location) forward /api/* to the gateway on the same
+// origin the frontend is served from, so there's never a reason to hardcode
+// an absolute host here - doing so previously broke every non-localhost
+// deployment (it pointed at http://localhost:8080 regardless of the real
+// deployed host/IP/domain).
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: '',
   headers: {
     'Content-Type': 'application/json',
   },
