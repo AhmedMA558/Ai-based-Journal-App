@@ -203,6 +203,7 @@ services:
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?SPRING_MAIL_PASSWORD must be set}
       SPRING_MAIL_SMTP_AUTH: "true"
       SPRING_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM:?NOTIFICATION_EMAIL_FROM must be set - the default (noreply@mindora.local) is not a real domain and will fail SPF/DKIM checks at every real mail provider}
     depends_on:
       mysql:
         condition: service_healthy
@@ -229,8 +230,11 @@ services:
     build: ./frontend
     container_name: journal-frontend-prod
     restart: always
+    # Bound to localhost only: a host-level nginx (outside this compose file,
+    # see the deploy runbook) terminates TLS on 80/443 and reverse-proxies to
+    # this port, so the container itself must not also claim the public port.
     ports:
-      - "80:3000"
+      - "127.0.0.1:3001:3000"
     depends_on:
       - gateway-service
 

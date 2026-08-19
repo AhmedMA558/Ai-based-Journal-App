@@ -17,6 +17,15 @@ spring:
               - "http://localhost:3000"
               - "http://localhost:5173"
               - "http://127.0.0.1:3000"
+              # Real production domain - this list predates the app having
+              # one at all, and Spring Cloud Gateway's CORS filter rejects
+              # (403, before any route matching) any request whose Origin
+              # header isn't explicitly listed here. Every browser sends
+              # Origin on every fetch/XHR call, same-origin or not - so this
+              # silently 403'd every real browser user while curl (which
+              # sends no Origin header by default) worked fine, masking it.
+              - "https://mindorajournal.com"
+              - "https://www.mindorajournal.com"
             allowedMethods:
               - GET
               - POST
@@ -43,15 +52,18 @@ spring:
             - name: JwtAuthenticationFilter
             - name: RequestRateLimiter
               args:
-                # A real user's occasional mistyped password/retry sails
-                # through (5 immediate attempts); sustained automated
-                # hammering throttles to 1/sec (60/min) after that.
-                # RedisRateLimiter's token bucket only supports integer
-                # per-second rates, so this is the standard shape for
-                # "generous burst, tight sustained rate" on a
-                # security-sensitive endpoint.
-                redis-rate-limiter.replenishRate: 1
-                redis-rate-limiter.burstCapacity: 5
+                # Widened from the original 5/1 after a real production
+                # incident: this endpoint is keyed by client IP, and NAT'd
+                # networks (a household, an office, a mobile carrier) put
+                # many genuine users behind one IP - 5 immediate attempts
+                # was tight enough that ordinary interactive use (a few
+                # retries, a shared connection) could trip it and lock out
+                # everyone on that IP, not just an attacker. 20 immediate
+                # attempts, throttling to 3/sec (180/min) sustained, still
+                # meaningfully blocks real brute-force automation while
+                # giving legitimate shared-IP traffic real headroom.
+                redis-rate-limiter.replenishRate: 3
+                redis-rate-limiter.burstCapacity: 20
                 key-resolver: "#{@ipKeyResolver}"
 
         - id: auth-service
