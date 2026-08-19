@@ -13,9 +13,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.stream.Collectors;
 
 /**
  * Ships a real, ApiResponse-shaped error response to every service that
@@ -54,6 +58,21 @@ public class GlobalExceptionHandlingAutoConfiguration {
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.error(e.getMessage()));
+    }
+
+    // Spring's own exception for a failed @Valid @RequestBody check (e.g. the
+    // auth-service password-policy @Pattern added alongside this handler).
+    // Without this explicit handler, the catch-all below intercepted it first
+    // and turned every validation failure into a misleading, unhelpful 500 -
+    // found live while verifying a policy-violating registration password
+    // returns a clean, actionable error instead of "unexpected error occurred".
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException e) {
+        String message = e.getBindingResult().getFieldErrors().stream()
+                .map(FieldError::getDefaultMessage)
+                .collect(Collectors.joining("; "));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(message.isEmpty() ? "Validation failed." : message));
     }
 
     // Spring Security's own exception for a failed @PreAuthorize check (e.g.
