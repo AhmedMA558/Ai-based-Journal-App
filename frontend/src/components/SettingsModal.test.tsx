@@ -48,6 +48,24 @@ vi.mock('@/services/fileService', () => ({
   },
 }));
 
+// jsdom doesn't decode real images or support canvas pixel operations, so the
+// real crop UI's drag/zoom/canvas-export can't be driven in this environment
+// - stub it down to its two callback props, which is what this test suite
+// actually needs to verify (that picking a file opens the crop step, and
+// that confirming a crop uploads the result).
+vi.mock('./AvatarCropModal', () => ({
+  default: ({ onCancel, onCropped }: { onCancel: () => void; onCropped: (blob: Blob) => void }) => (
+    <div>
+      {/* type="button" matters: this renders inside ProfileTab's <form>, and
+          a plain <button> without an explicit type defaults to type="submit"
+          in HTML - would otherwise submit the profile form instead of
+          confirming the crop. */}
+      <button type="button" onClick={() => onCropped(new Blob(['cropped-bytes'], { type: 'image/png' }))}>Use Photo</button>
+      <button type="button" onClick={onCancel}>Cancel Crop</button>
+    </div>
+  ),
+}));
+
 const mockedGetCurrentUser = vi.mocked(authService.getCurrentUser);
 const mockedChangePassword = vi.mocked(authService.changePassword);
 const mockedGetMfaStatus = vi.mocked(authService.getMfaStatus);
@@ -457,9 +475,44 @@ describe('SettingsModal', () => {
     const fileInput = document.querySelector('input[type="file"]')!;
     await user.upload(fileInput as HTMLInputElement, file);
 
-    await waitFor(() => expect(mockedUpload).toHaveBeenCalledWith(file));
+    // Picking a file opens the crop step rather than uploading immediately.
+    await user.click(await screen.findByRole('button', { name: 'Use Photo' }));
+
+    await waitFor(() => expect(mockedUpload).toHaveBeenCalledWith(expect.any(File)));
+    expect(mockedUpload.mock.calls[0][0].type).toBe('image/png');
     await waitFor(() => expect(mockedRemove).toHaveBeenCalledWith('user-1/old.png'));
     await waitFor(() => expect(mockedGetBlobUrl).toHaveBeenCalledWith('user-1/new.png'));
+  });
+
+  it('cancelling the crop step does not upload anything', async () => {
+    mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '' } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    const file = new File(['avatar-bytes'], 'avatar.png', { type: 'image/png' });
+    const fileInput = document.querySelector('input[type="file"]')!;
+    await user.upload(fileInput as HTMLInputElement, file);
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel Crop' }));
+
+    expect(screen.queryByRole('button', { name: 'Use Photo' })).not.toBeInTheDocument();
+    expect(mockedUpload).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized avatar photo before opening the crop step', async () => {
+    mockedGetProfile.mockResolvedValue({ bio: '', phoneNumber: '', country: '', city: '' } as any);
+    const user = userEvent.setup();
+    render(<SettingsModal isOpen onClose={vi.fn()} />);
+
+    await screen.findByDisplayValue('Alex');
+    const oversizedFile = new File([new Uint8Array(11 * 1024 * 1024)], 'huge.png', { type: 'image/png' });
+    const fileInput = document.querySelector('input[type="file"]')!;
+    await user.upload(fileInput as HTMLInputElement, oversizedFile);
+
+    expect(await screen.findByText(/too large/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Use Photo' })).not.toBeInTheDocument();
+    expect(mockedUpload).not.toHaveBeenCalled();
   });
 
   it('calls onClose when the close button is clicked', async () => {

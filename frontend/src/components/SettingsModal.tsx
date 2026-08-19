@@ -8,6 +8,9 @@ import { userService } from '@/services/userService';
 import { adminService } from '@/services/adminService';
 import { fileService } from '@/services/fileService';
 import ThemeCustomizer from './ThemeCustomizer';
+import AvatarCropModal from './AvatarCropModal';
+
+const MAX_AVATAR_SOURCE_BYTES = 10 * 1024 * 1024; // 10MB - generous for a phone photo, well under server limits
 
 type SettingsTab = 'profile' | 'security' | 'appearance' | 'services' | 'admin';
 
@@ -128,6 +131,7 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarError, setAvatarError] = useState('');
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const avatarObjectUrlRef = useRef<string | null>(null);
 
@@ -189,14 +193,29 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
     };
   }, []);
 
-  const handleAvatarSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+  // Only picks the file and opens the crop step - the actual upload happens
+  // in handleAvatarCropped once the user confirms a crop, matching the
+  // familiar Facebook/Twitter "pick, then reposition, then save" flow rather
+  // than uploading whatever crop the original photo happened to have.
+  const handleAvatarSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     setAvatarError('');
+    if (file.size > MAX_AVATAR_SOURCE_BYTES) {
+      setAvatarError('That photo is too large (max 10MB). Please choose a smaller one.');
+      return;
+    }
+    setPendingAvatarFile(file);
+  };
+
+  const handleAvatarCropped = async (blob: Blob) => {
+    setPendingAvatarFile(null);
+    const croppedFile = new File([blob], 'avatar.png', { type: 'image/png' });
+    setAvatarError('');
     setAvatarUploading(true);
     try {
-      const uploaded = await fileService.upload(file);
+      const uploaded = await fileService.upload(croppedFile);
       const newPath = uploaded?.filePath;
       if (!newPath) throw new Error('Upload did not return a file path.');
       const oldPath = profile.avatarUrl;
@@ -284,6 +303,14 @@ function ProfileTab({ isOpen }: { isOpen: boolean }) {
           {avatarError && <div className="text-xs text-[#f87171] mt-1">{avatarError}</div>}
         </div>
       </div>
+
+      {pendingAvatarFile && (
+        <AvatarCropModal
+          file={pendingAvatarFile}
+          onCancel={() => setPendingAvatarFile(null)}
+          onCropped={handleAvatarCropped}
+        />
+      )}
 
       <div>
         <label className="text-[0.8rem] text-[#94a3b8] block mb-[0.35rem]">Username</label>
