@@ -1,4 +1,4 @@
-import { Search, Bell, ShieldCheck, Moon, Sun, Command } from 'lucide-react';
+import { Search, Bell, Moon, Sun, Command } from 'lucide-react';
 
 interface HeaderProps {
   onOpenCommandPalette: () => void;
@@ -35,12 +35,6 @@ export default function Header({
 
       {/* Right Controls Suite */}
       <div className="flex items-center gap-[0.85rem]">
-        {/* 10-Min Active Session Security Badge - text label hidden below sm: to avoid clipping */}
-        <div className="flex items-center gap-[0.4rem] bg-[rgba(99,102,241,0.12)] border border-[rgba(99,102,241,0.25)] py-[0.4rem] px-3 rounded-xl text-xs text-[#38bdf8] font-semibold">
-          <ShieldCheck size={14} color="#38bdf8" />
-          <span className="hidden sm:inline">10-Min Session Active</span>
-        </div>
-
         {/* Notifications Drawer Button */}
         <button
           onClick={onOpenNotifications}

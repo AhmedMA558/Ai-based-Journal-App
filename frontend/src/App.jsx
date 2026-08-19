@@ -185,6 +185,28 @@ export default function App() {
     return () => clearInterval(checkInterval);
   }, []);
 
+  // Real user activity extends the session; authService.touchSession()
+  // existed but was never wired to anything, so the session was actually a
+  // flat 10-minute countdown from login regardless of activity - contrary to
+  // the app's own "expires after 10 minutes of inactivity" copy in Settings.
+  // Throttled to at most once every 30s so this isn't a localStorage write on
+  // every pixel of mouse movement.
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    let lastTouch = 0;
+    const handleActivity = () => {
+      const now = Date.now();
+      if (now - lastTouch < 30000) return;
+      lastTouch = now;
+      authService.touchSession();
+    };
+    const activityEvents = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+    activityEvents.forEach((event) => window.addEventListener(event, handleActivity, { passive: true }));
+    return () => {
+      activityEvents.forEach((event) => window.removeEventListener(event, handleActivity));
+    };
+  }, [isAuthenticated]);
+
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'dark' ? 'light' : 'dark';
