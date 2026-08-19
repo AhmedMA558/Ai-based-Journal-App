@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Award,
   Settings,
+  Smartphone,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import MindoraMark from './MindoraMark';
@@ -114,6 +115,13 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
           active={activeTab === 'analytics'}
           collapsed={collapsed}
           onClick={() => setActiveTab('analytics')}
+        />
+        <NavItem
+          icon={<Smartphone size={20} />}
+          label="Get App"
+          active={activeTab === 'download'}
+          collapsed={collapsed}
+          onClick={() => setActiveTab('download')}
         />
       </nav>
 
