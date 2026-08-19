@@ -203,6 +203,7 @@ services:
       SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:?SPRING_MAIL_PASSWORD must be set}
       SPRING_MAIL_SMTP_AUTH: "true"
       SPRING_MAIL_SMTP_STARTTLS_ENABLE: "true"
+      NOTIFICATION_EMAIL_FROM: ${NOTIFICATION_EMAIL_FROM:?NOTIFICATION_EMAIL_FROM must be set - the default (noreply@mindora.local) is not a real domain and will fail SPF/DKIM checks at every real mail provider}
     depends_on:
       mysql:
         condition: service_healthy
