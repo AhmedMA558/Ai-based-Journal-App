@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Sparkles, Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound } from 'lucide-react';
+import { Sparkles, Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle } from 'lucide-react';
 import { authService } from '@/services/authService';
 
 interface AuthViewProps {
@@ -17,6 +17,52 @@ type AuthStep = 'credentials' | 'mfa-challenge' | 'forgot-password' | 'reset-pas
 
 const LABEL_CLASS = 'block text-[0.85rem] text-[#cbd5e1] mb-[0.4rem] font-medium';
 const ICON_CLASS = 'absolute left-[0.85rem] top-1/2 -translate-y-1/2';
+
+// Mirrors auth-service's PasswordPolicy.REGEX exactly (8-12 chars, one
+// uppercase, one number, one special character) so the live checklist can
+// never drift from what the backend actually enforces.
+function getPasswordChecks(password: string) {
+  return [
+    { label: '8-12 characters', met: password.length >= 8 && password.length <= 12 },
+    { label: 'At least 1 uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'At least 1 number', met: /[0-9]/.test(password) },
+    { label: 'At least 1 special character', met: /[^A-Za-z0-9]/.test(password) },
+  ];
+}
+
+interface PasswordStrengthMeterProps {
+  password: string;
+}
+
+function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
+  const checks = getPasswordChecks(password);
+  const metCount = checks.filter((c) => c.met).length;
+  const strengthPercent = Math.round((metCount / checks.length) * 100);
+  const strengthColor = strengthPercent === 100 ? '#4ade80' : strengthPercent >= 50 ? '#fbbf24' : '#f87171';
+
+  return (
+    <div className="mt-2 p-3 rounded-lg bg-white/[0.04] border border-white/[0.08] flex flex-col gap-2 animate-fade-in">
+      <div className="flex items-center justify-between text-[0.75rem]">
+        <span className="text-[#94a3b8]">Password strength</span>
+        <span style={{ color: strengthColor }} className="font-semibold">{strengthPercent}%</span>
+      </div>
+      <div className="h-[5px] rounded-full bg-white/[0.08] overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-300"
+          style={{ width: `${strengthPercent}%`, backgroundColor: strengthColor }}
+        />
+      </div>
+      <ul className="flex flex-col gap-1 mt-1">
+        {checks.map((check) => (
+          <li key={check.label} className="flex items-center gap-2 text-[0.75rem]">
+            {check.met ? <Check size={13} color="#4ade80" /> : <Circle size={13} color="#64748b" />}
+            <span className={check.met ? 'text-[#4ade80]' : 'text-[#64748b]'}>{check.label}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
@@ -39,6 +85,9 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [infoMessage, setInfoMessage] = useState('');
+
+  const [registerPasswordFocused, setRegisterPasswordFocused] = useState(false);
+  const [resetPasswordFocused, setResetPasswordFocused] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -323,12 +372,12 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                   placeholder="••••••••••••"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  onFocus={() => setResetPasswordFocused(true)}
+                  onBlur={() => setResetPasswordFocused(false)}
                 />
                 <Lock size={18} color="#64748b" className={ICON_CLASS} />
               </div>
-              <p className="text-[0.75rem] text-[#64748b] mt-2">
-                8-12 characters, with at least one uppercase letter, one number, and one special character.
-              </p>
+              {resetPasswordFocused && <PasswordStrengthMeter password={newPassword} />}
             </div>
 
             <div>
@@ -460,14 +509,12 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
                 placeholder="••••••••••••"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                onFocus={() => setRegisterPasswordFocused(true)}
+                onBlur={() => setRegisterPasswordFocused(false)}
               />
               <Lock size={18} color="#64748b" className={ICON_CLASS} />
             </div>
-            {!isLogin && (
-              <p className="text-[0.75rem] text-[#64748b] mt-2">
-                8-12 characters, with at least one uppercase letter, one number, and one special character.
-              </p>
-            )}
+            {!isLogin && registerPasswordFocused && <PasswordStrengthMeter password={formData.password} />}
             {isLogin && (
               <button
                 type="button"
