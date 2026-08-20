@@ -72,8 +72,13 @@ export default function Navbar({ activeTab, setActiveTab, onLogout, onOpenAchiev
 
       {/* Navigation Items - below the global lg: (1024px) breakpoint the sidebar itself
           becomes a full-width block (see index.css); turn the item list into a compact
-          horizontal scrollable row here instead of a tall stacked list pushing content down. */}
-      <nav className="flex flex-col gap-2 flex-1 max-lg:flex-row max-lg:flex-none max-lg:overflow-x-auto max-lg:gap-1 max-lg:pb-1">
+          horizontal scrollable row here instead of a tall stacked list pushing content down.
+          `min-h-0` lets this flex child actually shrink instead of growing past the sidebar's
+          fixed height with its content - without it, once there are enough nav items to
+          overflow, the badges/settings buttons and profile footer below get pushed out of the
+          visible area and silently clipped by the sidebar's own `overflow-hidden` (found live
+          after adding the "Get App" item pushed the profile footer off the bottom edge). */}
+      <nav className="flex flex-col gap-2 flex-1 min-h-0 overflow-y-auto max-lg:flex-row max-lg:flex-none max-lg:overflow-x-auto max-lg:gap-1 max-lg:pb-1">
         <NavItem
           icon={<LayoutDashboard size={20} />}
           label="Dashboard"
