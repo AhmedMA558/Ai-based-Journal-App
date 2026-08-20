@@ -1,10 +1,74 @@
 package com.aijournal.journal.entity;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import org.junit.jupiter.api.Test;
+
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class JournalTest {
+
+    private static final Validator VALIDATOR;
+    static {
+        try (ValidatorFactory factory = Validation.buildDefaultValidatorFactory()) {
+            VALIDATOR = factory.getValidator();
+        }
+    }
+
+    @Test
+    void validation_ContentOverMaxLength_RejectedWithConstraintViolation() {
+        // Previously nothing capped this field's size at all beyond the LONGTEXT
+        // column's own ~4GB limit - a single request could submit an arbitrarily
+        // large entry and have it fully AES-GCM encrypted, published to
+        // RabbitMQ, and indexed into Elasticsearch with no bound.
+        Journal journal = new Journal();
+        journal.setTitle("Title");
+        journal.setContent("x".repeat(100_001));
+
+        Set<ConstraintViolation<Journal>> violations = VALIDATOR.validate(journal);
+
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("content"));
+    }
+
+    @Test
+    void validation_ContentAtMaxLength_NoViolation() {
+        Journal journal = new Journal();
+        journal.setTitle("Title");
+        journal.setContent("x".repeat(100_000));
+
+        Set<ConstraintViolation<Journal>> violations = VALIDATOR.validate(journal);
+
+        assertThat(violations).noneMatch(v -> v.getPropertyPath().toString().equals("content"));
+    }
+
+    @Test
+    void validation_TitleOverMaxLength_RejectedWithConstraintViolation() {
+        Journal journal = new Journal();
+        journal.setTitle("x".repeat(201));
+        journal.setContent("content");
+
+        Set<ConstraintViolation<Journal>> violations = VALIDATOR.validate(journal);
+
+        assertThat(violations).anyMatch(v -> v.getPropertyPath().toString().equals("title"));
+    }
+
+    @Test
+    void validation_NullContentDuringPartialUpdate_NoViolation() {
+        // @Size only fires on a present value - a PUT that omits content (the
+        // established partial-update convention JournalServiceImpl relies on)
+        // must not be rejected by this new constraint.
+        Journal journal = new Journal();
+        journal.setTitle("Title");
+        journal.setContent(null);
+
+        Set<ConstraintViolation<Journal>> violations = VALIDATOR.validate(journal);
+
+        assertThat(violations).noneMatch(v -> v.getPropertyPath().toString().equals("content"));
+    }
 
     @Test
     void calculateMetrics_NormalContent_ComputesWordCharCountAndReadingTime() {
