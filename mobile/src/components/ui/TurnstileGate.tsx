@@ -1,41 +1,20 @@
 import { useState } from 'react';
 import { View, Text } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
+import { API_BASE_URL } from '@/config/env';
 
-// Cloudflare has no official React Native SDK (confirmed via their own docs)
-// - the standard workaround is embedding the real web widget inside a WebView
-// and bridging the token back to RN via postMessage, which is what this does.
-// The site key is public by design (meant to be embedded in page/app markup),
-// unlike the secret key which never leaves auth-service - EXPO_PUBLIC_ vars
-// are baked into the client bundle the same way, so this mirrors that.
+// Cloudflare has no official React Native SDK - the standard workaround is
+// embedding the real web widget inside a WebView and bridging the token
+// back to RN via postMessage. Loading the widget from a REAL URL under the
+// app's own production origin (not react-native-webview's `source={{html}}`,
+// which has no real origin at all) is required - Turnstile validates the
+// requesting page's origin against the hostnames configured for the site
+// key in the Cloudflare dashboard, and an opaque inline-HTML WebView can
+// never pass that check ("Unable to connect to website", confirmed live on
+// a real device). frontend/public/turnstile-embed.html is the real page
+// this loads, served from the same origin the web app's own working widget
+// already uses.
 const SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAAEWhANuGDYcQFFUh';
-
-function buildHtml(action: 'login' | 'register') {
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
-  <style>
-    html, body { margin: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
-  </style>
-</head>
-<body>
-  <div class="cf-turnstile"
-       data-sitekey="${SITE_KEY}"
-       data-action="${action}"
-       data-theme="dark"
-       data-callback="onVerify"
-       data-expired-callback="onExpire"
-       data-error-callback="onError"></div>
-  <script>
-    function onVerify(token) { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'verify', token: token })); }
-    function onExpire() { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'expire' })); }
-    function onError() { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error' })); }
-  </script>
-</body>
-</html>`;
-}
 
 interface TurnstileGateProps {
   action: 'login' | 'register';
@@ -49,6 +28,8 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
   const [error, setError] = useState('');
 
   if (!SITE_KEY) return null;
+
+  const embedUrl = `${API_BASE_URL}/turnstile-embed.html?action=${action}&sitekey=${encodeURIComponent(SITE_KEY)}`;
 
   const handleMessage = (event: WebViewMessageEvent) => {
     try {
@@ -71,8 +52,10 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
       <WebView
         key={resetKey}
         originWhitelist={['*']}
-        source={{ html: buildHtml(action) }}
+        source={{ uri: embedUrl }}
         onMessage={handleMessage}
+        onError={() => setError('CAPTCHA failed to load. Please check your connection.')}
+        onHttpError={() => setError('CAPTCHA failed to load. Please check your connection.')}
         scrollEnabled={false}
         style={{ backgroundColor: 'transparent' }}
         containerStyle={{ backgroundColor: 'transparent' }}

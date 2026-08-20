@@ -68,18 +68,18 @@ export default function RegisterScreen({ navigation }: Props) {
             <View className="gap-4">
               <View>
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Full Name</Text>
-                <GlassInput placeholder="John Doe" value={fullName} onChangeText={setFullName} />
+                <GlassInput placeholder="Your full name" value={fullName} onChangeText={setFullName} />
               </View>
               <View>
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Username</Text>
-                <GlassInput autoCapitalize="none" placeholder="alex_dev" value={username} onChangeText={setUsername} />
+                <GlassInput autoCapitalize="none" placeholder="Choose a username" value={username} onChangeText={setUsername} />
               </View>
               <View>
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Email Address</Text>
                 <GlassInput
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  placeholder="alex@example.com"
+                  placeholder="you@example.com"
                   value={email}
                   onChangeText={setEmail}
                 />
