@@ -1,19 +1,41 @@
-// Real store logomarks for the download page's "coming soon" badges - lucide's
-// generic `Apple` (a plain fruit outline) and `PlayCircle` (a generic media-play
-// glyph) aren't the actual App Store/Google Play brand marks, so they didn't read
-// as real store badges. These are hand-drawn to match the real logomarks
-// (Apple's bitten-apple silhouette, Google Play's four-color play-triangle),
-// sized/used the same way lucide icons are elsewhere in this file.
+// Real store icons for the download page's "coming soon" badges - lucide's
+// generic `Apple` (a plain fruit outline, Apple Inc.'s company logo - not
+// even the right mark) and `PlayCircle` (a generic media-play glyph) aren't
+// the actual App Store/Google Play brand icons, so they didn't read as real
+// store badges. These are hand-drawn to match the real app icons (App
+// Store's blue-gradient rounded square with the white compass/"A" mark,
+// Google Play's four-color play-triangle), sized/used the same way lucide
+// icons are elsewhere in this file.
 
 interface StoreIconProps {
   size?: number;
   className?: string;
 }
 
-export function AppleLogo({ size = 22, className }: StoreIconProps) {
+let appStoreGradientId = 0;
+
+export function AppStoreLogo({ size = 22, className }: StoreIconProps) {
+  const gradId = `app-store-grad-${appStoreGradientId++}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
-      <path d="M16.365 1.43c0 1.14-.417 2.06-1.25 2.86-.968.936-2.045 1.475-3.11 1.386-.13-1.11.42-2.28 1.25-3.06.876-.83 2.06-1.4 3.11-1.19zM20.9 17.32c-.52 1.2-.77 1.74-1.44 2.79-.94 1.46-2.26 3.28-3.9 3.3-1.46.02-1.84-.95-3.82-.94-1.98.01-2.4.96-3.86.94-1.64-.02-2.89-1.66-3.83-3.12C1.24 16.79.5 13.3 1.6 10.93c.78-1.68 2.2-2.74 3.75-2.76 1.5-.02 2.9 1.01 3.82 1.01.9 0 2.6-1.25 4.4-1.07.75.03 2.86.3 4.21 2.28-.11.07-2.51 1.47-2.48 4.37.03 3.47 3.05 4.63 3.09 4.65-.03.08-.48 1.65-1.49 3.91z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#2ac0f2" />
+          <stop offset="100%" stopColor="#0a6cff" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="5.5" fill={`url(#${gradId})`} />
+      {/* The App Store glyph: a single swept rounded stroke from bottom-left up
+          to a peak and down to bottom-right (no crossbar) - the compass/paper-
+          airplane silhouette, not a literal serif "A". */}
+      <path
+        d="M7.3 16.7 12 6.8l4.7 9.9"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="2.1"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

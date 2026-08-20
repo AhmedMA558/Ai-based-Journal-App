@@ -1,6 +1,6 @@
 import { Download, ShieldCheck, FolderOpen, ArrowLeft } from 'lucide-react';
 import MindoraMark from './MindoraMark';
-import { AppleLogo, GooglePlayLogo } from './StoreIcons';
+import { AppStoreLogo, GooglePlayLogo } from './StoreIcons';
 
 interface DownloadAppViewProps {
   isAuthenticated: boolean;
@@ -81,7 +81,7 @@ export default function DownloadAppView({ isAuthenticated, onBack, showToast }: 
               className="flex-1 flex items-center gap-2 justify-center py-3 px-4 rounded-[14px] bg-black/40 border border-white/[0.12] text-white cursor-pointer opacity-70 hover:opacity-90 transition-opacity"
               title="Coming soon"
             >
-              <AppleLogo size={22} />
+              <AppStoreLogo size={22} />
               <span className="flex flex-col items-start leading-tight">
                 <span className="text-[0.6rem] text-[#cbd5e1]">Coming soon on the</span>
                 <span className="text-[0.85rem] font-semibold">App Store</span>
