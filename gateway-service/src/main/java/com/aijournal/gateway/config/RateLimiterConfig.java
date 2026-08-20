@@ -49,4 +49,31 @@ public class RateLimiterConfig {
             );
         };
     }
+
+    // Backs RequestRateLimiter on the journal/ai/search routes - unlike the
+    // auth-sensitive route above, these all sit behind JwtAuthenticationFilter,
+    // which already resolves and injects a trustworthy X-User-Id header before
+    // this resolver ever runs (a client-supplied one is discarded, not
+    // trusted - see JwtAuthenticationFilter.proceedWithClaims). Per-user
+    // keying is the right choice here rather than reusing ipKeyResolver: an
+    // office, campus, or mobile-carrier NAT can put many genuine authenticated
+    // users behind one IP, which would otherwise let one heavy user's traffic
+    // throttle everyone else sharing that address (the exact problem that
+    // already forced the auth-sensitive route's limits to be widened once).
+    // Falls back to IP only for the theoretical case of this filter being
+    // attached to a route with no JWT filter ahead of it, so it never NPEs.
+    @Bean
+    public KeyResolver userKeyResolver() {
+        return exchange -> {
+            String userId = exchange.getRequest().getHeaders().getFirst("X-User-Id");
+            if (userId != null && !userId.isBlank()) {
+                return Mono.just(userId);
+            }
+            return Mono.just(
+                    exchange.getRequest().getRemoteAddress() != null
+                            ? exchange.getRequest().getRemoteAddress().getAddress().getHostAddress()
+                            : "unknown"
+            );
+        };
+    }
 }
