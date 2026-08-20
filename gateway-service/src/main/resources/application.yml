@@ -89,12 +89,29 @@ spring:
           filters:
             - name: JwtAuthenticationFilter
 
+        # journal/ai/search all get a real per-user rate limit below, on top of
+        # the always-present JwtAuthenticationFilter - unlike the pre-auth
+        # auth-service-sensitive route, these are the endpoints where a single
+        # authenticated account scripting requests (flooding journal creates,
+        # hammering AI chat, or firing search-as-you-type without debounce)
+        # could still load up the single-VPS deployment even though individual
+        # journal payloads are now size-capped. userKeyResolver keys by the
+        # gateway's own validated X-User-Id, not by IP, so one heavy user
+        # never throttles everyone else sharing their network.
         - id: journal-service
           uri: http://journal-service:8083
           predicates:
             - Path=/api/v1/journals/**
           filters:
             - name: JwtAuthenticationFilter
+            - name: RequestRateLimiter
+              args:
+                # A real human writes/edits entries far slower than this -
+                # generous enough for rapid list/pagination/toggle clicks,
+                # tight enough to block a create-flood script.
+                redis-rate-limiter.replenishRate: 5
+                redis-rate-limiter.burstCapacity: 30
+                key-resolver: "#{@userKeyResolver}"
 
         - id: ai-service
           uri: http://ai-service:8084
@@ -102,6 +119,16 @@ spring:
             - Path=/api/v1/ai/**
           filters:
             - name: JwtAuthenticationFilter
+            - name: RequestRateLimiter
+              args:
+                # Tighter than journal/search - each call proxies through to
+                # python-ai-service (and, if HUGGINGFACE_API_KEY is ever set,
+                # a real external HF API call with real cost). The editor's
+                # own mood-detection debounce is only 250ms client-side, which
+                # a script bypassing the UI wouldn't respect at all.
+                redis-rate-limiter.replenishRate: 2
+                redis-rate-limiter.burstCapacity: 15
+                key-resolver: "#{@userKeyResolver}"
 
         - id: search-service
           uri: http://search-service:8085
@@ -109,6 +136,13 @@ spring:
             - Path=/api/v1/search/**
           filters:
             - name: JwtAuthenticationFilter
+            - name: RequestRateLimiter
+              args:
+                # Search-as-you-type is naturally higher-frequency than the
+                # other two, so this stays the most generous of the three.
+                redis-rate-limiter.replenishRate: 5
+                redis-rate-limiter.burstCapacity: 30
+                key-resolver: "#{@userKeyResolver}"
 
         - id: recommendation-service
           uri: http://recommendation-service:8086

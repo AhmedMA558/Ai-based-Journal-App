@@ -11,6 +11,7 @@ import java.net.InetSocketAddress;
 class RateLimiterConfigTest {
 
     private final KeyResolver resolver = new RateLimiterConfig().ipKeyResolver();
+    private final KeyResolver userResolver = new RateLimiterConfig().userKeyResolver();
 
     @Test
     void ipKeyResolver_RequestWithRemoteAddress_ResolvesToClientIp() {
@@ -80,6 +81,53 @@ class RateLimiterConfigTest {
 
         StepVerifier.create(resolver.resolve(exchange))
                 .expectNext("198.51.100.7")
+                .verifyComplete();
+    }
+
+    @Test
+    void userKeyResolver_ValidatedXUserIdHeaderPresent_ResolvesToUserId() {
+        // On journal/ai/search routes this header is only ever the one
+        // JwtAuthenticationFilter itself set from the verified JWT claim -
+        // never a client-forged value, since that filter runs first and
+        // discards/overwrites anything the caller sent.
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/journals")
+                        .header("X-User-Id", "42")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+
+        StepVerifier.create(userResolver.resolve(exchange))
+                .expectNext("42")
+                .verifyComplete();
+    }
+
+    @Test
+    void userKeyResolver_DifferentUsersSameIp_ResolveToDifferentKeys() {
+        // The reason this resolver exists instead of reusing ipKeyResolver -
+        // a shared office/campus/carrier NAT must not let one heavy
+        // authenticated user throttle every other user behind the same IP.
+        MockServerWebExchange exchangeA = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/journals")
+                        .header("X-User-Id", "1")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+        MockServerWebExchange exchangeB = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/journals")
+                        .header("X-User-Id", "2")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+
+        String keyA = userResolver.resolve(exchangeA).block();
+        String keyB = userResolver.resolve(exchangeB).block();
+
+        org.assertj.core.api.Assertions.assertThat(keyA).isNotEqualTo(keyB);
+    }
+
+    @Test
+    void userKeyResolver_NoUserIdHeader_FallsBackToIpRatherThanThrowing() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/v1/journals")
+                        .remoteAddress(new InetSocketAddress("203.0.113.42", 54321)));
+
+        StepVerifier.create(userResolver.resolve(exchange))
+                .expectNext("203.0.113.42")
                 .verifyComplete();
     }
 }
