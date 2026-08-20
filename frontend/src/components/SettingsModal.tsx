@@ -423,12 +423,6 @@ function SecurityTab({ isOpen, onEmailVerified }: { isOpen: boolean; onEmailVeri
   return (
     <div className="flex flex-col gap-5">
       <h3 className="text-[1.1rem] font-bold">Security & Sessions</h3>
-      <div className="bg-[rgba(99,102,241,0.1)] border border-[rgba(99,102,241,0.25)] p-4 rounded-xl">
-        <div className="text-[0.9rem] font-semibold text-[#38bdf8] mb-[0.2rem]">10-Minute Active Session Enforced</div>
-        <div className="text-[0.8rem] text-[#94a3b8]">
-          Session tokens are signed with JWT and automatically expire after 10 minutes of inactivity.
-        </div>
-      </div>
 
       <PasswordChangeSection />
 

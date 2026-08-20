@@ -140,7 +140,6 @@ describe('SettingsModal', () => {
 
     await user.click(screen.getByText('Security & Sessions'));
 
-    expect(screen.getByText('10-Minute Active Session Enforced')).toBeInTheDocument();
     expect(await screen.findByText('Disabled')).toBeInTheDocument();
     expect(mockedGetMfaStatus).toHaveBeenCalledTimes(1);
   });
