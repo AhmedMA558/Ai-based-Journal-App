@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle } from 'lucide-react';
+import { Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle, Smartphone } from 'lucide-react';
 import { authService } from '@/services/authService';
 import MindoraMark from './MindoraMark';
 
 interface AuthViewProps {
   onLoginSuccess: () => void;
+  onNavigateToDownload?: () => void;
 }
 
 interface AuthFormData {
@@ -65,7 +66,7 @@ function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
   );
 }
 
-export default function AuthView({ onLoginSuccess }: AuthViewProps) {
+export default function AuthView({ onLoginSuccess, onNavigateToDownload }: AuthViewProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState<AuthFormData>({
     username: '',
@@ -563,6 +564,17 @@ export default function AuthView({ onLoginSuccess }: AuthViewProps) {
             )}
           </button>
         </div>
+
+        {onNavigateToDownload && (
+          <button
+            type="button"
+            onClick={onNavigateToDownload}
+            className="flex items-center justify-center gap-2 mt-4 w-full text-[0.8rem] text-[#64748b] hover:text-[#94a3b8] transition-colors bg-transparent border-0 cursor-pointer"
+          >
+            <Smartphone size={14} />
+            Get the Mindora mobile app
+          </button>
+        )}
       </div>
     </div>
   );

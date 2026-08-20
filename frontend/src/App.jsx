@@ -4,6 +4,7 @@ import { AlertCircle } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
 import AuthView from './components/AuthView';
+import DownloadAppView from './components/DownloadAppView';
 import CommandPalette from './components/CommandPalette';
 import NotificationsDrawer from './components/NotificationsDrawer';
 import SettingsModal from './components/SettingsModal';
@@ -320,10 +321,26 @@ export default function App() {
 
   const activeTab = location.pathname.startsWith('/journals') ? 'journals' : location.pathname.slice(1) || 'dashboard';
 
+  // Public standalone page - reachable whether logged in or not, so it's
+  // checked before the auth gate below rather than living inside either
+  // branch's routing.
+  if (location.pathname === '/download') {
+    return (
+      <>
+        <DownloadAppView
+          isAuthenticated={isAuthenticated}
+          onBack={() => navigate(isAuthenticated ? '/dashboard' : '/')}
+          showToast={showToast}
+        />
+        <Toast toast={toast} onClose={() => setToast(null)} />
+      </>
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <>
-        <AuthView onLoginSuccess={handleLoginSuccess} />
+        <AuthView onLoginSuccess={handleLoginSuccess} onNavigateToDownload={() => navigate('/download')} />
         <Toast toast={toast} onClose={() => setToast(null)} />
       </>
     );
