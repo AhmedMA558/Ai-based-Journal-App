@@ -97,6 +97,9 @@ class AuthServiceTest {
     @Mock
     private RestTemplate restTemplate;
 
+    @Mock
+    private TurnstileService turnstileService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -107,6 +110,11 @@ class AuthServiceTest {
         ReflectionTestUtils.setField(authService, "refreshExpirationMs", 604800000L);
         ReflectionTestUtils.setField(authService, "restTemplate", restTemplate);
         ReflectionTestUtils.setField(authService, "notificationServiceUrl", "http://notification-service:8087");
+        // Every register()/login() test below exercises the real CAPTCHA gate -
+        // stubbed to always pass here so this file stays focused on the
+        // credential/account logic; TurnstileServiceTest and the dedicated
+        // register_InvalidCaptcha_ThrowsBadRequest case below cover the gate itself.
+        lenient().when(turnstileService.verify(any(), any())).thenReturn(true);
         // Best-effort notification sends run on this executor in production
         // (see notifyAccountEventBestEffort/sendWelcomeEmailBestEffort/
         // sendPasswordResetEmailBestEffort) to close the forgotPassword
@@ -135,13 +143,52 @@ class AuthServiceTest {
         User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
-        AuthResponse response = authService.register(request);
+        AuthResponse response = authService.register(request, "203.0.113.1");
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
         assertNotNull(response.getAccessToken());
         assertNotNull(response.getRefreshToken());
         verify(userRepository, times(1)).save(any(User.class));
+    }
+
+    @Test
+    void register_InvalidCaptcha_ThrowsBadRequestAndNeverTouchesUserRepository() {
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User", "bad-token");
+        when(turnstileService.verify("bad-token", "203.0.113.1")).thenReturn(false);
+
+        assertThrows(BadRequestException.class, () -> authService.register(request, "203.0.113.1"));
+
+        verify(userRepository, never()).existsByUsername(anyString());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void register_Success_VerifiesCaptchaAgainstTheSubmittedTokenAndCallerIp() {
+        RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User", "real-token");
+        when(turnstileService.verify("real-token", "203.0.113.1")).thenReturn(true);
+        when(userRepository.existsByUsername("testuser")).thenReturn(false);
+        when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+        when(roleRepository.findByName(Role.RoleName.ROLE_USER))
+                .thenReturn(Optional.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
+        User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        AuthResponse response = authService.register(request, "203.0.113.1");
+
+        assertNotNull(response);
+        verify(turnstileService).verify("real-token", "203.0.113.1");
+    }
+
+    @Test
+    void login_InvalidCaptcha_ThrowsBadRequestAndNeverChecksPassword() {
+        LoginRequest request = new LoginRequest("testuser", "password123", "bad-token");
+        when(turnstileService.verify("bad-token", "203.0.113.1")).thenReturn(false);
+
+        assertThrows(BadRequestException.class, () -> authService.login(request, "203.0.113.1", "TestAgent/1.0"));
+
+        verify(userRepository, never()).findByUsername(anyString());
     }
 
     @Test
@@ -160,7 +207,7 @@ class AuthServiceTest {
         User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
-        AuthResponse response = authService.register(request);
+        AuthResponse response = authService.register(request, "203.0.113.1");
 
         // register() now sends two separate best-effort emails (welcome +
         // email-verification) to the same endpoint - capture both and pick
@@ -191,7 +238,7 @@ class AuthServiceTest {
         User savedUser = new User(1L, "testuser", "test@example.com", "encodedPassword", "Test User", true, true, User.AuthProvider.LOCAL, null, Set.of(new Role(1L, Role.RoleName.ROLE_USER)));
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
 
-        AuthResponse response = authService.register(request);
+        AuthResponse response = authService.register(request, "203.0.113.1");
 
         assertNotNull(response);
         assertFalse(savedUser.getEmailVerified(), "newly registered users start unverified");
@@ -225,7 +272,7 @@ class AuthServiceTest {
         when(restTemplate.postForEntity(anyString(), any(), eq(Void.class)))
                 .thenThrow(new RestClientException("connection refused"));
 
-        AuthResponse response = authService.register(request);
+        AuthResponse response = authService.register(request, "203.0.113.1");
 
         assertNotNull(response);
         assertNotNull(response.getAccessToken());
@@ -236,7 +283,7 @@ class AuthServiceTest {
         RegisterRequest request = new RegisterRequest("testuser", "test@example.com", "password123", "Test User");
         when(userRepository.existsByUsername("testuser")).thenReturn(true);
 
-        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.register(request));
+        BadRequestException ex = assertThrows(BadRequestException.class, () -> authService.register(request, "203.0.113.1"));
         // Regression guard: the message must not reveal *which specific
         // field* collided - a distinct "username is taken" vs. "email is in
         // use" message is an enumeration oracle, the same class of leak
@@ -252,14 +299,14 @@ class AuthServiceTest {
         RegisterRequest usernameCollisionRequest = new RegisterRequest("testuser", "unique@example.com", "password123", "Test User");
         when(userRepository.existsByUsername("testuser")).thenReturn(true);
         BadRequestException usernameCollision = assertThrows(BadRequestException.class,
-                () -> authService.register(usernameCollisionRequest));
+                () -> authService.register(usernameCollisionRequest, "203.0.113.1"));
 
         reset(userRepository);
         RegisterRequest emailCollisionRequest = new RegisterRequest("newuser", "test@example.com", "password123", "Test User");
         when(userRepository.existsByUsername("newuser")).thenReturn(false);
         when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
         BadRequestException emailCollision = assertThrows(BadRequestException.class,
-                () -> authService.register(emailCollisionRequest));
+                () -> authService.register(emailCollisionRequest, "203.0.113.1"));
 
         // A duplicate-username and a duplicate-email registration must be
         // indistinguishable to the caller - the same enumeration-safety bar
@@ -281,7 +328,7 @@ class AuthServiceTest {
         when(passwordEncoder.encode("password123")).thenReturn("encodedPassword");
         when(userRepository.save(any(User.class))).thenThrow(new DataIntegrityViolationException("duplicate key"));
 
-        assertThrows(BadRequestException.class, () -> authService.register(request));
+        assertThrows(BadRequestException.class, () -> authService.register(request, "203.0.113.1"));
     }
 
     @Test

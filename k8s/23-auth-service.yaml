@@ -31,6 +31,11 @@ spec:
             secretKeyRef:
               name: app-secrets
               key: TOTP_ENCRYPTION_KEY
+        - name: TURNSTILE_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: TURNSTILE_SECRET_KEY
         - name: SPRING_DATASOURCE_URL
           value: "jdbc:mysql://mysql:3306/auth_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
         - name: SPRING_DATASOURCE_USERNAME

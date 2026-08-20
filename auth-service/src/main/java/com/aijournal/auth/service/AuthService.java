@@ -5,7 +5,7 @@ import com.aijournal.common.dto.PagedResponse;
 import org.springframework.data.domain.Pageable;
 
 public interface AuthService {
-    AuthResponse register(RegisterRequest request);
+    AuthResponse register(RegisterRequest request, String ipAddress);
     // AuthResponse when MFA is off (unchanged shape), MfaChallengeResponse when it's on.
     // ipAddress/userAgent are the real client's, resolved by the controller,
     // recorded to LoginHistory best-effort on both the success and failure paths.

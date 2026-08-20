@@ -14,6 +14,25 @@ vi.mock('@/services/authService', () => ({
   },
 }));
 
+// The real widget loads Cloudflare's script over the network, which jsdom
+// can't do - stub it to immediately report a solved CAPTCHA (post-mount, via
+// useEffect, to avoid updating AuthView's state mid-render) so every
+// submit-flow test below exercises the same behavior a real user's
+// completed widget would, without needing network access.
+vi.mock('./TurnstileWidget', async () => {
+  const { useEffect } = await import('react');
+  function MockTurnstileWidget({ onVerify, resetKey }: { onVerify: (token: string) => void; resetKey: number }) {
+    useEffect(() => {
+      onVerify('test-turnstile-token');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [resetKey]);
+    return null;
+  }
+  return {
+    default: MockTurnstileWidget,
+  };
+});
+
 const mockedLogin = vi.mocked(authService.login);
 const mockedRegister = vi.mocked(authService.register);
 const mockedVerifyMfa = vi.mocked(authService.verifyMfa);
@@ -57,7 +76,7 @@ describe('AuthView', () => {
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'hunter2');
     await user.click(screen.getByRole('button', { name: /Sign In/ }));
 
-    expect(mockedLogin).toHaveBeenCalledWith('alex_dev', 'hunter2');
+    expect(mockedLogin).toHaveBeenCalledWith('alex_dev', 'hunter2', 'test-turnstile-token');
     expect(onLoginSuccess).toHaveBeenCalledTimes(1);
   });
 
@@ -88,7 +107,7 @@ describe('AuthView', () => {
     await user.type(screen.getByPlaceholderText('••••••••••••'), 'Hunter2!');
     await user.click(screen.getByRole('button', { name: /Create Account/ }));
 
-    expect(mockedRegister).toHaveBeenCalledWith('alex_dev', 'alex@example.com', 'Hunter2!', 'Alex Example');
+    expect(mockedRegister).toHaveBeenCalledWith('alex_dev', 'alex@example.com', 'Hunter2!', 'Alex Example', 'test-turnstile-token');
     expect(onLoginSuccess).toHaveBeenCalledTimes(1);
   });
 

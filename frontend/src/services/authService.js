@@ -15,8 +15,8 @@ const refreshClient = axios.create({
 
 export const authService = {
   // Login user and set 10-minute session expiry
-  login: async (usernameOrEmail, password) => {
-    const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
+  login: async (usernameOrEmail, password, turnstileToken) => {
+    const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password, turnstileToken });
     const authData = res?.data?.data;
     if (authData?.accessToken) {
       authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username || usernameOrEmail);
@@ -25,8 +25,8 @@ export const authService = {
   },
 
   // Register user with 10-minute session
-  register: async (username, email, password, fullName) => {
-    const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
+  register: async (username, email, password, fullName, turnstileToken) => {
+    const res = await api.post('/api/v1/auth/register', { username, email, password, fullName, turnstileToken });
     const authData = res?.data?.data;
     if (authData?.accessToken) {
       authService.setSession(authData.accessToken, authData.refreshToken, authData.userId, authData.username || username);

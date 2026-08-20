@@ -22,6 +22,12 @@ public class RegisterRequest {
     @NotBlank(message = "Full name is required")
     private String fullName;
 
+    // The Cloudflare Turnstile widget's response token - not bean-validated
+    // here with @NotBlank (a missing/invalid token should read as "CAPTCHA
+    // verification failed", not a generic field-validation error), so
+    // TurnstileService.verify() is the single place that enforces it.
+    private String turnstileToken;
+
     public RegisterRequest() {
     }
 
@@ -32,6 +38,14 @@ public class RegisterRequest {
         this.fullName = fullName;
     }
 
+    public RegisterRequest(String username, String email, String password, String fullName, String turnstileToken) {
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.fullName = fullName;
+        this.turnstileToken = turnstileToken;
+    }
+
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
     public String getEmail() { return email; }
@@ -40,4 +54,6 @@ public class RegisterRequest {
     public void setPassword(String password) { this.password = password; }
     public String getFullName() { return fullName; }
     public void setFullName(String fullName) { this.fullName = fullName; }
+    public String getTurnstileToken() { return turnstileToken; }
+    public void setTurnstileToken(String turnstileToken) { this.turnstileToken = turnstileToken; }
 }
