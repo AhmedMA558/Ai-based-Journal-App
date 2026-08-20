@@ -2,16 +2,35 @@ package com.aijournal.gateway.config;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.test.StepVerifier;
 
 import java.net.InetSocketAddress;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class RateLimiterConfigTest {
 
     private final KeyResolver resolver = new RateLimiterConfig().ipKeyResolver();
     private final KeyResolver userResolver = new RateLimiterConfig().userKeyResolver();
+
+    @Test
+    void twoKeyResolverBeans_ExactlyOneIsPrimary_DefaultLookupDoesNotThrow() {
+        // Real production incident: adding userKeyResolver as a second
+        // KeyResolver bean without marking either @Primary broke Spring Cloud
+        // Gateway's own RequestRateLimiterGatewayFilterFactory, which
+        // autowires a single default KeyResolver via its constructor (used
+        // whenever a route's filter doesn't specify key-resolver SpEL) - the
+        // gateway failed to start at all (NoUniqueBeanDefinitionException),
+        // taking the whole site down. This reproduces that exact no-qualifier
+        // lookup Spring Cloud Gateway performs internally, so it fails loudly
+        // here instead of only at real container boot.
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext(RateLimiterConfig.class)) {
+            assertThat(context.getBean(KeyResolver.class)).isNotNull();
+        }
+    }
 
     @Test
     void ipKeyResolver_RequestWithRemoteAddress_ResolvesToClientIp() {
