@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AIChatView from './AIChatView';
 import { aiService } from '@/services/aiService';
+import { journalService } from '@/services/journalService';
 
 vi.mock('@/services/aiService', () => ({
   aiService: {
@@ -10,7 +11,14 @@ vi.mock('@/services/aiService', () => ({
   },
 }));
 
+vi.mock('@/services/journalService', () => ({
+  journalService: {
+    getAllJournals: vi.fn(),
+  },
+}));
+
 const mockedChat = vi.mocked(aiService.chat);
+const mockedGetAllJournals = vi.mocked(journalService.getAllJournals);
 
 const mockWriteText = vi.fn().mockResolvedValue(undefined);
 Object.defineProperty(navigator, 'clipboard', {
@@ -21,6 +29,8 @@ Object.defineProperty(navigator, 'clipboard', {
 
 beforeEach(() => {
   mockedChat.mockReset();
+  mockedGetAllJournals.mockReset();
+  mockedGetAllJournals.mockResolvedValue([]);
   mockWriteText.mockClear();
   vi.spyOn(window, 'confirm').mockReturnValue(true);
   Element.prototype.scrollIntoView = vi.fn();
@@ -46,7 +56,7 @@ describe('AIChatView', () => {
     await user.type(screen.getByPlaceholderText('Ask AI for advice, journaling prompts, rephrasing...'), 'Hello there');
     await user.click(screen.getByRole('button', { name: /Send/ }));
 
-    expect(mockedChat).toHaveBeenCalledWith('Hello there');
+    expect(mockedChat).toHaveBeenCalledWith('Hello there', expect.any(String));
     expect(screen.getByText('Hello there')).toBeInTheDocument();
     expect(await screen.findByText('Here is a helpful reply.')).toBeInTheDocument();
   });
@@ -58,8 +68,27 @@ describe('AIChatView', () => {
 
     await user.click(screen.getByText('Summarize my emotional growth & wins'));
 
-    expect(mockedChat).toHaveBeenCalledWith('Summarize my emotional growth & wins');
+    expect(mockedChat).toHaveBeenCalledWith('Summarize my emotional growth & wins', expect.any(String));
     expect(await screen.findByText('Sure, here are some prompts.')).toBeInTheDocument();
+  });
+
+  it('fetches recent journals once and includes a content digest as chat context', async () => {
+    mockedGetAllJournals.mockResolvedValue([
+      { content: 'Today was a stressful day at work with back-to-back meetings.' },
+      { content: 'Feeling much calmer after a walk in the park.' },
+    ] as any);
+    mockedChat.mockResolvedValue({ data: { data: 'Got it.' } } as any);
+    const user = userEvent.setup();
+    render(<AIChatView />);
+
+    await waitFor(() => expect(mockedGetAllJournals).toHaveBeenCalledTimes(1));
+
+    await user.type(screen.getByPlaceholderText('Ask AI for advice, journaling prompts, rephrasing...'), 'How am I doing?');
+    await user.click(screen.getByRole('button', { name: /Send/ }));
+
+    await waitFor(() => expect(mockedChat).toHaveBeenCalled());
+    const [, context] = mockedChat.mock.calls[0];
+    expect(context).toContain('stressful day at work');
   });
 
   it('shows a fallback message when the chat request fails', async () => {
