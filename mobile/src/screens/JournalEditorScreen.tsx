@@ -135,7 +135,7 @@ export default function JournalEditorScreen() {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       {showConfetti ? <ConfettiBurst onEnd={() => setShowConfetti(false)} /> : null}
       <SafeAreaView className="flex-1" edges={['top']}>
         <View className="flex-row items-center justify-between px-5 pt-3 pb-2">

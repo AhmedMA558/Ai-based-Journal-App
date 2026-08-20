@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, KeyboardAvoidingView, Platform, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import QRCode from 'react-native-qrcode-svg';
-import { User, ShieldCheck, CheckCircle2 } from 'lucide-react-native';
+import { User, ShieldCheck, CheckCircle2, Camera, Trash2 } from 'lucide-react-native';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -10,7 +11,7 @@ import { SkeletonBlock } from '@/components/ui/SkeletonBlock';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { cn } from '@/lib/utils';
-import { authService, userService } from '@/services';
+import { authService, userService, fileService } from '@/services';
 import type { CurrentUser, ProfileData, MfaSetupData, LoginHistoryEntry } from '@/types';
 
 type SettingsTab = 'profile' | 'security';
@@ -54,6 +55,9 @@ function ProfileSection() {
   const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  const [avatarSource, setAvatarSource] = useState<{ uri: string; headers?: Record<string, string> } | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -75,6 +79,79 @@ function ProfileSection() {
       cancelled = true;
     };
   }, []);
+
+  // Fetches the current avatar as an authenticated source whenever avatarUrl
+  // changes - RN's <Image> can carry a bearer token directly via source.headers,
+  // unlike a web <img>, so there's no blob-URL fetch-and-revoke step needed here.
+  useEffect(() => {
+    let cancelled = false;
+    if (!profile.avatarUrl) {
+      setAvatarSource(null);
+      return;
+    }
+    fileService
+      .getAuthenticatedImageSource(profile.avatarUrl)
+      .then((src) => {
+        if (!cancelled) setAvatarSource(src);
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarSource(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.avatarUrl]);
+
+  const handlePickAvatar = async () => {
+    setAvatarError('');
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setAvatarError('Photo library access is needed to set a profile picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    const fileName = asset.fileName || `avatar-${Date.now()}.jpg`;
+    const mimeType = asset.mimeType || 'image/jpeg';
+
+    setAvatarUploading(true);
+    try {
+      const { filePath } = await fileService.upload(asset.uri, fileName, mimeType);
+      const oldPath = profile.avatarUrl;
+      const updated = await userService.updateProfile({ ...profile, avatarUrl: filePath });
+      setProfile(updated || { ...profile, avatarUrl: filePath });
+      if (oldPath) {
+        fileService.remove(oldPath).catch(() => {});
+      }
+    } catch (err: any) {
+      setAvatarError(err?.message || 'Failed to upload photo.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!profile.avatarUrl) return;
+    setAvatarError('');
+    setAvatarUploading(true);
+    try {
+      const oldPath = profile.avatarUrl;
+      const updated = await userService.updateProfile({ ...profile, avatarUrl: '' });
+      setProfile(updated || { ...profile, avatarUrl: '' });
+      await fileService.remove(oldPath).catch(() => {});
+    } catch (err: any) {
+      setAvatarError(err?.message || 'Failed to remove photo.');
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -112,6 +189,42 @@ function ProfileSection() {
     <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
       <FadeInView>
         <View className="gap-4">
+          <View className="items-center gap-3 mb-2">
+            <View className="w-24 h-24 rounded-full bg-white/5 border border-white/10 items-center justify-center overflow-hidden">
+              {avatarUploading ? (
+                <ActivityIndicator color="#818cf8" />
+              ) : avatarSource ? (
+                <Image source={avatarSource} style={{ width: 96, height: 96 }} resizeMode="cover" />
+              ) : (
+                <User size={36} color="#64748b" />
+              )}
+            </View>
+            <View className="flex-row items-center gap-3">
+              <Pressable
+                onPress={handlePickAvatar}
+                disabled={avatarUploading}
+                className="flex-row items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl py-2 px-3"
+                style={{ opacity: avatarUploading ? 0.5 : 1 }}
+              >
+                <Camera size={14} color="#818cf8" />
+                <Text className="text-accent-indigo text-xs font-semibold">
+                  {profile.avatarUrl ? 'Change Photo' : 'Set Photo'}
+                </Text>
+              </Pressable>
+              {profile.avatarUrl ? (
+                <Pressable
+                  onPress={handleRemoveAvatar}
+                  disabled={avatarUploading}
+                  className="flex-row items-center gap-1.5 bg-white/5 border border-white/10 rounded-xl py-2 px-3"
+                  style={{ opacity: avatarUploading ? 0.5 : 1 }}
+                >
+                  <Trash2 size={14} color="#f87171" />
+                  <Text className="text-[#f87171] text-xs font-semibold">Remove</Text>
+                </Pressable>
+              ) : null}
+            </View>
+            {avatarError ? <Text className="text-[#f87171] text-xs text-center">{avatarError}</Text> : null}
+          </View>
           <View>
             <Text className="text-text-secondary text-xs mb-2">Username</Text>
             <GlassInput value={currentUser?.username || ''} editable={false} className="opacity-60" />
@@ -176,7 +289,7 @@ function SecuritySection() {
   }, []);
 
   return (
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 16 }} keyboardShouldPersistTaps="handled">
         <FadeInView>
           <View className="gap-4">
