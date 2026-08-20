@@ -48,7 +48,10 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
   };
 
   return (
-    <View style={{ height: 76, width: '100%' }}>
+    // 150x140 matches the embed page's 'compact' Turnstile size - the
+    // 'normal' size (300x65) didn't fit the app's card width and clipped
+    // the Cloudflare branding on the right, confirmed live on a real device.
+    <View style={{ height: 140, width: 150, alignSelf: 'center' }}>
       <WebView
         key={resetKey}
         originWhitelist={['*']}
@@ -60,7 +63,7 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
         style={{ backgroundColor: 'transparent' }}
         containerStyle={{ backgroundColor: 'transparent' }}
       />
-      {error ? <Text className="text-[#f87171] text-xs mt-1">{error}</Text> : null}
+      {error ? <Text className="text-[#f87171] text-xs mt-1 text-center">{error}</Text> : null}
     </View>
   );
 }

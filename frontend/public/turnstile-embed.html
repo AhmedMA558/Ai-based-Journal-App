@@ -44,6 +44,11 @@
         sitekey: siteKey,
         action: action,
         theme: 'dark',
+        // 'normal' (300x65) doesn't fit the app's narrower card width and
+        // clipped the Cloudflare branding on the right - confirmed live on
+        // a real device. 'compact' (150x140, stacked vertically) fits
+        // comfortably instead.
+        size: 'compact',
         callback: function (token) { post({ type: 'verify', token: token }); },
         'expired-callback': function () { post({ type: 'expire' }); },
         'error-callback': function () { post({ type: 'error' }); },
