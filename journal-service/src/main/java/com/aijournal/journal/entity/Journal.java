@@ -1,6 +1,7 @@
 package com.aijournal.journal.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
 
@@ -28,9 +29,18 @@ public class Journal {
     private Long categoryId;
 
     @Column(nullable = false)
+    @Size(max = 200, message = "Title must be at most 200 characters")
     private String title;
 
+    // No application-level cap previously existed on this field at all - the
+    // LONGTEXT column itself accepts up to ~4GB, so a single request could
+    // submit an arbitrarily large entry that then gets AES-GCM encrypted,
+    // published to RabbitMQ, and indexed into Elasticsearch in full, with
+    // real CPU/memory/storage cost per submission and no bound on it. 100k
+    // characters (~20k words) is generous for a real journal entry while
+    // still closing that unbounded-payload gap.
     @Column(nullable = false, columnDefinition = "LONGTEXT")
+    @Size(max = 100_000, message = "Content must be at most 100,000 characters")
     private String content;
 
     @Column(name = "content_encrypted", nullable = false)

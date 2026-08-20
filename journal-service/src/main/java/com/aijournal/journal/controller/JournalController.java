@@ -7,6 +7,7 @@ import com.aijournal.journal.service.JournalService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
@@ -32,7 +33,7 @@ public class JournalController {
     @Operation(summary = "Create a new journal entry or draft")
     public ResponseEntity<ApiResponse<Journal>> createJournal(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
-            @RequestBody Journal journal) {
+            @Valid @RequestBody Journal journal) {
         Long activeUserId = resolveUserId(userId);
         Journal created = journalService.createJournal(activeUserId, journal);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -44,7 +45,7 @@ public class JournalController {
     public ResponseEntity<ApiResponse<Journal>> updateJournal(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @PathVariable Long id,
-            @RequestBody Journal journal) {
+            @Valid @RequestBody Journal journal) {
         Long activeUserId = resolveUserId(userId);
         Journal updated = journalService.updateJournal(activeUserId, id, journal);
         return ResponseEntity.ok(ApiResponse.success("Journal entry updated successfully", updated));
