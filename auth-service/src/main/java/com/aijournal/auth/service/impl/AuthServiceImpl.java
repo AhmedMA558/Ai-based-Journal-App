@@ -21,6 +21,7 @@ import com.aijournal.auth.service.AuthService;
 import com.aijournal.auth.service.LoginHistoryRecorder;
 import com.aijournal.auth.service.TotpEncryptionService;
 import com.aijournal.auth.service.TotpService;
+import com.aijournal.auth.service.TurnstileService;
 import com.aijournal.common.dto.PagedResponse;
 import com.aijournal.common.exception.BadRequestException;
 import com.aijournal.common.exception.ForbiddenException;
@@ -101,12 +102,15 @@ public class AuthServiceImpl implements AuthService {
     @Value("${notification.service.url:http://notification-service:8087}")
     private String notificationServiceUrl;
 
+    private final TurnstileService turnstileService;
+
     public AuthServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
             RefreshTokenRepository refreshTokenRepository, MfaChallengeRepository mfaChallengeRepository,
             MfaRecoveryCodeRepository mfaRecoveryCodeRepository, PasswordResetTokenRepository passwordResetTokenRepository,
             EmailVerificationTokenRepository emailVerificationTokenRepository, LoginHistoryRepository loginHistoryRepository,
             LoginHistoryRecorder loginHistoryRecorder,
-            PasswordEncoder passwordEncoder, TotpService totpService, TotpEncryptionService totpEncryptionService) {
+            PasswordEncoder passwordEncoder, TotpService totpService, TotpEncryptionService totpEncryptionService,
+            TurnstileService turnstileService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.refreshTokenRepository = refreshTokenRepository;
@@ -119,11 +123,15 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.totpService = totpService;
         this.totpEncryptionService = totpEncryptionService;
+        this.turnstileService = turnstileService;
     }
 
     @Override
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public AuthResponse register(RegisterRequest request, String ipAddress) {
+        if (!turnstileService.verify(request.getTurnstileToken(), ipAddress)) {
+            throw new BadRequestException("CAPTCHA verification failed. Please try again.");
+        }
         // A single generic message for both collisions - telling the caller
         // specifically which of username/email is already taken is an
         // enumeration oracle (can be probed at speed to confirm whether a
@@ -271,6 +279,9 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public Object login(LoginRequest request, String ipAddress, String userAgent) {
+        if (!turnstileService.verify(request.getTurnstileToken(), ipAddress)) {
+            throw new BadRequestException("CAPTCHA verification failed. Please try again.");
+        }
         // An unresolvable username/email is deliberately never recorded -
         // login_history.user_id is NOT NULL, so there's no real account to
         // attach a row to, and "login history" is inherently per-account.

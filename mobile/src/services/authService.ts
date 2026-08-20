@@ -21,15 +21,15 @@ async function persistIfIssued(data: AuthResult, fallbackUsername?: string) {
 }
 
 export const authService = {
-  async login(usernameOrEmail: string, password: string): Promise<AuthResult> {
-    const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password });
+  async login(usernameOrEmail: string, password: string, turnstileToken?: string): Promise<AuthResult> {
+    const res = await api.post('/api/v1/auth/login', { usernameOrEmail, password, turnstileToken });
     const data: AuthResult = res?.data?.data || {};
     await persistIfIssued(data, usernameOrEmail);
     return data;
   },
 
-  async register(username: string, email: string, password: string, fullName: string): Promise<AuthResult> {
-    const res = await api.post('/api/v1/auth/register', { username, email, password, fullName });
+  async register(username: string, email: string, password: string, fullName: string, turnstileToken?: string): Promise<AuthResult> {
+    const res = await api.post('/api/v1/auth/register', { username, email, password, fullName, turnstileToken });
     const data: AuthResult = res?.data?.data || {};
     await persistIfIssued(data, username);
     return data;

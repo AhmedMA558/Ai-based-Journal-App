@@ -6,6 +6,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MindoraLogo } from '@/components/ui/MindoraLogo';
+import { TurnstileGate } from '@/components/ui/TurnstileGate';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { authService } from '@/services';
@@ -20,12 +21,18 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
   const handleSubmit = async () => {
     setError('');
+    if (!turnstileToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
     setLoading(true);
     try {
-      const data = await authService.login(usernameOrEmail, password);
+      const data = await authService.login(usernameOrEmail, password, turnstileToken);
       if (data.mfaRequired && data.challengeToken) {
         navigation.navigate('MfaChallenge', { challengeToken: data.challengeToken });
         return;
@@ -35,6 +42,8 @@ export default function LoginScreen({ navigation }: Props) {
       setError(err?.message || 'Authentication failed. Please check your credentials.');
     } finally {
       setLoading(false);
+      setTurnstileToken('');
+      setTurnstileResetKey((k) => k + 1);
     }
   };
 
@@ -75,12 +84,14 @@ export default function LoginScreen({ navigation }: Props) {
                 </Pressable>
               </View>
 
+              <TurnstileGate action="login" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
+
               <View className="mt-2">
                 <PrimaryButton
                   title={loading ? 'Signing in...' : 'Sign In'}
                   onPress={handleSubmit}
                   loading={loading}
-                  disabled={!usernameOrEmail.trim() || !password.trim()}
+                  disabled={!usernameOrEmail.trim() || !password.trim() || !turnstileToken}
                   icon={<ArrowRight size={18} color="#ffffff" />}
                 />
               </View>

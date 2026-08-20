@@ -6,6 +6,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { MindoraLogo } from '@/components/ui/MindoraLogo';
+import { TurnstileGate } from '@/components/ui/TurnstileGate';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { authService } from '@/services';
@@ -22,19 +23,27 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 
-  const canSubmit = fullName.trim() && username.trim() && email.trim() && password.trim();
+  const canSubmit = fullName.trim() && username.trim() && email.trim() && password.trim() && turnstileToken;
 
   const handleSubmit = async () => {
     setError('');
+    if (!turnstileToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
     setLoading(true);
     try {
-      await authService.register(username, email, password, fullName);
+      await authService.register(username, email, password, fullName, turnstileToken);
       login();
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please try a different username or email.');
     } finally {
       setLoading(false);
+      setTurnstileToken('');
+      setTurnstileResetKey((k) => k + 1);
     }
   };
 
@@ -79,6 +88,8 @@ export default function RegisterScreen({ navigation }: Props) {
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Password</Text>
                 <GlassInput secureTextEntry placeholder="••••••••••••" value={password} onChangeText={setPassword} />
               </View>
+
+              <TurnstileGate action="register" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
 
               <View className="mt-2">
                 <PrimaryButton

@@ -69,7 +69,7 @@ export function __resetEmailVerifiedOverrideForTests() {
 }
 
 export const mockAuthService = {
-  async login(usernameOrEmail: string, password: string): Promise<AuthResult> {
+  async login(usernameOrEmail: string, password: string, _turnstileToken?: string): Promise<AuthResult> {
     const user = findUser(usernameOrEmail);
     if (!user || user.password !== password) {
       return delay(undefined).then(() => {
@@ -82,7 +82,7 @@ export const mockAuthService = {
     return delay(await issueSession(user));
   },
 
-  async register(username: string, _email: string, _password: string, _fullName: string): Promise<AuthResult> {
+  async register(username: string, _email: string, _password: string, _fullName: string, _turnstileToken?: string): Promise<AuthResult> {
     // Prototype registration always succeeds and logs straight in as a fresh
     // (non-MFA) session - there's no persistent mock user store to write to.
     const result: AuthResult = {

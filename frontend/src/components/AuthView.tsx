@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Lock, Mail, User, ArrowRight, ShieldCheck, KeyRound, Check, Circle, Smartphone } from 'lucide-react';
 import { authService } from '@/services/authService';
 import MindoraMark from './MindoraMark';
+import TurnstileWidget from './TurnstileWidget';
 
 interface AuthViewProps {
   onLoginSuccess: () => void;
@@ -91,15 +92,27 @@ export default function AuthView({ onLoginSuccess, onNavigateToDownload }: AuthV
   const [registerPasswordFocused, setRegisterPasswordFocused] = useState(false);
   const [resetPasswordFocused, setResetPasswordFocused] = useState(false);
 
+  // Turnstile tokens are single-use - resetKey is bumped after every submit
+  // attempt (success or failure) and on the login/register toggle, forcing
+  // TurnstileWidget to remount and mint a fresh one before the next attempt.
+  const [turnstileToken, setTurnstileToken] = useState('');
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!turnstileToken) {
+      setError('Please complete the CAPTCHA verification.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       const res = isLogin
-        ? await authService.login(formData.username, formData.password)
-        : await authService.register(formData.username, formData.email, formData.password, formData.fullName);
+        ? await authService.login(formData.username, formData.password, turnstileToken)
+        : await authService.register(formData.username, formData.email, formData.password, formData.fullName, turnstileToken);
 
       const data = res?.data?.data;
       if (data?.mfaRequired) {
@@ -114,6 +127,8 @@ export default function AuthView({ onLoginSuccess, onNavigateToDownload }: AuthV
       setError(err?.message || err?.error || 'Authentication failed. Please check credentials or gateway status.');
     } finally {
       setLoading(false);
+      setTurnstileToken('');
+      setTurnstileResetKey((k) => k + 1);
     }
   };
 
@@ -532,7 +547,13 @@ export default function AuthView({ onLoginSuccess, onNavigateToDownload }: AuthV
             )}
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary w-full mt-2 p-[0.85rem]">
+          <TurnstileWidget
+            action={isLogin ? 'login' : 'register'}
+            onVerify={setTurnstileToken}
+            resetKey={turnstileResetKey}
+          />
+
+          <button type="submit" disabled={loading || !turnstileToken} className="btn-primary w-full mt-2 p-[0.85rem]">
             {loading ? (
               <span>Authenticating...</span>
             ) : (
@@ -550,6 +571,8 @@ export default function AuthView({ onLoginSuccess, onNavigateToDownload }: AuthV
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
+              setTurnstileToken('');
+              setTurnstileResetKey((k) => k + 1);
             }}
             className="bg-transparent border-0 text-[#94a3b8] cursor-pointer text-[0.9rem]"
           >
