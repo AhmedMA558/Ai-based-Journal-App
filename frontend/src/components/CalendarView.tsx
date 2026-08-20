@@ -62,7 +62,29 @@ export default function CalendarView({ onSelectJournal }: CalendarViewProps) {
     days.push(i);
   }
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  // Backward navigation is bounded to the month of the user's very first
+  // journal entry - without this, prevMonth had no limit at all and could be
+  // clicked indefinitely into empty years with nothing to show (found live:
+  // several clicks landed on April 2022, long before the account existed).
+  // A user with no entries yet has nothing earlier than the current month to
+  // look back at, so the bound defaults to "now" in that case.
+  const today = new Date();
+  const currentMonthValue = today.getFullYear() * 12 + today.getMonth();
+  const earliestEntryDate = journals.reduce<Date | null>((earliest, j) => {
+    if (!j.createdAt) return earliest;
+    const d = new Date(j.createdAt);
+    if (Number.isNaN(d.getTime())) return earliest;
+    return !earliest || d < earliest ? d : earliest;
+  }, null);
+  const minMonthValue = earliestEntryDate
+    ? earliestEntryDate.getFullYear() * 12 + earliestEntryDate.getMonth()
+    : currentMonthValue;
+  const viewedMonthValue = year * 12 + month;
+  const canGoPrev = viewedMonthValue > minMonthValue;
+
+  const prevMonth = () => {
+    if (canGoPrev) setCurrentDate(new Date(year, month - 1, 1));
+  };
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
   // Map journal entry by date string (YYYY-MM-DD)
@@ -84,13 +106,18 @@ export default function CalendarView({ onSelectJournal }: CalendarViewProps) {
           <p className="text-[#94a3b8] text-[0.9rem]">Visual emotional tracking mapped across calendar days</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={prevMonth} className="btn-secondary p-2">
+          <button
+            onClick={prevMonth}
+            disabled={!canGoPrev}
+            title={canGoPrev ? 'Previous month' : "You have no entries before this month"}
+            className="btn-secondary p-2 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
             <ChevronLeft size={18} />
           </button>
           <span className="text-[1.1rem] font-bold text-[#f8fafc] min-w-[140px] text-center">
             {MONTH_NAMES[month]} {year}
           </span>
-          <button onClick={nextMonth} className="btn-secondary p-2">
+          <button onClick={nextMonth} title="Next month" className="btn-secondary p-2">
             <ChevronRight size={18} />
           </button>
         </div>
