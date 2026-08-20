@@ -78,10 +78,10 @@ export default function SearchView() {
       {/* Search Header */}
       <div>
         <h1 className="text-[2rem] font-extrabold flex items-center gap-[0.6rem]">
-          <Search size={26} color="#818cf8" /> Deep Type-Ahead Elasticsearch
+          <Search size={26} color="#818cf8" /> Search Your Journals
         </h1>
         <p className="text-[#94a3b8] text-[0.9rem]">
-          Real-time instant indexing across user-scoped titles, contents, moods, and tags
+          Find any entry instantly by title, content, mood, or tag
         </p>
       </div>
 
