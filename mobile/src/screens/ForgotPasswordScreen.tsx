@@ -95,7 +95,7 @@ export default function ForgotPasswordScreen({ navigation }: Props) {
                   <GlassInput
                     autoCapitalize="none"
                     keyboardType="email-address"
-                    placeholder="alex@example.com"
+                    placeholder="you@example.com"
                     value={email}
                     onChangeText={setEmail}
                   />

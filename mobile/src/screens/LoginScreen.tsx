@@ -71,7 +71,7 @@ export default function LoginScreen({ navigation }: Props) {
                 <Text className="text-[#cbd5e1] text-sm font-medium mb-2">Username or Email</Text>
                 <GlassInput
                   autoCapitalize="none"
-                  placeholder="alex_dev or alex@example.com"
+                  placeholder="Username or email"
                   value={usernameOrEmail}
                   onChangeText={setUsernameOrEmail}
                 />

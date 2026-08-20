@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!--
+  Standalone page for rendering the Cloudflare Turnstile widget inside the
+  mobile app's WebView (see mobile/src/components/ui/TurnstileGate.tsx).
+
+  Turnstile validates the requesting page's origin against the hostnames
+  configured for the site key in the Cloudflare dashboard - a WebView loaded
+  with raw inline HTML (react-native-webview's `source={{ html }}`) has no
+  real origin at all, so Cloudflare can never recognize it as an allowed
+  domain and the widget fails to load ("Unable to connect to website").
+  Serving this page from the real mindorajournal.com origin (the same
+  origin the web app's own working Turnstile widget already uses) fixes
+  that - the WebView loads a real https://mindorajournal.com/... URL
+  instead of opaque inline markup.
+-->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
+  </style>
+</head>
+<body>
+  <div id="widget"></div>
+  <script>
+    var params = new URLSearchParams(window.location.search);
+    var action = params.get('action') || 'login';
+    var siteKey = params.get('sitekey') || '0x4AAAAAAEWhANuGDYcQFFUh';
+
+    function post(payload) {
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+      }
+    }
+
+    function render() {
+      if (!window.turnstile) {
+        setTimeout(render, 100);
+        return;
+      }
+      window.turnstile.render('#widget', {
+        sitekey: siteKey,
+        action: action,
+        theme: 'dark',
+        callback: function (token) { post({ type: 'verify', token: token }); },
+        'expired-callback': function () { post({ type: 'expire' }); },
+        'error-callback': function () { post({ type: 'error' }); },
+      });
+    }
+    render();
+  </script>
+</body>
+</html>
