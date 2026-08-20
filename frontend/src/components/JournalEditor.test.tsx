@@ -77,6 +77,37 @@ describe('JournalEditor', () => {
     expect(await screen.findByText('ANGRY 😠')).toBeInTheDocument();
   });
 
+  it('does not mistake the word "made" for anger (regression: "mad" is a substring of "made")', async () => {
+    // Real bug found live: naive .includes('mad') matched inside "made",
+    // silently flagging any entry containing that extremely common word as
+    // ANGRY - including this exact grateful/happy sentence.
+    const user = userEvent.setup();
+    render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
+
+    await user.type(
+      screen.getByPlaceholderText(/Write your thoughts/),
+      'What made me feel grateful today: my happy little dog'
+    );
+
+    expect(await screen.findByText('GRATEFUL 🙏')).toBeInTheDocument();
+    expect(screen.queryByText('ANGRY 😠')).not.toBeInTheDocument();
+  });
+
+  it('requires a whole-word match for short keywords that are also common word prefixes', async () => {
+    // "win" (EXCITED) is a literal prefix of "window" and "winter" - an
+    // entry just mentioning the weather or opening an app must not be
+    // misread as excitement.
+    const user = userEvent.setup();
+    render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
+
+    await user.type(
+      screen.getByPlaceholderText(/Write your thoughts/),
+      'I opened the window to feel the winter air'
+    );
+
+    expect(screen.queryByText('EXCITED 🤩')).not.toBeInTheDocument();
+  });
+
   it('applies a template to title and content', async () => {
     const user = userEvent.setup();
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
