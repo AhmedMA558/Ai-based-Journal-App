@@ -20,22 +20,41 @@ MOOD_EMOJI_MAP = {
 
 HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
 
+# Keywords confirmed to also be a literal PREFIX of a common, unrelated
+# English word - e.g. "mad" (meant to catch anger) is the first three
+# letters of "made", so naive substring matching silently misclassified any
+# entry containing that extremely common word as ANGRY. These need a
+# right-side word boundary too (an exact-word match); every other keyword
+# below only gets a left-side boundary so it keeps matching its natural
+# inflections (e.g. "stress" -> "stressed"/"stressful").
+_EXACT_WORD_KEYWORDS = {'mad', 'spa', 'soft', 'won', 'trip'}
+
+def _keyword_matches(keyword: str, content: str) -> bool:
+    if ' ' in keyword:
+        # Multi-word phrases can't realistically collide mid-word.
+        return keyword in content
+    pattern = r'\b' + re.escape(keyword) + (r'\b' if keyword in _EXACT_WORD_KEYWORDS else '')
+    return re.search(pattern, content) is not None
+
+def _any_keyword(keywords, content: str) -> bool:
+    return any(_keyword_matches(k, content) for k in keywords)
+
 # Shared keyword-based mood classifier - the single source of truth for the
 # non-HF fallback used by both /mood and /chat, so a chat reply's tone always
 # agrees with what /mood would have detected for the same text.
 def detect_mood_keywords(content: str) -> str:
     content = content.lower()
-    if any(k in content for k in ['angry', 'furious', 'mad', 'rage', 'infuriated', 'irritated', 'annoyed', 'hate', 'outraged', 'bitter', 'disgusted']):
+    if _any_keyword(['angry', 'furious', 'mad', 'rage', 'infuriated', 'irritated', 'annoyed', 'hate', 'outraged', 'bitter', 'disgusted'], content):
         return "ANGRY"
-    if any(k in content for k in ['stress', 'overwhelmed', 'deadline', 'panic', 'crashed', 'anxious', 'pressure', 'workload', 'frantic', 'trouble', 'meetings', 'no time', 'broke down', 'worrying', 'urgent', 'argument', 'conflict', 'piling up', 'uninterrupted', 'interruption', 'balance work demands', 'frustat', 'frustrat', 'tired', 'exhausted', 'drained', 'burnout', 'fatigue', 'heavy load', 'feely really']):
+    if _any_keyword(['stress', 'overwhelmed', 'deadline', 'panic', 'crashed', 'anxious', 'pressure', 'workload', 'frantic', 'trouble', 'meetings', 'no time', 'broke down', 'worrying', 'urgent', 'argument', 'conflict', 'piling up', 'uninterrupted', 'interruption', 'balance work demands', 'frustat', 'frustrat', 'tired', 'exhausted', 'drained', 'burnout', 'fatigue', 'heavy load', 'feely really'], content):
         return "STRESSED"
-    if any(k in content for k in ['ruin', 'ruined', 'ruinned', 'bad person', 'terrible', 'horrible', 'upset', 'worst', 'sad', 'lonely', 'grief', 'tears', 'disappoint', 'gloomy', 'hurt', 'melanchol', 'sorrow', 'missing', 'down and', 'heartbroken', 'left out', 'heavy-hearted', 'hurting']):
+    if _any_keyword(['ruin', 'ruined', 'ruinned', 'bad person', 'terrible', 'horrible', 'upset', 'worst', 'sad', 'lonely', 'grief', 'tears', 'disappoint', 'gloomy', 'hurt', 'melanchol', 'sorrow', 'missing', 'down and', 'heartbroken', 'left out', 'heavy-hearted', 'hurting'], content):
         return "SAD"
-    if any(k in content for k in ['thankful', 'grateful', 'blessed', 'apprec', 'gratitude', 'blessings', 'appreciation']):
+    if _any_keyword(['thankful', 'grateful', 'blessed', 'apprec', 'gratitude', 'blessings', 'appreciation'], content):
         return "GRATEFUL"
-    if any(k in content for k in ['relax', 'calm', 'peaceful', 'serene', 'tranquil', 'meditat', 'cozy', 'spa', 'lake', 'sunset', 'soft', 'reading a book', 'sipping tea', 'unplugged', 'stillness', 'lazy sunday', 'resting', 'yoga', 'breeze', 'soothing', 'oak tree', 'nature sound', 'restful', 'no deadlines', 'listening to classical', 'zero stress']):
+    if _any_keyword(['relax', 'calm', 'peaceful', 'serene', 'tranquil', 'meditat', 'cozy', 'spa', 'lake', 'sunset', 'soft', 'reading a book', 'sipping tea', 'unplugged', 'stillness', 'lazy sunday', 'resting', 'yoga', 'breeze', 'soothing', 'oak tree', 'nature sound', 'restful', 'no deadlines', 'listening to classical', 'zero stress'], content):
         return "RELAXED"
-    if any(k in content for k in ['excit', 'hyped', 'thrill', "can't wait", 'launch', 'trip', 'concert', 'exhilarat', 'eager', 'won', 'signed', 'promotion', 'hackathon', 'unbox', 'wedding', 'game winning', 'festival', ' summit', 'road trip', 'developer workshop', 'celebrating with']):
+    if _any_keyword(['excit', 'hyped', 'thrill', "can't wait", 'launch', 'trip', 'concert', 'exhilarat', 'eager', 'won', 'signed', 'promotion', 'hackathon', 'unbox', 'wedding', 'game winning', 'festival', ' summit', 'road trip', 'developer workshop', 'celebrating with'], content):
         return "EXCITED"
     return "HAPPY"
 

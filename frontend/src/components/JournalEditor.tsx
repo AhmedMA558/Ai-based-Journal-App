@@ -72,27 +72,46 @@ function normalizeMood(rawMood?: string): Mood {
   return 'HAPPY';
 }
 
+// Keywords confirmed to also be a literal PREFIX of a common, unrelated
+// English word - e.g. "mad" (meant to catch anger) is the first three
+// letters of "made", so naive .includes() substring matching silently
+// flagged any text containing that extremely common word as ANGRY. These
+// need a right-side word boundary too (an exact-word match); every other
+// keyword below only gets a left-side boundary so it keeps matching its
+// natural inflections (e.g. "stress" -> "stressed"/"stressful").
+const EXACT_WORD_KEYWORDS = new Set(['mad', 'spa', 'tea', 'win', 'trip', 'bad']);
+
+function keywordPresent(keyword: string, text: string): boolean {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`\\b${escaped}` + (EXACT_WORD_KEYWORDS.has(keyword) ? '\\b' : ''));
+  return pattern.test(text);
+}
+
+function anyKeyword(keywords: string[], text: string): boolean {
+  return keywords.some((k) => keywordPresent(k, text));
+}
+
 // Instant Keystroke Mood Evaluator (0ms Latency)
 function evaluateInstantMood(text: string): { mood: Mood; emoji: string } {
   const txt = (text || '').toLowerCase();
   if (!txt.trim()) return { mood: 'HAPPY', emoji: '😊' };
 
-  if (txt.includes('angry') || txt.includes('mad') || txt.includes('rage') || txt.includes('furious') || txt.includes('hate') || txt.includes('annoyed') || txt.includes('irritated') || txt.includes('outraged')) {
+  if (anyKeyword(['angry', 'mad', 'rage', 'furious', 'hate', 'annoyed', 'irritated', 'outraged'], txt)) {
     return { mood: 'ANGRY', emoji: '😠' };
   }
-  if (txt.includes('stress') || txt.includes('overwhelm') || txt.includes('frustat') || txt.includes('frustrat') || txt.includes('tired') || txt.includes('exhaust') || txt.includes('anxio') || txt.includes('busy') || txt.includes('workload')) {
+  if (anyKeyword(['stress', 'overwhelm', 'frustat', 'frustrat', 'tired', 'exhaust', 'anxio', 'busy', 'workload'], txt)) {
     return { mood: 'STRESSED', emoji: '😰' };
   }
-  if (txt.includes('sad') || txt.includes('lonely') || txt.includes('hurt') || txt.includes('ruin') || txt.includes('bad') || txt.includes('cry') || txt.includes('depress') || txt.includes('upset') || txt.includes('worst')) {
+  if (anyKeyword(['sad', 'lonely', 'hurt', 'ruin', 'bad', 'cry', 'depress', 'upset', 'worst'], txt)) {
     return { mood: 'SAD', emoji: '🥺' };
   }
-  if (txt.includes('thank') || txt.includes('grate') || txt.includes('bless') || txt.includes('apprec')) {
+  if (anyKeyword(['thank', 'grate', 'bless', 'apprec'], txt)) {
     return { mood: 'GRATEFUL', emoji: '🙏' };
   }
-  if (txt.includes('relax') || txt.includes('calm') || txt.includes('peace') || txt.includes('cozy') || txt.includes('tea') || txt.includes('lake') || txt.includes('spa')) {
+  if (anyKeyword(['relax', 'calm', 'peace', 'cozy', 'tea', 'lake', 'spa'], txt)) {
     return { mood: 'RELAXED', emoji: '😌' };
   }
-  if (txt.includes('excit') || txt.includes('hype') || txt.includes('thrill') || txt.includes('win') || txt.includes('launch') || txt.includes('trip') || txt.includes('concert')) {
+  if (anyKeyword(['excit', 'hype', 'thrill', 'win', 'launch', 'trip', 'concert'], txt)) {
     return { mood: 'EXCITED', emoji: '🤩' };
   }
   return { mood: 'HAPPY', emoji: '😊' };
