@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Sparkles, ArrowRight } from 'lucide-react-native';
+import { ArrowRight } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { GlassInput } from '@/components/ui/GlassInput';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { MindoraLogo } from '@/components/ui/MindoraLogo';
 import { ErrorBanner } from '@/components/ErrorBanner';
 import { FadeInView } from '@/components/ui/FadeInView';
 import { authService } from '@/services';
@@ -39,17 +39,12 @@ export default function LoginScreen({ navigation }: Props) {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
         <FadeInView>
           <GlassPanel className="p-8">
             <View className="items-center mb-8">
-              <LinearGradient
-                colors={['#6366f1', '#a855f7']}
-                style={{ padding: 14, borderRadius: 20, marginBottom: 16 }}
-              >
-                <Sparkles size={30} color="#ffffff" />
-              </LinearGradient>
+              <MindoraLogo size={58} />
               <Text className="text-2xl font-extrabold text-text-primary mb-1">Mindora</Text>
               <Text className="text-text-secondary text-sm text-center">
                 Your thoughts. Your story. Your AI companion.

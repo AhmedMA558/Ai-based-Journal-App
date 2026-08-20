@@ -63,6 +63,27 @@ export default function CalendarScreen() {
   for (let i = 0; i < firstDayIndex; i++) cells.push(null);
   for (let i = 1; i <= daysInMonth; i++) cells.push(i);
 
+  // Backward navigation is bounded to the month of the user's very first
+  // journal entry - without this, prevMonth had no limit at all and could be
+  // tapped indefinitely into empty years with nothing to show (same bug
+  // already fixed on web's CalendarView.tsx; mobile has its own separate
+  // screen that never received that fix). A user with no entries yet has
+  // nothing earlier than the current month to look back at, so the bound
+  // defaults to "now" in that case.
+  const today = new Date();
+  const currentMonthValue = today.getFullYear() * 12 + today.getMonth();
+  const earliestEntryDate = journals.reduce<Date | null>((earliest, j) => {
+    if (!j.createdAt) return earliest;
+    const d = new Date(j.createdAt);
+    if (Number.isNaN(d.getTime())) return earliest;
+    return !earliest || d < earliest ? d : earliest;
+  }, null);
+  const minMonthValue = earliestEntryDate
+    ? earliestEntryDate.getFullYear() * 12 + earliestEntryDate.getMonth()
+    : currentMonthValue;
+  const viewedMonthValue = year * 12 + month;
+  const canGoPrev = viewedMonthValue > minMonthValue;
+
   const journalMap: Record<string, Journal> = {};
   journals.forEach((j) => {
     if (j.createdAt) {
@@ -81,8 +102,10 @@ export default function CalendarScreen() {
 
           <View className="flex-row items-center justify-center gap-4 mb-5">
             <Pressable
-              onPress={() => setCurrentDate(new Date(year, month - 1, 1))}
+              onPress={() => canGoPrev && setCurrentDate(new Date(year, month - 1, 1))}
+              disabled={!canGoPrev}
               className="p-2 rounded-xl bg-white/5 border border-white/10"
+              style={{ opacity: canGoPrev ? 1 : 0.3 }}
             >
               <ChevronLeft size={18} color="#f8fafc" />
             </Pressable>

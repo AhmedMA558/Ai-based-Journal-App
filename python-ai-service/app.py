@@ -299,7 +299,48 @@ CHAT_REPLIES_BY_MOOD = {
     "HAPPY": "That's good to hear. What made this feel good? Writing it down helps reinforce what's working for you.",
 }
 
+# Topic-based replies checked before mood classification - the mood-only
+# fallback above only ever answers "how do you feel", so a functional request
+# with no mood keyword in it (e.g. the app's own ChatScreen/AIChatView preset
+# prompt buttons: "Suggest 3 daily journal prompts...", "How can I build a
+# consistent daily writing habit?") always fell through to the generic HAPPY
+# reply regardless of what was actually asked - found live via a screenshot
+# of exactly that mismatch. Each entry is (trigger keywords, real answer).
+TOPIC_CHAT_REPLIES = [
+    (
+        ['journal prompt', 'writing prompt', 'what should i write', 'give me a prompt', 'prompt idea'],
+        "Here are 3 prompts to try: 1) What moment today would you want to remember a year from now, and why? "
+        "2) What's something you're avoiding thinking about, and what would happen if you wrote about it for five minutes? "
+        "3) Describe your current mood as if it were weather - what's the forecast for tomorrow?"
+    ),
+    (
+        ['writing habit', 'consistent daily', 'journal every day', 'journal daily', 'build a habit', 'stay consistent'],
+        "Building a daily writing habit works best when you lower the bar: commit to 3 sentences a minute, same time each day "
+        "(right after coffee or before bed are easiest to anchor to). Skip trying to write something 'good' - the goal for the "
+        "first few weeks is just showing up, not quality. A short streak you can see (even just counting days) helps more than "
+        "long entries you dread starting."
+    ),
+    (
+        ['how do i start journaling', 'new to journaling', "don't know what to write", 'writing block', "can't think of anything"],
+        "A good way to start: pick one moment from today - a conversation, a small win, a frustration - and just describe what "
+        "happened and how it made you feel, in plain language. Don't worry about structure or where it's going; the goal is to "
+        "get something real on the page, not to write well."
+    ),
+]
+
+
+def topic_chat_reply(query: str, context: str):
+    combined = f"{query} {context}".lower()
+    for keywords, reply in TOPIC_CHAT_REPLIES:
+        if any(k in combined for k in keywords):
+            return reply
+    return None
+
+
 def keyword_chat_reply(query: str, context: str) -> str:
+    topic_reply = topic_chat_reply(query, context)
+    if topic_reply:
+        return topic_reply
     combined = f"{query} {context}".strip()
     mood = detect_mood_keywords(combined) if combined else "HAPPY"
     return CHAT_REPLIES_BY_MOOD.get(mood, CHAT_REPLIES_BY_MOOD["HAPPY"])
