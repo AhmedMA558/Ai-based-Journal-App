@@ -6,9 +6,11 @@ import com.aijournal.ai.strategy.AiProviderStrategy.SentimentResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +23,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,5 +96,44 @@ class FlaskAiStrategyTest {
 
         assertThat(result.sentiment()).isEqualTo("NEGATIVE");
         assertThat(result.score()).isEqualTo(0.81);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void chatWithJournal_ForwardsContext_NotSilentlyDropped() {
+        // chatWithJournal's signature always accepted a `context` parameter, but the
+        // request body sent to python-ai-service only ever contained `query` - so the
+        // endpoint (documented as "Chat with your Journal History") had no way to ever
+        // actually be journal-aware, regardless of what context callers supplied.
+        Map<String, Object> data = Map.of("response", "a reply", "provider", "python-ai");
+        Map<String, Object> body = Map.of("data", data);
+        when(restTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(),
+                any(ParameterizedTypeReference.class)))
+                .thenReturn(new ResponseEntity<>(body, HttpStatus.OK));
+
+        strategy.chatWithJournal("how am I doing?", "feeling overwhelmed with work");
+
+        ArgumentCaptor<HttpEntity<Map<String, String>>> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(any(String.class), eq(HttpMethod.POST), entityCaptor.capture(),
+                any(ParameterizedTypeReference.class));
+        Map<String, String> sentBody = entityCaptor.getValue().getBody();
+
+        assertThat(sentBody).containsEntry("query", "how am I doing?");
+        assertThat(sentBody).containsEntry("context", "feeling overwhelmed with work");
+    }
+
+    @Test
+    void chatWithJournal_NullContext_SendsEmptyStringNotNull() {
+        // Map.of throws NPE on a null value - context must be coerced to "" before
+        // building the request body, not passed through as-is.
+        Map<String, Object> data = Map.of("response", "a reply", "provider", "python-ai");
+        Map<String, Object> body = Map.of("data", data);
+        when(restTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(),
+                any(ParameterizedTypeReference.class)))
+                .thenReturn(new ResponseEntity<>(body, HttpStatus.OK));
+
+        String result = strategy.chatWithJournal("hello", null);
+
+        assertThat(result).isEqualTo("a reply");
     }
 }

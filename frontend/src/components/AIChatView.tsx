@@ -1,8 +1,27 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Sparkles, Send, User, Bot, Copy, Check, Trash2, Lightbulb } from 'lucide-react';
 import { aiService } from '@/services/aiService';
+import { journalService } from '@/services/journalService';
 import { cn } from '@/lib/utils';
 import { markAiUsed } from '@/lib/achievementTracking';
+
+interface RecentJournal {
+  content?: string;
+  mood?: string;
+  [key: string]: unknown;
+}
+
+// Builds a short, size-capped digest of the user's most recent entries so
+// the chat endpoint can be genuinely aware of what they've been writing
+// about, instead of only ever seeing the current message in isolation.
+function buildJournalContext(journals: RecentJournal[]): string {
+  return journals
+    .slice(0, 3)
+    .map((j) => (j.content || '').slice(0, 200))
+    .filter(Boolean)
+    .join('\n')
+    .slice(0, 600);
+}
 
 interface ChatMessage {
   id: string;
@@ -29,10 +48,32 @@ export default function AIChatView() {
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const journalContextRef = useRef('');
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  // Fetched once per visit, not re-sent per keystroke - a snapshot of recent
+  // entries is enough context for advice/reflection replies, and refetching
+  // on every message would be wasted work for content that rarely changes
+  // mid-conversation.
+  useEffect(() => {
+    let cancelled = false;
+    journalService
+      .getAllJournals()
+      .then((list: RecentJournal[]) => {
+        if (!cancelled && Array.isArray(list)) {
+          journalContextRef.current = buildJournalContext(list);
+        }
+      })
+      .catch(() => {
+        // Fail soft - chat still works, just without journal-aware context.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = textToSend || input;
@@ -44,7 +85,7 @@ export default function AIChatView() {
     setLoading(true);
 
     try {
-      const res = await aiService.chat(query);
+      const res = await aiService.chat(query, journalContextRef.current);
       const reply = res?.data?.data || 'I am here to support your journaling journey.';
       markAiUsed();
       setMessages((prev) => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', text: reply }]);
@@ -79,7 +120,7 @@ export default function AIChatView() {
           <h1 className="text-[1.8rem] font-extrabold flex items-center gap-2">
             <Sparkles color="#818cf8" size={24} /> AI Writing & Wellness Companion
           </h1>
-          <p className="text-[#94a3b8] text-[0.85rem]">Powered by Python Flask Microservice & NLP sentiment models</p>
+          <p className="text-[#94a3b8] text-[0.85rem]">Your personal companion for reflection, writing help, and support</p>
         </div>
         <button
           type="button"

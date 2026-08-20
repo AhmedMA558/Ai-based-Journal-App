@@ -21,9 +21,10 @@ export const aiService = {
     return await api.post('/api/v1/ai/grammar', { content });
   },
 
-  // Chat with Journal AI
-  chat: async (query) => {
-    return await api.post('/api/v1/ai/chat', { query });
+  // Chat with Journal AI - context is optional recent-journal text so the
+  // reply can be aware of what the user has actually been writing about.
+  chat: async (query, context) => {
+    return await api.post('/api/v1/ai/chat', { query, context: context || '' });
   },
 
   // Generate Tags

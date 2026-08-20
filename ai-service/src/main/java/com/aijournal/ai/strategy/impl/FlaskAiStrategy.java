@@ -151,7 +151,11 @@ public class FlaskAiStrategy implements AiProviderStrategy {
             String url = flaskBaseUrl + "/api/v1/ai/chat";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(Map.of("query", query), headers);
+            // context was previously accepted by this method's signature but never
+            // actually forwarded to python-ai-service - the chat endpoint had no way
+            // to be journal-aware even when a caller supplied real context.
+            HttpEntity<Map<String, String>> entity = new HttpEntity<>(
+                    Map.of("query", query, "context", context != null ? context : ""), headers);
 
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
                     MAP_RESPONSE_TYPE);

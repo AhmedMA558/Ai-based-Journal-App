@@ -20,6 +20,25 @@ MOOD_EMOJI_MAP = {
 
 HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
 
+# Shared keyword-based mood classifier - the single source of truth for the
+# non-HF fallback used by both /mood and /chat, so a chat reply's tone always
+# agrees with what /mood would have detected for the same text.
+def detect_mood_keywords(content: str) -> str:
+    content = content.lower()
+    if any(k in content for k in ['angry', 'furious', 'mad', 'rage', 'infuriated', 'irritated', 'annoyed', 'hate', 'outraged', 'bitter', 'disgusted']):
+        return "ANGRY"
+    if any(k in content for k in ['stress', 'overwhelmed', 'deadline', 'panic', 'crashed', 'anxious', 'pressure', 'workload', 'frantic', 'trouble', 'meetings', 'no time', 'broke down', 'worrying', 'urgent', 'argument', 'conflict', 'piling up', 'uninterrupted', 'interruption', 'balance work demands', 'frustat', 'frustrat', 'tired', 'exhausted', 'drained', 'burnout', 'fatigue', 'heavy load', 'feely really']):
+        return "STRESSED"
+    if any(k in content for k in ['ruin', 'ruined', 'ruinned', 'bad person', 'terrible', 'horrible', 'upset', 'worst', 'sad', 'lonely', 'grief', 'tears', 'disappoint', 'gloomy', 'hurt', 'melanchol', 'sorrow', 'missing', 'down and', 'heartbroken', 'left out', 'heavy-hearted', 'hurting']):
+        return "SAD"
+    if any(k in content for k in ['thankful', 'grateful', 'blessed', 'apprec', 'gratitude', 'blessings', 'appreciation']):
+        return "GRATEFUL"
+    if any(k in content for k in ['relax', 'calm', 'peaceful', 'serene', 'tranquil', 'meditat', 'cozy', 'spa', 'lake', 'sunset', 'soft', 'reading a book', 'sipping tea', 'unplugged', 'stillness', 'lazy sunday', 'resting', 'yoga', 'breeze', 'soothing', 'oak tree', 'nature sound', 'restful', 'no deadlines', 'listening to classical', 'zero stress']):
+        return "RELAXED"
+    if any(k in content for k in ['excit', 'hyped', 'thrill', "can't wait", 'launch', 'trip', 'concert', 'exhilarat', 'eager', 'won', 'signed', 'promotion', 'hackathon', 'unbox', 'wedding', 'game winning', 'festival', ' summit', 'road trip', 'developer workshop', 'celebrating with']):
+        return "EXCITED"
+    return "HAPPY"
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "UP", "service": "python-ai-service", "hf_online": bool(HF_API_KEY)}), 200
@@ -113,21 +132,7 @@ def mood():
             pass
 
     # Pattern Matching Rules including ANGRY category
-    if any(k in content for k in ['angry', 'furious', 'mad', 'rage', 'infuriated', 'irritated', 'annoyed', 'hate', 'outraged', 'bitter', 'disgusted']):
-        primary_mood = "ANGRY"
-    elif any(k in content for k in ['stress', 'overwhelmed', 'deadline', 'panic', 'crashed', 'anxious', 'pressure', 'workload', 'frantic', 'trouble', 'meetings', 'no time', 'broke down', 'worrying', 'urgent', 'argument', 'conflict', 'piling up', 'uninterrupted', 'interruption', 'balance work demands', 'frustat', 'frustrat', 'tired', 'exhausted', 'drained', 'burnout', 'fatigue', 'heavy load', 'feely really']):
-        primary_mood = "STRESSED"
-    elif any(k in content for k in ['ruin', 'ruined', 'ruinned', 'bad person', 'terrible', 'horrible', 'upset', 'worst', 'sad', 'lonely', 'grief', 'tears', 'disappoint', 'gloomy', 'hurt', 'melanchol', 'sorrow', 'missing', 'down and', 'heartbroken', 'left out', 'heavy-hearted', 'hurting']):
-        primary_mood = "SAD"
-    elif any(k in content for k in ['thankful', 'grateful', 'blessed', 'apprec', 'gratitude', 'blessings', 'appreciation']):
-        primary_mood = "GRATEFUL"
-    elif any(k in content for k in ['relax', 'calm', 'peaceful', 'serene', 'tranquil', 'meditat', 'cozy', 'spa', 'lake', 'sunset', 'soft', 'reading a book', 'sipping tea', 'unplugged', 'stillness', 'lazy sunday', 'resting', 'yoga', 'breeze', 'soothing', 'oak tree', 'nature sound', 'restful', 'no deadlines', 'listening to classical', 'zero stress']):
-        primary_mood = "RELAXED"
-    elif any(k in content for k in ['excit', 'hyped', 'thrill', "can't wait", 'launch', 'trip', 'concert', 'exhilarat', 'eager', 'won', 'signed', 'promotion', 'hackathon', 'unbox', 'wedding', 'game winning', 'festival', ' summit', 'road trip', 'developer workshop', 'celebrating with']):
-        primary_mood = "EXCITED"
-    else:
-        primary_mood = "HAPPY"
-
+    primary_mood = detect_mood_keywords(content)
     emoji = MOOD_EMOJI_MAP.get(primary_mood, "😠" if primary_mood == "ANGRY" else "😊")
 
     return jsonify({
@@ -260,24 +265,66 @@ def grammar():
         }
     }), 200
 
+# Mood-aware canned replies for the non-HF chat fallback - one genuinely
+# different, relevant response per detected mood, instead of a single
+# template that echoed the same advice back for every message regardless of
+# what was actually said (the bug: "hello" and a real venting message both
+# got the identical "take a walk / 5 deep breaths" reply).
+CHAT_REPLIES_BY_MOOD = {
+    "ANGRY": "It sounds like something's really frustrating you right now. Try naming exactly what triggered it in a few sentences - putting it into words often takes the edge off, and you can revisit it once you're calmer.",
+    "STRESSED": "That sounds like a lot to carry. Try breaking down what's overwhelming you into 2-3 concrete next steps, and give yourself permission to tackle just one of them today.",
+    "SAD": "I'm sorry you're going through that. Writing about what's weighing on you, even just a few honest lines, can help you process it. Is there one small thing that might bring a bit of comfort right now?",
+    "GRATEFUL": "It's great that you're noticing the good things. Try jotting down exactly why this moment mattered to you - specific details make gratitude entries much more powerful to look back on.",
+    "RELAXED": "Sounds like a calm moment - a good time to reflect. What's one thing from today you'd like to remember or build on?",
+    "EXCITED": "That's exciting! Capture the details now while the energy's fresh - what led up to this, and what are you looking forward to next?",
+    "HAPPY": "That's good to hear. What made this feel good? Writing it down helps reinforce what's working for you.",
+}
+
+def keyword_chat_reply(query: str, context: str) -> str:
+    combined = f"{query} {context}".strip()
+    mood = detect_mood_keywords(combined) if combined else "HAPPY"
+    return CHAT_REPLIES_BY_MOOD.get(mood, CHAT_REPLIES_BY_MOOD["HAPPY"])
+
 # 5. Real-time Conversational AI & Writing Assistant Chat
 @app.route('/api/v1/ai/chat', methods=['POST'])
 def chat():
     data = request.get_json() or {}
     query = data.get('query', '')
+    context = data.get('context', '')
     if not query:
         return jsonify({"success": False, "message": "Query is required"}), 400
 
     q_lower = query.lower()
 
+    provider = "python-ai"
     if "rephrase" in q_lower:
-        ai_reply = f"Rephrased version: 'I am experiencing deep frustration due to feeling physically and mentally exhausted.'"
+        ai_reply = "Rephrased version: 'I am experiencing deep frustration due to feeling physically and mentally exhausted.'"
     elif "grammar" in q_lower:
-        ai_reply = f"Grammar Corrected: 'I am feeling really frustrated because I am really tired.'"
+        ai_reply = "Grammar Corrected: 'I am feeling really frustrated because I am really tired.'"
     elif "continue" in q_lower:
         ai_reply = "I need to take a step back, rest for a little while, and allow myself time to recharge."
     else:
-        ai_reply = f"Based on your journal entries regarding '{query}', taking a short walk or practicing 5 deep mindful breaths will help restore your calm and balance."
+        ai_reply = None
+        if HF_API_KEY:
+            try:
+                hf_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+                headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+                prompt = f"{context}\n\n{query}" if context else query
+                res = requests.post(hf_url, headers=headers, json={"inputs": prompt}, timeout=5)
+                if res.status_code == 200:
+                    hf_out = res.json()
+                    generated = None
+                    if isinstance(hf_out, dict):
+                        generated = hf_out.get('generated_text')
+                    elif isinstance(hf_out, list) and len(hf_out) > 0:
+                        generated = hf_out[0].get('generated_text')
+                    if generated:
+                        ai_reply = generated.strip()
+                        provider = "huggingface-dialogpt"
+            except Exception:
+                pass
+        if not ai_reply:
+            ai_reply = keyword_chat_reply(query, context)
 
     return jsonify({
         "success": True,
@@ -285,7 +332,7 @@ def chat():
         "data": {
             "query": query,
             "response": ai_reply,
-            "provider": "python-ai"
+            "provider": provider
         }
     }), 200
 
