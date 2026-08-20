@@ -4,6 +4,7 @@ import com.aijournal.gateway.filter.TrustedProxyAddresses;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import reactor.core.publisher.Mono;
 
 // Backs the RequestRateLimiter filter on the auth-service-sensitive route
@@ -29,6 +30,19 @@ import reactor.core.publisher.Mono;
 @Configuration
 public class RateLimiterConfig {
 
+    // @Primary is required, not cosmetic: Spring Cloud Gateway's own
+    // RequestRateLimiterGatewayFilterFactory autowires a single default
+    // KeyResolver via its constructor (used when a route's filter doesn't
+    // specify key-resolver SpEL at all) - with two KeyResolver beans and
+    // neither marked primary, that autowiring fails with an
+    // UnsatisfiedDependencyException and the entire gateway fails to start.
+    // Found live: this broke production (502s, crash-looping container)
+    // immediately after userKeyResolver was added as a second bean - the
+    // per-route "#{@ipKeyResolver}" / "#{@userKeyResolver}" SpEL references
+    // in application.yml are unaffected by this and still resolve each
+    // route's filter instance to the correct bean regardless of which one is
+    // @Primary; this only fixes the ambiguous default-bean autowiring.
+    @Primary
     @Bean
     public KeyResolver ipKeyResolver() {
         return exchange -> {
