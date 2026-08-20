@@ -25,17 +25,19 @@ export function AppStoreLogo({ size = 22, className }: StoreIconProps) {
         </linearGradient>
       </defs>
       <rect x="1" y="1" width="22" height="22" rx="5.5" fill={`url(#${gradId})`} />
-      {/* The App Store glyph: a single swept rounded stroke from bottom-left up
-          to a peak and down to bottom-right (no crossbar) - the compass/paper-
-          airplane silhouette, not a literal serif "A". */}
+      {/* The App Store glyph: two thick rounded strokes crossing near the top
+          (their separate round caps read as a heart-shaped notch) then
+          diverging down to flared, rounded bottom ends, plus a crossbar -
+          per the real icon, not a plain serif "A". */}
       <path
-        d="M7.3 16.7 12 6.8l4.7 9.9"
+        d="M13.3 6 7 18M10.7 6 17 18"
         fill="none"
         stroke="#ffffff"
-        strokeWidth="2.1"
+        strokeWidth="2.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      <path d="M9 14.5h6" fill="none" stroke="#ffffff" strokeWidth="2.1" strokeLinecap="round" />
     </svg>
   );
 }
