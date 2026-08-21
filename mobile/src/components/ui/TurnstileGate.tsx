@@ -48,10 +48,16 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
   };
 
   return (
-    // 150x140 matches the embed page's 'compact' Turnstile size - the
-    // 'normal' size (300x65) didn't fit the app's card width and clipped
-    // the Cloudflare branding on the right, confirmed live on a real device.
-    <View style={{ height: 140, width: 150, alignSelf: 'center' }}>
+    // Requesting Cloudflare's 'compact' size didn't help - confirmed live
+    // that this widget renders at its normal ~300x65 footprint regardless
+    // of the requested size (the dashboard-configured widget mode overrides
+    // it). Sized to comfortably fit that, full card width rather than a
+    // fixed px value so it scales with the device. scrollEnabled is
+    // deliberately NOT disabled here (unlike the first version) - on a
+    // narrow device where the widget still doesn't fully fit, scrolling is
+    // the fallback that keeps the checkbox and branding reachable instead
+    // of invisibly clipped with no way to get to them.
+    <View style={{ height: 80, width: '100%', alignSelf: 'center' }}>
       <WebView
         key={resetKey}
         originWhitelist={['*']}
@@ -59,7 +65,6 @@ export function TurnstileGate({ action, onVerify, resetKey }: TurnstileGateProps
         onMessage={handleMessage}
         onError={() => setError('CAPTCHA failed to load. Please check your connection.')}
         onHttpError={() => setError('CAPTCHA failed to load. Please check your connection.')}
-        scrollEnabled={false}
         style={{ backgroundColor: 'transparent' }}
         containerStyle={{ backgroundColor: 'transparent' }}
       />

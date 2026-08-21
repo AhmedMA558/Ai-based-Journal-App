@@ -19,7 +19,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
-    html, body { margin: 0; padding: 0; background: transparent; display: flex; align-items: center; justify-content: center; }
+    /* overflow-x: auto is a deliberate safety net, not decoration - if the
+       widget ever renders wider than the WebView's viewport for any reason,
+       the user can scroll to reach the parts a hard clip would otherwise
+       hide entirely (confirmed live: the checkbox and Cloudflare branding
+       were unreachable, not just visually cut off, before this was added). */
+    html, body { margin: 0; padding: 0; background: transparent; overflow-x: auto; }
+    body { display: flex; align-items: center; min-height: 100vh; }
   </style>
 </head>
 <body>
@@ -44,11 +50,15 @@
         sitekey: siteKey,
         action: action,
         theme: 'dark',
-        // 'normal' (300x65) doesn't fit the app's narrower card width and
-        // clipped the Cloudflare branding on the right - confirmed live on
-        // a real device. 'compact' (150x140, stacked vertically) fits
-        // comfortably instead.
-        size: 'compact',
+        // Tried 'compact' (150x140) to fit the app's narrower card - didn't
+        // help: confirmed live that Cloudflare renders this widget at its
+        // normal ~300x65 footprint regardless of the requested size (the
+        // dashboard-configured widget mode overrides it). Explicitly
+        // requesting 'normal' documents that reality instead of leaving a
+        // silently-ignored request in place; TurnstileGate.tsx sizes its
+        // WebView container to fit this, with horizontal scroll as a
+        // fallback if it still doesn't on some device.
+        size: 'normal',
         callback: function (token) { post({ type: 'verify', token: token }); },
         'expired-callback': function () { post({ type: 'expire' }); },
         'error-callback': function () { post({ type: 'error' }); },
