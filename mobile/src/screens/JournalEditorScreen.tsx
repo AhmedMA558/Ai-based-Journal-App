@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -135,7 +136,7 @@ export default function JournalEditorScreen() {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior="padding">
       {showConfetti ? <ConfettiBurst onEnd={() => setShowConfetti(false)} /> : null}
       <SafeAreaView className="flex-1" edges={['top']}>
         <View className="flex-row items-center justify-between px-5 pt-3 pb-2">

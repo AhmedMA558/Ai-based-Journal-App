@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { View, Text, FlatList, Pressable, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { View, Text, FlatList, Pressable, ScrollView, Alert } from 'react-native';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
@@ -78,7 +79,7 @@ export default function ChatScreen() {
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView className="flex-1 bg-bg-primary" behavior="padding">
       <SafeAreaView className="flex-1" edges={['top']}>
         <View className="flex-row items-center justify-between px-5 pt-3 pb-2">
           <View>
