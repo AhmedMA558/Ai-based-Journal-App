@@ -75,17 +75,22 @@ export default function SearchScreen() {
         </FadeInView>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} className="px-5 mb-3" contentContainerStyle={{ gap: 8 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        className="px-5 mb-3"
+        contentContainerStyle={{ gap: 8, alignItems: 'center' }}
+      >
         {MOOD_FILTERS.map((m) => (
           <Pressable
             key={m}
             onPress={() => setMoodFilter(m)}
             className={cn(
-              'py-2 px-3 rounded-2xl border',
+              'py-2 px-3 rounded-2xl border items-center justify-center',
               moodFilter === m ? 'bg-accent-indigo/25 border-accent-indigo' : 'bg-white/[0.04] border-white/[0.08]'
             )}
           >
-            <Text className={cn('text-xs', moodFilter === m ? 'text-white font-bold' : 'text-text-secondary font-medium')}>
+            <Text className={cn('text-xs leading-5', moodFilter === m ? 'text-white font-bold' : 'text-text-secondary font-medium')}>
               {m === 'ALL' ? 'All Moods' : `${m} ${moodEmoji(m)}`}
             </Text>
           </Pressable>

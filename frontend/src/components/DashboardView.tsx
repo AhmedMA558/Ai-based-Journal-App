@@ -103,15 +103,14 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
         <div className="relative z-[2] max-w-[600px]">
           <div className="inline-flex items-center gap-2 bg-[rgba(99,102,241,0.2)] border border-[rgba(99,102,241,0.3)] py-[0.4rem] px-[0.85rem] rounded-[20px] text-[0.8rem] text-[#818cf8] font-semibold mb-4">
             <Sparkles size={14} />
-            <span>REAL-TIME AI MOOD ENGINE CONNECTED</span>
+            <span>AI MOOD INSIGHTS</span>
           </div>
           <h1 className="text-[2.4rem] font-extrabold mb-3 leading-[1.2]">
             Good day,{' '}
             <span className="bg-[linear-gradient(135deg,#818cf8,#c084fc)] bg-clip-text text-transparent">{username}</span> 👋
           </h1>
           <p className="text-[#94a3b8] text-[1.05rem] leading-[1.6] mb-6">
-            Type your daily thoughts and our Python AI microservice will automatically detect your primary mood and
-            assign matching real-time emojis (😊, 🤩, 😌, 😰, 🥺, 🙏, 😠).
+            Write about your day and we'll automatically pick up on your mood, adding a matching emoji as you type.
           </p>
           <button onClick={onNewJournal} className="btn-primary py-[0.85rem] px-7 text-base">
             <Plus size={20} />
