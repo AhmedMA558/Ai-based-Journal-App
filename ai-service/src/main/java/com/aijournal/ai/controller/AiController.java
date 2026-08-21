@@ -70,9 +70,10 @@ public class AiController {
     @Operation(summary = "Chat with your Journal History (RAG / AI Memory)")
     public ResponseEntity<ApiResponse<String>> chatWithJournal(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestBody Map<String, String> request) {
         Long uid = userId != null ? userId : 1L;
-        String answer = aiService.chatWithJournal(uid, request.get("query"), request.getOrDefault("context", ""));
+        String answer = aiService.chatWithJournal(uid, request.get("query"), request.getOrDefault("context", ""), authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success("AI Response generated", answer));
     }
 

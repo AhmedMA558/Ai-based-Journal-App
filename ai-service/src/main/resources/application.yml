@@ -32,6 +32,13 @@ ai:
   flask:
     url: ${FLASK_AI_URL:http://python-ai-service:5000}
 
+# Used by chatWithJournal's real mood-history retrieval (fetches the
+# caller's own journals, forwarding their JWT, to answer "when was I
+# happy/in a bad mood" questions with real dates instead of a canned reply).
+journal:
+  service:
+    url: ${JOURNAL_SERVICE_URL:http://journal-service:8083}
+
 jwt:
   secret: ${JWT_SECRET}
 

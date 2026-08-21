@@ -11,7 +11,7 @@ public interface AiService {
     List<MoodHistory> getEmotionTimeline(Long userId, String period);
     List<String> getRecommendations(String content, String mood);
     List<String> generateTags(String content);
-    String chatWithJournal(Long userId, String query, String context);
+    String chatWithJournal(Long userId, String query, String context, String authorizationHeader);
     RephraseResult rephrase(String content);
     GrammarResult fixGrammar(String content);
 }
