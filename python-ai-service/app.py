@@ -1,3 +1,4 @@
+import json
 import os
 import re
 import requests
@@ -85,12 +86,52 @@ def detect_mood_keywords(content: str) -> str:
 def health():
     return jsonify({"status": "UP", "service": "python-ai-service", "hf_online": bool(HF_API_KEY)}), 200
 
+def _gemini_summary(content: str):
+    """Returns a validated {shortSummary, detailedSummary, bulletPoints} dict,
+    or None on any failure so the caller falls through to the existing real
+    (HF or sentence-extraction) fallback."""
+    raw = gemini_generate(
+        "You summarize journal entries. Reply with ONLY a JSON object of the shape "
+        '{"shortSummary": "one sentence", "detailedSummary": "2-3 sentences", '
+        '"bulletPoints": ["point 1", "point 2", "point 3"]}. No other text.',
+        content,
+        json_response=True,
+    )
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    short_s = parsed.get('shortSummary')
+    detailed_s = parsed.get('detailedSummary')
+    bullets = parsed.get('bulletPoints')
+    if not isinstance(short_s, str) or not short_s.strip():
+        return None
+    if not isinstance(detailed_s, str) or not detailed_s.strip():
+        detailed_s = short_s
+    if not isinstance(bullets, list) or not bullets:
+        bullets = [short_s]
+    bullets = [f"• {b}" if not str(b).startswith('•') else str(b) for b in bullets if str(b).strip()]
+    return {"shortSummary": short_s, "detailedSummary": detailed_s, "bulletPoints": bullets}
+
+
 @app.route('/api/v1/ai/summarize', methods=['POST'])
 def summarize():
     data = request.get_json() or {}
     content = data.get('content', '')
     if not content:
         return jsonify({"success": False, "message": "Content is required"}), 400
+
+    gemini_summary = _gemini_summary(content)
+    if gemini_summary:
+        return jsonify({
+            "success": True,
+            "message": "Summary generated via Google Gemini",
+            "data": {**gemini_summary, "provider": "google-gemini"}
+        }), 200
 
     if HF_API_KEY:
         try:
@@ -135,13 +176,60 @@ def summarize():
         }
     }), 200
 
-# 2. Real-time HuggingFace & Pattern AI Mood Engine with ANGRY support
+_VALID_MOODS = set(MOOD_EMOJI_MAP.keys()) - {"NEUTRAL"}  # NEUTRAL is the no-data placeholder, never a real detection
+
+
+def _gemini_mood(content: str):
+    """Returns a validated (mood, confidence) tuple, or None on any failure -
+    including a model reply that isn't one of the fixed mood labels this
+    platform persists (mood_history.primary_mood is a closed set), so the
+    caller always falls through to the existing real (HF or keyword-pattern)
+    fallback rather than ever persisting an invalid/hallucinated label."""
+    raw = gemini_generate(
+        "You classify the dominant emotion in a journal entry. Reply with ONLY a JSON "
+        'object of the shape {"mood": "HAPPY", "confidence": 0.9} where "mood" is '
+        'EXACTLY one of: HAPPY, EXCITED, RELAXED, STRESSED, SAD, GRATEFUL, ANGRY. '
+        '"confidence" is a number from 0 to 1. No other text.',
+        content,
+        json_response=True,
+    )
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(parsed, dict):
+        return None
+    detected_mood = str(parsed.get('mood', '')).upper()
+    if detected_mood not in _VALID_MOODS:
+        return None
+    confidence = parsed.get('confidence')
+    if not isinstance(confidence, (int, float)) or not (0 <= confidence <= 1):
+        confidence = 0.9
+    return detected_mood, float(confidence)
+
+
+# 2. Real-time Gemini/HuggingFace/Pattern AI Mood Engine with ANGRY support
 @app.route('/api/v1/ai/mood', methods=['POST'])
 def mood():
     data = request.get_json() or {}
     content = data.get('content', '').lower()
     if not content:
         return jsonify({"success": False, "message": "Content is required"}), 400
+
+    gemini_result = _gemini_mood(content)
+    if gemini_result:
+        detected_mood, confidence = gemini_result
+        return jsonify({
+            "success": True,
+            "data": {
+                "primaryMood": detected_mood,
+                "confidenceScore": confidence,
+                "emoji": MOOD_EMOJI_MAP.get(detected_mood, "😊"),
+                "provider": "google-gemini"
+            }
+        }), 200
 
     if HF_API_KEY:
         try:
@@ -264,8 +352,21 @@ def rephrase():
     if not text:
         return jsonify({"success": False, "message": "Text is required"}), 400
 
-    rephrased = text.replace("feely", "feeling").replace("frustated", "frustrated")
-    rephrased = f"I am experiencing significant frustration due to feeling genuinely exhausted and drained today." if "tired" in text.lower() else f"Expressing my thoughts clearly: {rephrased}"
+    # Real rephrasing via Gemini, tried first - the previous fallback below
+    # was fully fake: a fixed "I am experiencing significant frustration..."
+    # sentence for ANY text containing "tired", regardless of what else the
+    # entry actually said.
+    rephrased = gemini_generate(
+        "You rephrase journal entries to be clearer and more polished, preserving the "
+        "original meaning, tone, and every fact. Reply with ONLY the rephrased text - "
+        "no preamble, no quotation marks, no explanation.",
+        text,
+    )
+    provider = "google-gemini"
+    if not rephrased:
+        rephrased = text.replace("feely", "feeling").replace("frustated", "frustrated")
+        rephrased = "I am experiencing significant frustration due to feeling genuinely exhausted and drained today." if "tired" in text.lower() else f"Expressing my thoughts clearly: {rephrased}"
+        provider = "python-rephrase-ai"
 
     return jsonify({
         "success": True,
@@ -273,7 +374,7 @@ def rephrase():
         "data": {
             "original": text,
             "rephrased": rephrased,
-            "provider": "python-rephrase-ai"
+            "provider": provider
         }
     }), 200
 
@@ -285,17 +386,30 @@ def grammar():
     if not text:
         return jsonify({"success": False, "message": "Text is required"}), 400
 
-    corrected = text
-    corrections = [
-        ("feely", "feeling"),
-        ("frustated", "frustrated"),
-        ("ruinned", "ruined"),
-        ("cuz", "because"),
-        ("teh", "the"),
-        ("recieve", "receive")
-    ]
-    for orig, fix in corrections:
-        corrected = re.sub(rf'\b{orig}\b', fix, corrected, flags=re.IGNORECASE)
+    # Real grammar correction via Gemini, tried first - the fallback below
+    # only ever fixes 6 specific hardcoded typos, silently leaving every
+    # other real grammar mistake untouched.
+    corrected = gemini_generate(
+        "You are a grammar and spelling corrector for journal entries. Fix grammar, "
+        "spelling, and punctuation mistakes only - do not change the meaning, tone, "
+        "wording choices, or add/remove content. Reply with ONLY the corrected text - "
+        "no preamble, no quotation marks, no explanation.",
+        text,
+    )
+    provider = "google-gemini"
+    if not corrected:
+        corrected = text
+        corrections = [
+            ("feely", "feeling"),
+            ("frustated", "frustrated"),
+            ("ruinned", "ruined"),
+            ("cuz", "because"),
+            ("teh", "the"),
+            ("recieve", "receive")
+        ]
+        for orig, fix in corrections:
+            corrected = re.sub(rf'\b{orig}\b', fix, corrected, flags=re.IGNORECASE)
+        provider = "python-grammar-ai"
 
     return jsonify({
         "success": True,
@@ -303,7 +417,7 @@ def grammar():
         "data": {
             "original": text,
             "corrected": corrected,
-            "provider": "python-grammar-ai"
+            "provider": provider
         }
     }), 200
 
@@ -367,6 +481,47 @@ def keyword_chat_reply(query: str, context: str) -> str:
     combined = f"{query} {context}".strip()
     mood = detect_mood_keywords(combined) if combined else "HAPPY"
     return CHAT_REPLIES_BY_MOOD.get(mood, CHAT_REPLIES_BY_MOOD["HAPPY"])
+
+
+def gemini_generate(system_prompt: str, user_prompt: str, json_response: bool = False):
+    """Single-turn real generation via Gemini, for the non-chat editor
+    features (rephrase/grammar/tags/summarize/mood) - each of those makes one
+    isolated request, unlike /chat's multi-turn conversation. Returns the raw
+    text (never raises) or None if GEMINI_API_KEY is unset or the call fails,
+    so every caller can fall through to its existing real (non-Gemini)
+    fallback exactly as before. json_response=True asks Gemini to return a
+    JSON string in that text - still just a string here, the caller parses
+    it and must validate before trusting any of it, same as any other
+    caller-supplied data."""
+    if not GEMINI_API_KEY:
+        return None
+    try:
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+        }
+        if json_response:
+            payload["generationConfig"] = {"responseMimeType": "application/json"}
+        res = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "X-goog-api-key": GEMINI_API_KEY,
+            },
+            json=payload,
+            timeout=20,
+        )
+        if res.status_code != 200:
+            return None
+        out = res.json()
+        candidates = out.get('candidates') or []
+        if not candidates:
+            return None
+        parts = candidates[0].get('content', {}).get('parts') or []
+        text = "".join(p.get('text', '') for p in parts).strip()
+        return text or None
+    except Exception:
+        return None
 
 
 def gemini_chat_reply(query: str, context: str, history: list):
@@ -526,6 +681,31 @@ def chat():
         }
     }), 200
 
+def _gemini_tags(content: str):
+    """Returns a validated list of up to 5 lowercase keyword strings, or None
+    on any failure (unset key, request failure, malformed/non-list JSON) so
+    the caller falls through to the real word-frequency fallback - a model's
+    JSON output is caller-supplied data like any other and must be validated
+    before use, not trusted blindly."""
+    raw = gemini_generate(
+        "You extract 3-5 short topic keywords from a journal entry, for use as hashtags. "
+        'Reply with ONLY a JSON array of lowercase strings, e.g. ["work","travel","family"]. '
+        "No other text.",
+        content,
+        json_response=True,
+    )
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(parsed, list):
+        return None
+    keywords = [str(k).strip().lower() for k in parsed if isinstance(k, (str, int, float)) and str(k).strip()]
+    return keywords[:5] or None
+
+
 @app.route('/api/v1/ai/tags', methods=['POST'])
 def tags():
     data = request.get_json() or {}
@@ -533,10 +713,14 @@ def tags():
     if not content:
         return jsonify({"success": False, "message": "Content is required"}), 400
 
-    words = re.findall(r'\b[a-zA-Z]{4,}\b', content.lower())
-    stop_words = {"today", "that", "this", "with", "from", "have", "been", "were", "where", "about"}
-    keywords = list(set([w for w in words if w not in stop_words]))[:5]
-    hashtags = [f"#{w}" for w in keywords]
+    keywords = _gemini_tags(content)
+    provider = "google-gemini"
+    if not keywords:
+        words = re.findall(r'\b[a-zA-Z]{4,}\b', content.lower())
+        stop_words = {"today", "that", "this", "with", "from", "have", "been", "were", "where", "about"}
+        keywords = list(set([w for w in words if w not in stop_words]))[:5]
+        provider = "python-ai"
+    hashtags = [f"#{k}" for k in keywords]
 
     return jsonify({
         "success": True,
@@ -544,7 +728,7 @@ def tags():
         "data": {
             "tags": hashtags,
             "keywords": keywords,
-            "provider": "python-ai"
+            "provider": provider
         }
     }), 200
 
