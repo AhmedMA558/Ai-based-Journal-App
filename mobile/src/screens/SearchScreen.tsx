@@ -35,21 +35,34 @@ export default function SearchScreen() {
   useEffect(() => {
     setLoading(true);
     setError('');
+    // clearTimeout below only cancels a not-yet-fired debounce timer, not an
+    // already-in-flight request - a `cancelled` flag (same pattern web's
+    // SearchView.tsx uses for this identical debounced-search shape) is
+    // still needed so a slower, now-stale response from an earlier keystroke
+    // can never overwrite fresher results from a later one.
+    let cancelled = false;
 
     const timer = setTimeout(async () => {
       try {
         const list = await searchService.search({ query, mood: moodFilter });
+        if (cancelled) return;
         setResults(Array.isArray(list) ? list : []);
       } catch {
+        if (cancelled) return;
         setError('Search failed. Please try again.');
         setResults([]);
       } finally {
-        setLoading(false);
-        setHasSearched(true);
+        if (!cancelled) {
+          setLoading(false);
+          setHasSearched(true);
+        }
       }
     }, SEARCH_DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [query, moodFilter]);
 
   return (

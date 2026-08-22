@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Sparkles, Plus, BookOpen, Flame, Heart, Edit3, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
 import { journalService } from '@/services/journalService';
 import { aiService } from '@/services/aiService';
@@ -44,16 +44,25 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
   const [error, setError] = useState('');
   const [recommendation, setRecommendation] = useState('Take 5 deep breaths and reflect on 3 good things today.');
   const username = localStorage.getItem('user_name') || 'Journaler';
+  // fetchDashboardData is called both from the mount effect and the
+  // "Refresh" button below - a plain effect-scoped cancelled flag can't
+  // guard the button-triggered call, so a request-id ref (same pattern
+  // AnalyticsView already uses for its identical mount+button dual-trigger
+  // shape) tracks which invocation is the latest and lets an earlier,
+  // slower response be ignored if it resolves after a newer call started.
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError('');
     try {
       const list = await journalService.getAllJournals();
+      if (requestIdRef.current !== requestId) return;
       setJournals(Array.isArray(list) ? list : []);
 
       try {
@@ -64,6 +73,7 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
         const mostRecent = Array.isArray(list) ? list[0] : undefined;
         const currentMood = mostRecent?.mood || 'NEUTRAL';
         const aiRes = await aiService.getRecommendations(currentMood, mostRecent?.content);
+        if (requestIdRef.current !== requestId) return;
         // ApiResponse<T> wraps every backend response as {success, message,
         // data, timestamp} - aiRes.data is that envelope, not the array
         // itself. Reading aiRes.data directly here meant Array.isArray()
@@ -76,10 +86,11 @@ export default function DashboardView({ onNewJournal, onSelectJournal, showToast
         // Fallback recommendation
       }
     } catch (err) {
+      if (requestIdRef.current !== requestId) return;
       console.error('Failed to load dashboard data:', err);
       setError('Could not load your dashboard. Please try refreshing.');
     } finally {
-      setLoading(false);
+      if (requestIdRef.current === requestId) setLoading(false);
     }
   };
 
