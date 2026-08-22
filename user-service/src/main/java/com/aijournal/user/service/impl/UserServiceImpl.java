@@ -5,14 +5,31 @@ import com.aijournal.user.entity.UserProfile;
 import com.aijournal.user.repository.UserPreferencesRepository;
 import com.aijournal.user.repository.UserProfileRepository;
 import com.aijournal.user.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 @Service
 public class UserServiceImpl implements UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
+
     private final UserProfileRepository userProfileRepository;
     private final UserPreferencesRepository userPreferencesRepository;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${auth.service.url:http://auth-service:8081}")
+    private String authServiceUrl;
+    @Value("${journal.service.url:http://journal-service:8083}")
+    private String journalServiceUrl;
+    @Value("${file.service.url:http://file-service:8089}")
+    private String fileServiceUrl;
 
     public UserServiceImpl(UserProfileRepository userProfileRepository, UserPreferencesRepository userPreferencesRepository) {
         this.userProfileRepository = userProfileRepository;
@@ -65,7 +82,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void deleteUserAccount(Long userId) {
+    public void deleteUserAccount(Long userId, String authorizationHeader) {
+        // auth-service's delete is the one call that MUST succeed - it's
+        // what actually revokes the ability to log in again, the real
+        // meaning of "delete my account." If it fails, the whole operation
+        // aborts (profile/preferences are left untouched) so the caller can
+        // retry rather than ending up in a half-deleted state where their
+        // login still works but their profile is gone.
+        callInternalDelete(authServiceUrl + "/api/v1/auth/account", userId, authorizationHeader, "auth-service");
+
         // Both rows are created lazily (get-or-create in getProfile/getPreferences
         // above) - a user who requests deletion without ever having viewed
         // either would make deleteById throw EmptyResultDataAccessException.
@@ -74,6 +99,35 @@ public class UserServiceImpl implements UserService {
         }
         if (userPreferencesRepository.existsById(userId)) {
             userPreferencesRepository.deleteById(userId);
+        }
+
+        // journal-service and file-service cleanup is best-effort, not
+        // fatal - by this point the account's login credentials are already
+        // gone (the guarantee the user actually cares about), so a
+        // downstream service being briefly unreachable means leftover data
+        // to clean up later, not a broken "my account still exists" state.
+        try {
+            callInternalDelete(journalServiceUrl + "/api/v1/journals/all", userId, authorizationHeader, "journal-service");
+        } catch (Exception e) {
+            log.warn("Failed to delete journals for deleted account userId={}: {}", userId, e.getMessage());
+        }
+        try {
+            callInternalDelete(fileServiceUrl + "/api/v1/files/all", userId, authorizationHeader, "file-service");
+        } catch (Exception e) {
+            log.warn("Failed to delete files for deleted account userId={}: {}", userId, e.getMessage());
+        }
+    }
+
+    private void callInternalDelete(String url, Long userId, String authorizationHeader, String targetServiceName) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-User-Id", String.valueOf(userId));
+        if (authorizationHeader != null) {
+            headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
+        }
+        try {
+            restTemplate.exchange(url, HttpMethod.DELETE, new HttpEntity<>(headers), Void.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("Call to " + targetServiceName + " failed during account deletion", e);
         }
     }
 }
