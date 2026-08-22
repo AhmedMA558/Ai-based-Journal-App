@@ -3,6 +3,7 @@ import api from './api';
 import { session } from './session';
 import { clearOfflineQueue } from '@/lib/offlineQueue';
 import { clearOfflineCache } from '@/lib/offlineCache';
+import { resetAiUsageTracking } from '@/lib/achievementTracking';
 import { API_BASE_URL } from '@/config/env';
 import type { AuthResult, CurrentUser, MfaSetupData, MfaEnableResult, LoginHistoryPage } from '@/types';
 
@@ -125,6 +126,11 @@ export const authService = {
     // account logs into this device next.
     await clearOfflineQueue();
     await clearOfflineCache();
+    // Same cross-account-leak reasoning as the offline-queue/cache clear
+    // above - a bare module-level flag, not session state, so it needs its
+    // own explicit reset or the next account on this device sees "AI
+    // Pioneer" already unlocked.
+    resetAiUsageTracking();
   },
 
   isAuthenticated: () => session.isAuthenticated(),

@@ -17,4 +17,12 @@ describe('achievementTracking', () => {
     markAiUsed();
     expect(hasUsedAi()).toBe(true);
   });
+
+  it('flips back to not-used after resetAiUsageTracking() - the cross-account leak this exists to close', () => {
+    const { markAiUsed, resetAiUsageTracking, hasUsedAi } = fresh();
+    markAiUsed();
+    expect(hasUsedAi()).toBe(true);
+    resetAiUsageTracking();
+    expect(hasUsedAi()).toBe(false);
+  });
 });
