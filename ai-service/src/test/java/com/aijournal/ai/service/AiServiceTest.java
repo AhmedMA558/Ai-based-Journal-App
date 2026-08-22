@@ -81,11 +81,38 @@ class AiServiceTest {
     void detectAndSaveMood_Success() {
         when(moodHistoryRepository.save(any(MoodHistory.class))).thenAnswer(i -> i.getArguments()[0]);
 
-        MoodResult result = aiService.detectAndSaveMood(1L, 100L, "I feel super happy and excited about life!");
+        // journalId=0 is the real shape both clients send (mood detection
+        // fires while typing, before the journal is ever saved) - skips the
+        // ownership-check call entirely, matching chatWithJournal_NonMoodQuestion's
+        // established verifyNoInteractions(restTemplate) style below.
+        MoodResult result = aiService.detectAndSaveMood(1L, 0L, "I feel super happy and excited about life!", "Bearer test-token");
         assertNotNull(result);
         assertEquals("HAPPY", result.primaryMood());
         assertTrue(result.confidenceScore() > 0.8);
         verify(moodHistoryRepository, times(1)).save(any(MoodHistory.class));
+        verifyNoInteractions(restTemplate);
+    }
+
+    @Test
+    void detectAndSaveMood_JournalIdOwnedByCaller_SavesMoodHistory() {
+        when(restTemplate.exchange(eq("http://journal-service:8083/api/v1/journals/100"), eq(HttpMethod.GET), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
+                .thenReturn(ResponseEntity.ok(Map.of("data", Map.of("id", 100))));
+        when(moodHistoryRepository.save(any(MoodHistory.class))).thenAnswer(i -> i.getArguments()[0]);
+
+        MoodResult result = aiService.detectAndSaveMood(1L, 100L, "Feeling great today", "Bearer test-token");
+
+        assertNotNull(result);
+        verify(moodHistoryRepository, times(1)).save(any(MoodHistory.class));
+    }
+
+    @Test
+    void detectAndSaveMood_JournalIdNotOwnedByCaller_ThrowsForbiddenAndDoesNotSave() {
+        when(restTemplate.exchange(eq("http://journal-service:8083/api/v1/journals/999"), eq(HttpMethod.GET), any(HttpEntity.class), any(ParameterizedTypeReference.class)))
+                .thenThrow(new org.springframework.web.client.HttpClientErrorException(org.springframework.http.HttpStatus.NOT_FOUND));
+
+        assertThrows(com.aijournal.common.exception.ForbiddenException.class,
+                () -> aiService.detectAndSaveMood(1L, 999L, "Trying to attach mood to someone else's journal", "Bearer test-token"));
+        verify(moodHistoryRepository, never()).save(any(MoodHistory.class));
     }
 
     @Test

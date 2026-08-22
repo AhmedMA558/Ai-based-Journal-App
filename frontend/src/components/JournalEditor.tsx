@@ -231,7 +231,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Rephrased Content!', 'success');
       }
     } catch {
-      // Rephrase error fallback
+      if (showToast) showToast('Rephrase failed. Please try again.', 'error');
     } finally {
       setAiWriting(false);
     }
@@ -248,7 +248,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Corrected Grammar & Spelling!', 'success');
       }
     } catch {
-      // Fix grammar error fallback
+      if (showToast) showToast('Grammar fix failed. Please try again.', 'error');
     } finally {
       setAiWriting(false);
     }
@@ -265,7 +265,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Continued Writing!', 'success');
       }
     } catch {
-      // Continue writing fallback
+      if (showToast) showToast('AI continue-writing failed. Please try again.', 'error');
     } finally {
       setAiWriting(false);
     }
@@ -339,7 +339,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
         if (showToast) showToast('AI Auto-Tags Added!', 'success');
       }
     } catch {
-      // Generate tags fallback
+      if (showToast) showToast('Auto-tag generation failed. Please try again.', 'error');
     }
   };
 

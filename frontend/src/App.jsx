@@ -15,6 +15,7 @@ import { journalService } from './services/journalService';
 import { notificationService } from './services/notificationService';
 import { userService } from './services/userService';
 import { fileService } from './services/fileService';
+import { resetAiUsageTracking } from './lib/achievementTracking';
 
 function EditJournalRoute({ onSaveSuccess, showToast }) {
   const { journalId } = useParams();
@@ -284,6 +285,11 @@ export default function App() {
       avatarObjectUrlRef.current = null;
     }
     setAvatarUrl(null);
+    // Same cross-account-leak reasoning as the state resets above - this is
+    // a bare module-level flag (not React state), so it needs its own
+    // explicit reset here too, or the next account to log in in this same
+    // tab would see "AI Pioneer" already unlocked.
+    resetAiUsageTracking();
     showToast('Logged out.', 'info');
   };
 

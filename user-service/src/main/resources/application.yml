@@ -24,6 +24,18 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
 
+# Used by account deletion to cascade the delete to each service that owns
+# some of the user's data, forwarding the caller's own bearer token.
+auth:
+  service:
+    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+journal:
+  service:
+    url: ${JOURNAL_SERVICE_URL:http://journal-service:8083}
+file:
+  service:
+    url: ${FILE_SERVICE_URL:http://file-service:8089}
+
 eureka:
   client:
     service-url:

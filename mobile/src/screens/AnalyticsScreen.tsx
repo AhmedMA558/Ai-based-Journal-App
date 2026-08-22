@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -36,25 +36,39 @@ export default function AnalyticsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [insights, setInsights] = useState<Insights | null>(null);
+  // load() is triggered both by useFocusEffect (fires on every screen focus)
+  // and pull-to-refresh, with no relationship between the two - a request-id
+  // ref (same pattern web's AnalyticsView.tsx uses for its identical
+  // dual-trigger shape) tracks which invocation is latest so an in-flight
+  // slow response can never overwrite fresher data if it lands after a
+  // newer call already started.
+  const requestIdRef = useRef(0);
 
   const load = useCallback(async (isRefresh = false) => {
+    const requestId = ++requestIdRef.current;
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
     try {
       const list = await journalService.getAllJournals();
+      if (requestIdRef.current !== requestId) return;
       setJournals(Array.isArray(list) ? list : []);
     } catch {
-      setError('Could not load analytics data. Please try refreshing.');
+      if (requestIdRef.current === requestId) {
+        setError('Could not load analytics data. Please try refreshing.');
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestIdRef.current === requestId) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
 
     try {
-      setInsights(await analyticsService.getInsights());
+      const data = await analyticsService.getInsights();
+      if (requestIdRef.current === requestId) setInsights(data);
     } catch {
-      setInsights(null);
+      if (requestIdRef.current === requestId) setInsights(null);
     }
   }, []);
 

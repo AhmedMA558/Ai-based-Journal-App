@@ -145,4 +145,18 @@ public class JournalController {
         journalService.permanentDeleteJournal(activeUserId, id);
         return ResponseEntity.ok(ApiResponse.success("Journal permanently deleted", null));
     }
+
+    @DeleteMapping("/all")
+    @Operation(summary = "Delete every journal owned by the authenticated user (internal - called by user-service's account-deletion flow)")
+    public ResponseEntity<ApiResponse<Void>> deleteAllJournalsForUser(
+            // Deliberately required, unlike every other endpoint here - the
+            // optional-with-1L-fallback convention (resolveUserId) is fine
+            // for a single-journal operation but far too dangerous for a
+            // bulk wipe-everything endpoint: a caller that forgot the header
+            // would silently delete user 1's entire journal history instead
+            // of failing loudly.
+            @RequestHeader("X-User-Id") Long userId) {
+        journalService.deleteAllJournalsForUser(userId);
+        return ResponseEntity.ok(ApiResponse.success("All journals deleted", null));
+    }
 }

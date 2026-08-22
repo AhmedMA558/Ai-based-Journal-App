@@ -17,4 +17,12 @@ public interface JournalService {
     Journal toggleArchive(Long userId, Long journalId);
     void softDeleteJournal(Long userId, Long journalId);
     void permanentDeleteJournal(Long userId, Long journalId);
+
+    // Hard-deletes every journal (including already-trashed ones) owned by
+    // this user and publishes a JournalDeletedEvent per entry, reusing the
+    // existing pipeline so search-service's index is cleaned up too. Called
+    // by user-service's account-deletion flow via the internal
+    // DELETE /api/v1/journals/all endpoint - not reachable from either
+    // client's UI.
+    void deleteAllJournalsForUser(Long userId);
 }

@@ -55,8 +55,10 @@ public class UserController {
 
     @DeleteMapping("/account")
     @Operation(summary = "GDPR Account Deletion")
-    public ResponseEntity<ApiResponse<Void>> deleteAccount(@RequestHeader("X-User-Id") Long userId) {
-        userService.deleteUserAccount(userId);
+    public ResponseEntity<ApiResponse<Void>> deleteAccount(
+            @RequestHeader("X-User-Id") Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader) {
+        userService.deleteUserAccount(userId, authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success("Account and user data deleted successfully", null));
     }
 }

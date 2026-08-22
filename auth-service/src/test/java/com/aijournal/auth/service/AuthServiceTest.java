@@ -419,14 +419,37 @@ class AuthServiceTest {
         when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
         when(totpEncryptionService.decrypt("encryptedSecret")).thenReturn("plainSecret");
         when(totpService.verify("plainSecret", "123456")).thenReturn(true);
+        when(mfaChallengeRepository.deleteByChallengeToken("challenge-token")).thenReturn(1);
 
         AuthResponse response = authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0");
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
-        verify(mfaChallengeRepository, times(1)).delete(challenge);
+        verify(mfaChallengeRepository, times(1)).deleteByChallengeToken("challenge-token");
 
         verify(loginHistoryRecorder, times(1)).recordBestEffort(user, "203.0.113.1", "TestAgent/1.0", "SUCCESS");
+    }
+
+    @Test
+    void verifyMfa_ChallengeAlreadyConsumedByConcurrentRequest_ThrowsUnauthorizedAndDoesNotMintTokens() {
+        // Regression guard for the TOCTOU race this atomic-delete pattern
+        // fixes: a second concurrent /mfa/verify call reaching this point
+        // for the same challenge (e.g. deleteByChallengeToken already
+        // consumed by a racing request) must be rejected, not also mint a
+        // session.
+        User user = mfaUser(true, "encryptedSecret");
+        MfaChallenge challenge = new MfaChallenge(1L, user, "challenge-token", Instant.now().plusSeconds(60));
+        MfaVerifyRequest request = new MfaVerifyRequest();
+        request.setChallengeToken("challenge-token");
+        request.setCode("123456");
+
+        when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
+        when(totpEncryptionService.decrypt("encryptedSecret")).thenReturn("plainSecret");
+        when(totpService.verify("plainSecret", "123456")).thenReturn(true);
+        when(mfaChallengeRepository.deleteByChallengeToken("challenge-token")).thenReturn(0);
+
+        assertThrows(UnauthorizedException.class, () -> authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0"));
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
     @Test
@@ -490,13 +513,14 @@ class AuthServiceTest {
         when(mfaChallengeRepository.findByChallengeToken("challenge-token")).thenReturn(Optional.of(challenge));
         when(mfaRecoveryCodeRepository.findByUserAndUsedFalse(user)).thenReturn(List.of(recoveryCode));
         when(passwordEncoder.matches("ABCDE-12345", "hashedCode")).thenReturn(true);
+        when(mfaChallengeRepository.deleteByChallengeToken("challenge-token")).thenReturn(1);
 
         AuthResponse response = authService.verifyMfa(request, "203.0.113.1", "TestAgent/1.0");
 
         assertNotNull(response);
         assertTrue(recoveryCode.getUsed());
         verify(mfaRecoveryCodeRepository, times(1)).save(recoveryCode);
-        verify(mfaChallengeRepository, times(1)).delete(challenge);
+        verify(mfaChallengeRepository, times(1)).deleteByChallengeToken("challenge-token");
     }
 
     @Test
@@ -541,13 +565,30 @@ class AuthServiceTest {
         RefreshToken token = new RefreshToken(1L, "old-refresh-token", user, Instant.now().plusSeconds(3600), false);
         RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
         when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.deleteByToken("old-refresh-token")).thenReturn(1);
 
         AuthResponse response = authService.refreshToken(request);
 
         assertNotNull(response);
         assertEquals("testuser", response.getUsername());
-        verify(refreshTokenRepository, times(1)).delete(token);
+        verify(refreshTokenRepository, times(1)).deleteByToken("old-refresh-token");
         verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void refreshToken_TokenAlreadyConsumedByConcurrentRequest_ThrowsUnauthorizedAndDoesNotMintTokens() {
+        // Regression guard for the refresh-token-rotation race: a second
+        // concurrent /refresh call for the same token that reaches this
+        // point after another request already rotated it (deleteByToken
+        // returns 0) must be rejected, not also mint a session.
+        User user = mfaUser(false, null);
+        RefreshToken token = new RefreshToken(1L, "old-refresh-token", user, Instant.now().plusSeconds(3600), false);
+        RefreshTokenRequest request = new RefreshTokenRequest("old-refresh-token");
+        when(refreshTokenRepository.findByToken("old-refresh-token")).thenReturn(Optional.of(token));
+        when(refreshTokenRepository.deleteByToken("old-refresh-token")).thenReturn(0);
+
+        assertThrows(UnauthorizedException.class, () -> authService.refreshToken(request));
+        verify(refreshTokenRepository, never()).save(any(RefreshToken.class));
     }
 
     @Test

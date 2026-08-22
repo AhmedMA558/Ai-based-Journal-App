@@ -63,7 +63,18 @@ public class AiServiceImpl implements AiService {
 
     @Override
     @Transactional
-    public MoodResult detectAndSaveMood(Long userId, Long journalId, String content) {
+    public MoodResult detectAndSaveMood(Long userId, Long journalId, String content, String authorizationHeader) {
+        // journalId is a caller-supplied request param with no ownership
+        // check of its own - verify it actually belongs to userId before
+        // persisting a MoodHistory row against it, closing the gap where an
+        // authenticated user could otherwise attach fabricated mood data to
+        // an arbitrary (including someone else's) journalId. 0/null means
+        // "not associated with a saved journal yet" (the real shape both
+        // clients' mood-detection-while-typing flow sends today) and skips
+        // the check entirely - there's nothing to own yet.
+        if (journalId != null && journalId != 0L && !ownsJournal(journalId, authorizationHeader)) {
+            throw new com.aijournal.common.exception.ForbiddenException("You do not have access to this journal entry");
+        }
         MoodResult result = getStrategy().detectMood(content);
         SentimentResult sentiment = getStrategy().analyzeSentiment(content);
 
@@ -240,6 +251,28 @@ public class AiServiceImpl implements AiService {
     }
 
     @SuppressWarnings("unchecked")
+    // GET /api/v1/journals/{id} is already ownership-scoped by journal-service
+    // itself (404s for a journal the forwarded token's user doesn't own), so
+    // a 2xx response is sufficient proof of ownership - matches how every
+    // other cross-service call in this class forwards the caller's own token
+    // rather than trusting a client-supplied id directly.
+    private boolean ownsJournal(Long journalId, String authorizationHeader) {
+        HttpHeaders headers = new HttpHeaders();
+        if (authorizationHeader != null) {
+            headers.set(HttpHeaders.AUTHORIZATION, authorizationHeader);
+        }
+        try {
+            ResponseEntity<Map<String, Object>> response = restTemplate.exchange(
+                    journalServiceUrl + "/api/v1/journals/" + journalId,
+                    HttpMethod.GET, new HttpEntity<>(headers), MAP_RESPONSE_TYPE);
+            return response.getStatusCode().is2xxSuccessful();
+        } catch (Exception e) {
+            // 404 (not found/not owned) and any other failure both mean "no
+            // proof of ownership" - fail closed, not open.
+            return false;
+        }
+    }
+
     private List<Map<String, Object>> fetchJournals(String authorizationHeader) {
         // 200 is a pragmatic "effectively all, for a demo-scale app" fetch,
         // same tradeoff analytics-service already made for its own

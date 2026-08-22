@@ -149,4 +149,11 @@ public class AuthController {
         authService.resendVerificationEmail(userId);
         return ResponseEntity.ok(ApiResponse.success("Verification email sent", null));
     }
+
+    @DeleteMapping("/account")
+    @Operation(summary = "Delete the authenticated user's login credentials (internal - called by user-service's account-deletion flow)")
+    public ResponseEntity<ApiResponse<Void>> deleteOwnAccount(@RequestHeader("X-User-Id") Long userId) {
+        authService.deleteOwnAccount(userId);
+        return ResponseEntity.ok(ApiResponse.success("Account credentials deleted", null));
+    }
 }

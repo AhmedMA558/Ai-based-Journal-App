@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 @Service
 public class JournalServiceImpl implements JournalService {
@@ -42,6 +43,16 @@ public class JournalServiceImpl implements JournalService {
     @Override
     @Transactional
     public Journal createJournal(Long userId, Journal journal) {
+        // A create request body is client-controlled JSON deserialized straight
+        // onto the entity - id/version have plain public setters with no
+        // @JsonIgnore, so a client sending {"id": <someone else's journalId>,
+        // "version": 0} would make Hibernate's default isNew() check (which is
+        // version-based once @Version is present) treat this as NOT new and
+        // call merge() instead of persist(), overwriting another user's
+        // existing row (including reassigning its userId to the attacker).
+        // Force both to null so every create is unambiguously a real insert.
+        journal.setId(null);
+        journal.setVersion(null);
         journal.setUserId(userId != null ? userId : 1L);
         if (journal.getTitle() == null || journal.getTitle().isBlank()) {
             journal.setTitle("Untitled Journal Entry");
@@ -123,8 +134,8 @@ public class JournalServiceImpl implements JournalService {
         // send both) must leave them unchanged instead of silently resetting
         // mood to Journal's field-initializer default and wiping every tag.
         if (updated.getMood() != null) existing.setMood(updated.getMood());
-        existing.setLocation(updated.getLocation());
-        existing.setWeather(updated.getWeather());
+        if (updated.getLocation() != null) existing.setLocation(updated.getLocation());
+        if (updated.getWeather() != null) existing.setWeather(updated.getWeather());
         if (updated.getTags() != null) existing.setTags(updated.getTags());
         if (updated.getIsDraft() != null) existing.setIsDraft(updated.getIsDraft());
         if (updated.getFolderId() != null) existing.setFolderId(updated.getFolderId());
@@ -259,6 +270,16 @@ public class JournalServiceImpl implements JournalService {
         // removal (see JournalRepository.hardDeleteByIdAndUserId's comment).
         journalRepository.hardDeleteByIdAndUserId(journalId, activeUserId);
         publishJournalDeletedEvent(journalId, activeUserId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteAllJournalsForUser(Long userId) {
+        List<Long> ids = journalRepository.findIdsByUserId(userId);
+        journalRepository.hardDeleteAllByUserId(userId);
+        for (Long id : ids) {
+            publishJournalDeletedEvent(id, userId);
+        }
     }
 
     private void publishJournalDeletedEvent(Long journalId, Long userId) {

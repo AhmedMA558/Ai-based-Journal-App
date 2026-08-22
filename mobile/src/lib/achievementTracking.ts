@@ -11,3 +11,11 @@ export function markAiUsed() {
 export function hasUsedAi(): boolean {
   return aiUsedThisSession;
 }
+
+// Called on logout - without this, switching accounts on the same device
+// would leave "AI Pioneer" showing already-unlocked for the next user who
+// logs in, since this flag is a bare module-level variable, not per-session
+// React state that gets reset by unmounting.
+export function resetAiUsageTracking() {
+  aiUsedThisSession = false;
+}

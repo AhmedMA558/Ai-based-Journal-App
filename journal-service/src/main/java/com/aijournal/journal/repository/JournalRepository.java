@@ -38,4 +38,18 @@ public interface JournalRepository extends JpaRepository<Journal, Long> {
     // trash). Native SQL for the same restriction-bypass reason as above.
     @Query(value = "SELECT COUNT(*) FROM journals WHERE id = :id AND user_id = :userId", nativeQuery = true)
     long countByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+
+    // Used by account deletion (deleteAllJournalsForUser) to enumerate every
+    // id - including trashed ones, per the @SQLRestriction-bypass reasoning
+    // above - so a JournalDeletedEvent can be published for each before the
+    // bulk delete below removes the rows.
+    @Query(value = "SELECT id FROM journals WHERE user_id = :userId", nativeQuery = true)
+    java.util.List<Long> findIdsByUserId(@Param("userId") Long userId);
+
+    // Same restriction-bypass reasoning as hardDeleteByIdAndUserId, scoped to
+    // every journal a user owns instead of one - the real delete behind
+    // account deletion.
+    @Modifying
+    @Query(value = "DELETE FROM journals WHERE user_id = :userId", nativeQuery = true)
+    int hardDeleteAllByUserId(@Param("userId") Long userId);
 }

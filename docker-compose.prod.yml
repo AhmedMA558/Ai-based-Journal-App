@@ -57,8 +57,15 @@ services:
     build: ./python-ai-service
     container_name: python-ai-service-prod
     restart: always
+    # Bound to localhost only: this Flask service has no authentication of
+    # its own (JWT validation happens one layer up, in ai-service) and was
+    # previously published on 0.0.0.0, letting anyone who could reach the
+    # host hit /api/v1/ai/* directly - full AI functionality with no JWT, no
+    # rate limiting, and (if HUGGINGFACE_API_KEY is set) free billable calls
+    # to Hugging Face. ai-service reaches it via the internal Docker network
+    # (FLASK_AI_URL above), which never needed the host port published at all.
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
 
   discovery-server:
     build: ./discovery-server
