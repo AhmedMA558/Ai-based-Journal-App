@@ -4,12 +4,18 @@ import { AlertCircle } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Header from './components/Header';
 import AuthView from './components/AuthView';
-import DownloadAppView from './components/DownloadAppView';
-import CommandPalette from './components/CommandPalette';
-import NotificationsDrawer from './components/NotificationsDrawer';
-import SettingsModal from './components/SettingsModal';
-import AchievementsModal from './components/AchievementsModal';
 import Toast from './components/Toast';
+// Lazy-loaded, not eager - none of these render for an unauthenticated
+// visitor (they're either behind the isAuthenticated gate or, for
+// DownloadAppView, a standalone route) - a static import here bundled all
+// five into the same entry chunk AuthView ships in, inflating the JS every
+// fresh visitor to the login page has to download+parse+execute before the
+// login heading can even paint (a real, measured 8.55s "poor" LCP).
+const DownloadAppView = lazy(() => import('./components/DownloadAppView'));
+const CommandPalette = lazy(() => import('./components/CommandPalette'));
+const NotificationsDrawer = lazy(() => import('./components/NotificationsDrawer'));
+const SettingsModal = lazy(() => import('./components/SettingsModal'));
+const AchievementsModal = lazy(() => import('./components/AchievementsModal'));
 import { authService } from './services/authService';
 import { journalService } from './services/journalService';
 import { notificationService } from './services/notificationService';
@@ -333,11 +339,13 @@ export default function App() {
   if (location.pathname === '/download') {
     return (
       <>
-        <DownloadAppView
-          isAuthenticated={isAuthenticated}
-          onBack={() => navigate(isAuthenticated ? '/dashboard' : '/')}
-          showToast={showToast}
-        />
+        <Suspense fallback={null}>
+          <DownloadAppView
+            isAuthenticated={isAuthenticated}
+            onBack={() => navigate(isAuthenticated ? '/dashboard' : '/')}
+            showToast={showToast}
+          />
+        </Suspense>
         <Toast toast={toast} onClose={() => setToast(null)} />
       </>
     );
@@ -354,29 +362,33 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Global Modals & Drawers */}
+      {/* Global Modals & Drawers - lazy, so a null fallback while each
+          chunk loads is invisible (they're all closed/isOpen=false until
+          the user explicitly opens one). */}
       <Toast toast={toast} onClose={() => setToast(null)} />
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        onSelectAction={handleCommandPaletteAction}
-      />
-      <NotificationsDrawer
-        isOpen={isNotificationsOpen}
-        onClose={() => setIsNotificationsOpen(false)}
-        notifications={notifications}
-        onMarkAllRead={handleMarkAllRead}
-      />
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onEmailVerified={refreshEmailVerified}
-        onAvatarChanged={refreshAvatar}
-      />
-      <AchievementsModal
-        isOpen={isAchievementsOpen}
-        onClose={() => setIsAchievementsOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <CommandPalette
+          isOpen={isCommandPaletteOpen}
+          onClose={() => setIsCommandPaletteOpen(false)}
+          onSelectAction={handleCommandPaletteAction}
+        />
+        <NotificationsDrawer
+          isOpen={isNotificationsOpen}
+          onClose={() => setIsNotificationsOpen(false)}
+          notifications={notifications}
+          onMarkAllRead={handleMarkAllRead}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onEmailVerified={refreshEmailVerified}
+          onAvatarChanged={refreshAvatar}
+        />
+        <AchievementsModal
+          isOpen={isAchievementsOpen}
+          onClose={() => setIsAchievementsOpen(false)}
+        />
+      </Suspense>
 
       {/* Sidebar Navigation */}
       <Navbar
