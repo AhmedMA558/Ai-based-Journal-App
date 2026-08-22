@@ -88,3 +88,11 @@ export interface LoginHistoryEntry {
 export interface LoginHistoryPage {
   content: LoginHistoryEntry[];
 }
+
+export interface NotificationItem {
+  id: number;
+  type: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
