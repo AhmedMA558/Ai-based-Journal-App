@@ -32,4 +32,14 @@ public interface AuthService {
     // issues tokens unconditionally.
     void verifyEmail(Long userId, VerifyEmailRequest request);
     void resendVerificationEmail(Long userId);
+
+    // Deletes the User row itself (login credentials) - every FK in auth_db
+    // referencing users(id) is ON DELETE CASCADE, so this also removes the
+    // user's roles, refresh tokens, MFA secret/recovery codes, login
+    // history, and any pending password-reset/email-verification tokens.
+    // Called by user-service's account-deletion flow, not exposed as a
+    // self-serve endpoint elsewhere - this is the piece that makes "delete
+    // my account" actually revoke the ability to log in again, not just
+    // remove profile/preferences rows.
+    void deleteOwnAccount(Long userId);
 }

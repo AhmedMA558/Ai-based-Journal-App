@@ -278,6 +278,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    public void deleteOwnAccount(Long userId) {
+        User user = getUserOrThrow(userId);
+        // Every FK referencing users(id) in auth_db (user_roles,
+        // refresh_tokens, login_history, mfa_recovery_codes, mfa_challenges,
+        // password_reset_tokens, email_verification_tokens) is declared
+        // ON DELETE CASCADE - deleting the row itself is enough to remove
+        // the caller's ability to ever log in again with these credentials.
+        userRepository.delete(user);
+    }
+
+    @Override
+    @Transactional
     public Object login(LoginRequest request, String ipAddress, String userAgent) {
         if (!turnstileService.verify(request.getTurnstileToken(), ipAddress)) {
             throw new BadRequestException("CAPTCHA verification failed. Please try again.");
@@ -354,7 +366,14 @@ public class AuthServiceImpl implements AuthService {
             throw new UnauthorizedException("Invalid verification code");
         }
 
-        mfaChallengeRepository.delete(challenge);
+        // Atomic delete-and-check (not delete(challenge)) - see
+        // MfaChallengeRepository.deleteByChallengeToken()'s comment. Two
+        // concurrent /mfa/verify calls with the same challengeToken and a
+        // correct code could both reach here; only the one that actually
+        // deletes a row is allowed to mint a session.
+        if (mfaChallengeRepository.deleteByChallengeToken(challenge.getChallengeToken()) == 0) {
+            throw new UnauthorizedException("Challenge was already used. Please login again");
+        }
         loginHistoryRecorder.recordBestEffort(user, ipAddress, userAgent, "SUCCESS");
         return generateTokensForUser(user);
     }
@@ -642,7 +661,15 @@ public class AuthServiceImpl implements AuthService {
             refreshTokenRepository.delete(token);
             throw new ForbiddenException("This account has been disabled.");
         }
-        refreshTokenRepository.delete(token); // Refresh token rotation
+        // Atomic delete-and-check (not delete(token)) - see
+        // RefreshTokenRepository.deleteByToken()'s comment. Two concurrent
+        // /refresh calls with the same token could both reach here having
+        // passed the checks above; only the one that actually deletes a row
+        // (count 1) is allowed to mint a session. The loser (count 0) means
+        // another request already rotated this token first.
+        if (refreshTokenRepository.deleteByToken(token.getToken()) == 0) {
+            throw new UnauthorizedException("Refresh token was already used. Please login again");
+        }
         return generateTokensForUser(user);
     }
 
