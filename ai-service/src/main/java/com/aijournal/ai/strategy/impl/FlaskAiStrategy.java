@@ -146,16 +146,21 @@ public class FlaskAiStrategy implements AiProviderStrategy {
     }
 
     @Override
-    public String chatWithJournal(String query, String context) {
+    public String chatWithJournal(String query, String context, List<Map<String, String>> history) {
         try {
             String url = flaskBaseUrl + "/api/v1/ai/chat";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             // context was previously accepted by this method's signature but never
             // actually forwarded to python-ai-service - the chat endpoint had no way
-            // to be journal-aware even when a caller supplied real context.
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(
-                    Map.of("query", query, "context", context != null ? context : ""), headers);
+            // to be journal-aware even when a caller supplied real context. history
+            // (prior conversation turns) is forwarded the same way - without it, a
+            // real LLM provider has no memory of the conversation.
+            Map<String, Object> requestBody = new java.util.HashMap<>();
+            requestBody.put("query", query);
+            requestBody.put("context", context != null ? context : "");
+            requestBody.put("history", history != null ? history : List.of());
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
 
             ResponseEntity<Map<String, Object>> response = restTemplate.exchange(url, HttpMethod.POST, entity,
                     MAP_RESPONSE_TYPE);

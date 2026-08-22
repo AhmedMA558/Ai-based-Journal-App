@@ -69,12 +69,20 @@ public class AiController {
 
     @PostMapping("/chat")
     @Operation(summary = "Chat with your Journal History (RAG / AI Memory)")
+    @SuppressWarnings("unchecked")
     public ResponseEntity<ApiResponse<String>> chatWithJournal(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
             @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
-            @RequestBody Map<String, String> request) {
+            @RequestBody Map<String, Object> request) {
         Long uid = userId != null ? userId : 1L;
-        String answer = aiService.chatWithJournal(uid, request.get("query"), request.getOrDefault("context", ""), authorizationHeader);
+        String query = (String) request.get("query");
+        String context = request.get("context") != null ? (String) request.get("context") : "";
+        // Prior conversation turns, oldest first - without this, a real LLM
+        // provider has no memory of the conversation and evaluates every
+        // message in isolation (see AiProviderStrategy.chatWithJournal).
+        Object rawHistory = request.get("history");
+        List<Map<String, String>> history = rawHistory instanceof List ? (List<Map<String, String>>) rawHistory : List.of();
+        String answer = aiService.chatWithJournal(uid, query, context, history, authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success("AI Response generated", answer));
     }
 

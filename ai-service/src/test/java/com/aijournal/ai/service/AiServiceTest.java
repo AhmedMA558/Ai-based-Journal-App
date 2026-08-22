@@ -138,7 +138,7 @@ class AiServiceTest {
                 journalEntry("Old win", "Finished a big project.", "HAPPY", "2026-01-02T09:00:00")
         ));
 
-        String answer = aiService.chatWithJournal(1L, "When was I happy?", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "When was I happy?", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         assertTrue(answer.contains("March 15, 2026"), "should cite the real date of the most recent HAPPY entry: " + answer);
@@ -155,7 +155,7 @@ class AiServiceTest {
                 journalEntry("Great day", "Everything went well.", "HAPPY", "2026-03-25T09:00:00")
         ));
 
-        String answer = aiService.chatWithJournal(1L, "When was my worst mood?", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "When was my worst mood?", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         assertTrue(answer.contains("April 1, 2026"), "most recent negative-mood entry should be cited first: " + answer);
@@ -167,7 +167,7 @@ class AiServiceTest {
     void chatWithJournal_NoMatchingMoodEntries_ReturnsHonestNoDataMessageNotAFabricatedDate() {
         stubJournalFetch(List.of(journalEntry("Normal day", "Nothing special.", "NEUTRAL", "2026-03-15T10:00:00")));
 
-        String answer = aiService.chatWithJournal(1L, "When was I angry?", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "When was I angry?", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         assertTrue(answer.toLowerCase().contains("didn't find"), "should honestly say no matching entries exist: " + answer);
@@ -177,7 +177,7 @@ class AiServiceTest {
     void chatWithJournal_GeneralMessageMentioningMoodInPassing_StillGetsNormalStrategyReply() {
         // "I'm sad today" mentions a mood word but isn't a "when"/"how many
         // times" question - must not trigger the data-lookup path at all.
-        String answer = aiService.chatWithJournal(1L, "I'm sad today", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "I'm sad today", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         verifyNoInteractions(restTemplate);
@@ -188,7 +188,7 @@ class AiServiceTest {
         when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(HttpEntity.class), ArgumentMatchers.<ParameterizedTypeReference<Map<String, Object>>>any()))
                 .thenThrow(new RestClientException("journal-service unreachable"));
 
-        String answer = aiService.chatWithJournal(1L, "When was I happy?", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "When was I happy?", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         assertFalse(answer.isBlank());
@@ -196,7 +196,7 @@ class AiServiceTest {
 
     @Test
     void chatWithJournal_NonMoodQuestion_DelegatesToStrategyAndNeverCallsJournalService() {
-        String answer = aiService.chatWithJournal(1L, "Suggest 3 journal prompts", "", "Bearer test-token");
+        String answer = aiService.chatWithJournal(1L, "Suggest 3 journal prompts", "", List.of(), "Bearer test-token");
 
         assertNotNull(answer);
         verifyNoInteractions(restTemplate);

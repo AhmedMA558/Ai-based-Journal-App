@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -111,15 +112,39 @@ class FlaskAiStrategyTest {
                 any(ParameterizedTypeReference.class)))
                 .thenReturn(new ResponseEntity<>(body, HttpStatus.OK));
 
-        strategy.chatWithJournal("how am I doing?", "feeling overwhelmed with work");
+        strategy.chatWithJournal("how am I doing?", "feeling overwhelmed with work", List.of());
 
-        ArgumentCaptor<HttpEntity<Map<String, String>>> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        ArgumentCaptor<HttpEntity<Map<String, Object>>> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
         verify(restTemplate).exchange(any(String.class), eq(HttpMethod.POST), entityCaptor.capture(),
                 any(ParameterizedTypeReference.class));
-        Map<String, String> sentBody = entityCaptor.getValue().getBody();
+        Map<String, Object> sentBody = entityCaptor.getValue().getBody();
 
         assertThat(sentBody).containsEntry("query", "how am I doing?");
         assertThat(sentBody).containsEntry("context", "feeling overwhelmed with work");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void chatWithJournal_ForwardsHistory_NotSilentlyDropped() {
+        // Same class of bug as the context-forwarding regression above, for
+        // conversation history - without it, a real LLM provider has no
+        // memory of the conversation and every message is evaluated in
+        // isolation.
+        Map<String, Object> data = Map.of("response", "a reply", "provider", "python-ai");
+        Map<String, Object> body = Map.of("data", data);
+        when(restTemplate.exchange(any(String.class), eq(HttpMethod.POST), any(),
+                any(ParameterizedTypeReference.class)))
+                .thenReturn(new ResponseEntity<>(body, HttpStatus.OK));
+        List<Map<String, String>> history = List.of(Map.of("role", "user", "content", "hi"));
+
+        strategy.chatWithJournal("how am I doing?", "", history);
+
+        ArgumentCaptor<HttpEntity<Map<String, Object>>> entityCaptor = ArgumentCaptor.forClass(HttpEntity.class);
+        verify(restTemplate).exchange(any(String.class), eq(HttpMethod.POST), entityCaptor.capture(),
+                any(ParameterizedTypeReference.class));
+        Map<String, Object> sentBody = entityCaptor.getValue().getBody();
+
+        assertThat(sentBody).containsEntry("history", history);
     }
 
     @Test
@@ -132,7 +157,7 @@ class FlaskAiStrategyTest {
                 any(ParameterizedTypeReference.class)))
                 .thenReturn(new ResponseEntity<>(body, HttpStatus.OK));
 
-        String result = strategy.chatWithJournal("hello", null);
+        String result = strategy.chatWithJournal("hello", null, null);
 
         assertThat(result).isEqualTo("a reply");
     }

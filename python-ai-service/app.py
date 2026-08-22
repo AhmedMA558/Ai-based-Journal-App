@@ -20,6 +20,29 @@ MOOD_EMOJI_MAP = {
 
 HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
 
+# Real conversational AI for /chat, preferred over the HuggingFace DialoGPT
+# path and the keyword-canned fallback below it - both of those are what
+# produced the actual bug this was built to fix: casual messages with no
+# specific mood/topic keyword in them (most conversation) all fell into the
+# same "HAPPY" bucket and got a byte-identical canned reply back, over and
+# over, regardless of what was actually said. A real LLM actually
+# understands the request instead of pattern-matching it. Two providers are
+# supported - Gemini is tried first (it's the one actually configured/used
+# today), Claude second (built out but not currently configured) - same
+# graceful multi-tier fallback shape the HF/keyword tiers below already use.
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+CHAT_SYSTEM_PROMPT = (
+    "You are the AI Writing & Wellness Companion inside Mindora, a journaling app. "
+    "You help the user reflect on their day, process emotions, build a journaling habit, "
+    "and improve their writing (rephrasing, grammar, continuing a passage) when asked. "
+    "Be warm and specific to what the user actually wrote - never generic or repetitive. "
+    "Keep replies conversational and concise (2-5 sentences) unless the user's request "
+    "genuinely needs more (e.g. a rewritten passage, multiple prompts)."
+)
+
 # Keywords confirmed to also be a literal PREFIX of a common, unrelated
 # English word - e.g. "mad" (meant to catch anger) is the first three
 # letters of "made", so naive substring matching silently misclassified any
@@ -345,46 +368,153 @@ def keyword_chat_reply(query: str, context: str) -> str:
     mood = detect_mood_keywords(combined) if combined else "HAPPY"
     return CHAT_REPLIES_BY_MOOD.get(mood, CHAT_REPLIES_BY_MOOD["HAPPY"])
 
+
+def gemini_chat_reply(query: str, context: str, history: list):
+    """Real generative reply via Google's Gemini API. Returns None (never
+    raises) on any failure so the caller can fall through to the next tier -
+    same graceful-degradation contract every other HF-backed branch in this
+    file already follows."""
+    try:
+        system_prompt = CHAT_SYSTEM_PROMPT
+        if context:
+            system_prompt += f"\n\nRecent excerpts from the user's own journal, for context (do not quote them verbatim unless asked):\n{context}"
+
+        # Gemini uses "model" for the assistant's own turns, not "assistant" -
+        # the history this function receives uses the same role names as the
+        # Anthropic-shaped fallback below (and the rest of this platform), so
+        # it's translated here rather than pushing a Gemini-specific role
+        # name up through the Java layer and both clients.
+        contents = []
+        for turn in history or []:
+            role = turn.get('role')
+            content = turn.get('content')
+            if role == 'user' and content:
+                contents.append({"role": "user", "parts": [{"text": content}]})
+            elif role == 'assistant' and content:
+                contents.append({"role": "model", "parts": [{"text": content}]})
+        contents.append({"role": "user", "parts": [{"text": query}]})
+
+        res = requests.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent",
+            headers={
+                "Content-Type": "application/json",
+                "X-goog-api-key": GEMINI_API_KEY,
+            },
+            json={
+                "systemInstruction": {"parts": [{"text": system_prompt}]},
+                "contents": contents,
+            },
+            timeout=20,
+        )
+        if res.status_code != 200:
+            return None
+        out = res.json()
+        candidates = out.get('candidates') or []
+        if not candidates:
+            return None
+        parts = candidates[0].get('content', {}).get('parts') or []
+        # Some Gemini models attach a "thoughtSignature" (an internal
+        # reasoning trace) alongside the real "text" field on the same part -
+        # only the text is a real reply to show the user.
+        text = "".join(p.get('text', '') for p in parts).strip()
+        return text or None
+    except Exception:
+        return None
+
+
+def anthropic_chat_reply(query: str, context: str, history: list):
+    """Real generative reply via Claude's Messages API. Returns None (never
+    raises) on any failure so the caller can fall through to the next tier -
+    same graceful-degradation contract every other HF-backed branch in this
+    file already follows."""
+    try:
+        system_prompt = CHAT_SYSTEM_PROMPT
+        if context:
+            system_prompt += f"\n\nRecent excerpts from the user's own journal, for context (do not quote them verbatim unless asked):\n{context}"
+
+        messages = []
+        for turn in history or []:
+            role = turn.get('role')
+            content = turn.get('content')
+            if role in ('user', 'assistant') and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": query})
+
+        res = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": ANTHROPIC_API_KEY,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": ANTHROPIC_MODEL,
+                "max_tokens": 500,
+                "system": system_prompt,
+                "messages": messages,
+            },
+            timeout=20,
+        )
+        if res.status_code != 200:
+            return None
+        out = res.json()
+        blocks = out.get('content') or []
+        text = "".join(b.get('text', '') for b in blocks if b.get('type') == 'text').strip()
+        return text or None
+    except Exception:
+        return None
+
 # 5. Real-time Conversational AI & Writing Assistant Chat
 @app.route('/api/v1/ai/chat', methods=['POST'])
 def chat():
     data = request.get_json() or {}
     query = data.get('query', '')
     context = data.get('context', '')
+    history = data.get('history') or []
     if not query:
         return jsonify({"success": False, "message": "Query is required"}), 400
 
     q_lower = query.lower()
 
     provider = "python-ai"
-    if "rephrase" in q_lower:
-        ai_reply = "Rephrased version: 'I am experiencing deep frustration due to feeling physically and mentally exhausted.'"
-    elif "grammar" in q_lower:
-        ai_reply = "Grammar Corrected: 'I am feeling really frustrated because I am really tired.'"
-    elif "continue" in q_lower:
-        ai_reply = "I need to take a step back, rest for a little while, and allow myself time to recharge."
-    else:
-        ai_reply = None
-        if HF_API_KEY:
-            try:
-                hf_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
-                headers = {"Authorization": f"Bearer {HF_API_KEY}"}
-                prompt = f"{context}\n\n{query}" if context else query
-                res = requests.post(hf_url, headers=headers, json={"inputs": prompt}, timeout=5)
-                if res.status_code == 200:
-                    hf_out = res.json()
-                    generated = None
-                    if isinstance(hf_out, dict):
-                        generated = hf_out.get('generated_text')
-                    elif isinstance(hf_out, list) and len(hf_out) > 0:
-                        generated = hf_out[0].get('generated_text')
-                    if generated:
-                        ai_reply = generated.strip()
-                        provider = "huggingface-dialogpt"
-            except Exception:
-                pass
-        if not ai_reply:
-            ai_reply = keyword_chat_reply(query, context)
+    ai_reply = None
+    if GEMINI_API_KEY:
+        ai_reply = gemini_chat_reply(query, context, history)
+        if ai_reply:
+            provider = "google-gemini"
+    if not ai_reply and ANTHROPIC_API_KEY:
+        ai_reply = anthropic_chat_reply(query, context, history)
+        if ai_reply:
+            provider = "anthropic-claude"
+
+    if not ai_reply:
+        if "rephrase" in q_lower:
+            ai_reply = "Rephrased version: 'I am experiencing deep frustration due to feeling physically and mentally exhausted.'"
+        elif "grammar" in q_lower:
+            ai_reply = "Grammar Corrected: 'I am feeling really frustrated because I am really tired.'"
+        elif "continue" in q_lower:
+            ai_reply = "I need to take a step back, rest for a little while, and allow myself time to recharge."
+        else:
+            if HF_API_KEY:
+                try:
+                    hf_url = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
+                    headers = {"Authorization": f"Bearer {HF_API_KEY}"}
+                    prompt = f"{context}\n\n{query}" if context else query
+                    res = requests.post(hf_url, headers=headers, json={"inputs": prompt}, timeout=5)
+                    if res.status_code == 200:
+                        hf_out = res.json()
+                        generated = None
+                        if isinstance(hf_out, dict):
+                            generated = hf_out.get('generated_text')
+                        elif isinstance(hf_out, list) and len(hf_out) > 0:
+                            generated = hf_out[0].get('generated_text')
+                        if generated:
+                            ai_reply = generated.strip()
+                            provider = "huggingface-dialogpt"
+                except Exception:
+                    pass
+            if not ai_reply:
+                ai_reply = keyword_chat_reply(query, context)
 
     return jsonify({
         "success": True,

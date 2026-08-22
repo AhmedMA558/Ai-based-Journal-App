@@ -53,7 +53,7 @@ export const mockAiService = {
     );
   },
 
-  async chat(query: string): Promise<string> {
+  async chat(query: string, _history?: { role: 'user' | 'assistant'; content: string }[]): Promise<string> {
     const reply = keywordChatReply(query);
     return new Promise((resolve) => setTimeout(() => resolve(reply), CHAT_DELAY_MS));
   },

@@ -1,6 +1,7 @@
 package com.aijournal.ai.strategy;
 
 import java.util.List;
+import java.util.Map;
 
 public interface AiProviderStrategy {
     String getProviderName();
@@ -9,7 +10,13 @@ public interface AiProviderStrategy {
     MoodResult detectMood(String content);
     List<String> generateRecommendations(String content, String mood);
     List<String> generateTags(String content);
-    String chatWithJournal(String query, String context);
+    // history is prior conversation turns ({"role": "user"|"assistant",
+    // "content": "..."}, oldest first) - without it, a real LLM provider has
+    // no memory of the conversation and every message gets evaluated in
+    // isolation, which is what let the old canned-reply fallback repeat the
+    // same response for unrelated messages that happened to land in the
+    // same mood/topic bucket.
+    String chatWithJournal(String query, String context, List<Map<String, String>> history);
     // Used internally by detectAndSaveMood (via AiServiceImpl calling
     // getStrategy().analyzeSentiment(...) directly) to populate
     // MoodHistory.sentiment/sentiment_score - not part of AiService's own

@@ -79,13 +79,23 @@ export default function AIChatView() {
     const query = textToSend || input;
     if (!query.trim() || loading) return;
 
+    // Real conversation history, not just the current message - without
+    // this, a real LLM provider has no memory of what was already said.
+    // The synthetic init/reset greeting is excluded (it's UI copy, not
+    // something the model actually said), and it's capped to the most
+    // recent turns to keep the request a reasonable size.
+    const history = messages
+      .filter((m) => !m.id.startsWith('init-') && !m.id.startsWith('reset-'))
+      .slice(-10)
+      .map((m) => ({ role: m.sender === 'user' ? 'user' : 'assistant', content: m.text }));
+
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: query };
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInput('');
     setLoading(true);
 
     try {
-      const res = await aiService.chat(query, journalContextRef.current);
+      const res = await aiService.chat(query, journalContextRef.current, history);
       const reply = res?.data?.data || 'I am here to support your journaling journey.';
       markAiUsed();
       setMessages((prev) => [...prev, { id: `ai-${Date.now()}`, sender: 'ai', text: reply }]);

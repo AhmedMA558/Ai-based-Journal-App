@@ -61,6 +61,18 @@ services:
     container_name: python-ai-service
     ports:
       - "5000:5000"
+    # Both genuinely optional - the /chat, /mood, and /summarize routes all
+    # fall back to real (non-fake) keyword/rule-based logic when unset, so
+    # there's no reason to require either for local dev. Previously neither
+    # was actually wired into this container at all (HUGGINGFACE_API_KEY was
+    # referenced only in a code comment), so even a real key in .env never
+    # reached the process.
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY:-}
 
   discovery-server:
     build: ./discovery-server

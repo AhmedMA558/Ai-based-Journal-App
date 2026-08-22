@@ -4,6 +4,7 @@ import com.aijournal.ai.entity.MoodHistory;
 import com.aijournal.ai.strategy.AiProviderStrategy.*;
 
 import java.util.List;
+import java.util.Map;
 
 public interface AiService {
     SummaryResult summarizeJournal(String content);
@@ -15,7 +16,9 @@ public interface AiService {
     List<MoodHistory> getEmotionTimeline(Long userId, String period);
     List<String> getRecommendations(String content, String mood);
     List<String> generateTags(String content);
-    String chatWithJournal(Long userId, String query, String context, String authorizationHeader);
+    // history is prior conversation turns, oldest first - see
+    // AiProviderStrategy.chatWithJournal's javadoc for why this matters.
+    String chatWithJournal(Long userId, String query, String context, List<Map<String, String>> history, String authorizationHeader);
     RephraseResult rephrase(String content);
     GrammarResult fixGrammar(String content);
 }

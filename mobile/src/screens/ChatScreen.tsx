@@ -38,13 +38,23 @@ export default function ChatScreen() {
     const query = textToSend || input;
     if (!query.trim() || loading) return;
 
+    // Real conversation history, not just the current message - same
+    // reasoning as web's AIChatView.tsx: without it, a real LLM provider
+    // has no memory of what was already said. The synthetic init/reset
+    // greeting is excluded (UI copy, not something the model actually
+    // said), capped to the most recent turns.
+    const history = messages
+      .filter((m) => !m.id.startsWith('init-') && !m.id.startsWith('reset-'))
+      .slice(-10)
+      .map((m) => ({ role: (m.sender === 'user' ? 'user' : 'assistant') as 'user' | 'assistant', content: m.text }));
+
     const userMsg: ChatMessage = { id: `user-${Date.now()}`, sender: 'user', text: query };
     setMessages((prev) => [...prev, userMsg]);
     if (!textToSend) setInput('');
     setLoading(true);
 
     try {
-      const reply = await aiService.chat(query);
+      const reply = await aiService.chat(query, history);
       markAiUsed();
       setMessages((prev) => [
         ...prev,
