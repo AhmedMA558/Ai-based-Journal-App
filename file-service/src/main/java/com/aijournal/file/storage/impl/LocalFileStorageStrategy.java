@@ -63,4 +63,26 @@ public class LocalFileStorageStrategy implements FileStorageStrategy {
             // Ignore deletion error
         }
     }
+
+    @Override
+    public void deleteDirectory(String subPath) {
+        Path dir = Paths.get(uploadDir, subPath);
+        if (!Files.isDirectory(dir)) {
+            return;
+        }
+        try (var walk = Files.walk(dir)) {
+            // Deepest paths first (files before their parent directories),
+            // matching the standard delete-a-tree ordering - deleting a
+            // directory before its contents are gone would fail.
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(path -> {
+                try {
+                    Files.deleteIfExists(path);
+                } catch (IOException e) {
+                    // Ignore deletion error, same graceful-degradation bar as deleteFile
+                }
+            });
+        } catch (IOException e) {
+            // Ignore - same graceful-degradation bar as deleteFile
+        }
+    }
 }

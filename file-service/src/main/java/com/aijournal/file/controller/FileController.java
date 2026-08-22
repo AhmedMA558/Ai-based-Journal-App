@@ -66,4 +66,11 @@ public class FileController {
         fileStorageStrategy.deleteFile(path);
         return ResponseEntity.ok(ApiResponse.success("File deleted successfully", null));
     }
+
+    @DeleteMapping("/all")
+    @Operation(summary = "Delete every file the authenticated user uploaded (internal - called by user-service's account-deletion flow)")
+    public ResponseEntity<ApiResponse<Void>> deleteAllFilesForUser(@RequestHeader("X-User-Id") Long userId) {
+        fileStorageStrategy.deleteDirectory("user-" + userId);
+        return ResponseEntity.ok(ApiResponse.success("All files deleted", null));
+    }
 }
