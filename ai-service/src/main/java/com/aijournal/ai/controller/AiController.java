@@ -35,10 +35,11 @@ public class AiController {
     @Operation(summary = "Detect Mood (Happy, Sad, Anxious, Angry, Stress, etc.) with Confidence Score and Emoji")
     public ResponseEntity<ApiResponse<MoodResult>> detectMood(
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader,
             @RequestParam(required = false) Long journalId,
             @RequestBody Map<String, String> request) {
         Long uid = userId != null ? userId : 1L;
-        MoodResult result = aiService.detectAndSaveMood(uid, journalId != null ? journalId : 0L, request.get("content"));
+        MoodResult result = aiService.detectAndSaveMood(uid, journalId != null ? journalId : 0L, request.get("content"), authorizationHeader);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
