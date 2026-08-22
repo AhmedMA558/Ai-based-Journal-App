@@ -56,9 +56,35 @@ describe('AIChatView', () => {
     await user.type(screen.getByPlaceholderText('Ask AI for advice, journaling prompts, rephrasing...'), 'Hello there');
     await user.click(screen.getByRole('button', { name: /Send/ }));
 
-    expect(mockedChat).toHaveBeenCalledWith('Hello there', expect.any(String));
+    expect(mockedChat).toHaveBeenCalledWith('Hello there', expect.any(String), expect.any(Array));
     expect(screen.getByText('Hello there')).toBeInTheDocument();
     expect(await screen.findByText('Here is a helpful reply.')).toBeInTheDocument();
+  });
+
+  it('sends prior conversation turns as history, excluding the synthetic greeting', async () => {
+    // Regression guard: without real conversation history, a real LLM
+    // provider evaluates every message in isolation - this is what let the
+    // old canned-reply fallback repeat the same response for unrelated
+    // messages that happened to land in the same mood/topic bucket.
+    mockedChat.mockResolvedValueOnce({ data: { data: 'First reply.' } } as any);
+    mockedChat.mockResolvedValueOnce({ data: { data: 'Second reply.' } } as any);
+    const user = userEvent.setup();
+    render(<AIChatView />);
+
+    const input = screen.getByPlaceholderText('Ask AI for advice, journaling prompts, rephrasing...');
+    await user.type(input, 'First message');
+    await user.click(screen.getByRole('button', { name: /Send/ }));
+    await screen.findByText('First reply.');
+
+    await user.type(input, 'Second message');
+    await user.click(screen.getByRole('button', { name: /Send/ }));
+    await screen.findByText('Second reply.');
+
+    const [, , history] = mockedChat.mock.calls[1];
+    expect(history).toEqual([
+      { role: 'user', content: 'First message' },
+      { role: 'assistant', content: 'First reply.' },
+    ]);
   });
 
   it('sends a preset prompt when clicked', async () => {
@@ -68,7 +94,7 @@ describe('AIChatView', () => {
 
     await user.click(screen.getByText('Summarize my emotional growth & wins'));
 
-    expect(mockedChat).toHaveBeenCalledWith('Summarize my emotional growth & wins', expect.any(String));
+    expect(mockedChat).toHaveBeenCalledWith('Summarize my emotional growth & wins', expect.any(String), expect.any(Array));
     expect(await screen.findByText('Sure, here are some prompts.')).toBeInTheDocument();
   });
 

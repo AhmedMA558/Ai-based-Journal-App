@@ -4,6 +4,7 @@ import com.aijournal.ai.strategy.AiProviderStrategy;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 
 @Component("mockAiStrategy")
 public class MockAiStrategy implements AiProviderStrategy {
@@ -44,7 +45,7 @@ public class MockAiStrategy implements AiProviderStrategy {
     }
 
     @Override
-    public String chatWithJournal(String query, String context) {
+    public String chatWithJournal(String query, String context, List<Map<String, String>> history) {
         return "Mock AI response to: " + query;
     }
 

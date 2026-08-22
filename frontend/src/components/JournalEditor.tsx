@@ -438,7 +438,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               type="text"
               required
               className="glass-input text-[1.15rem] font-bold"
-              placeholder="e.g. Completing SaaS UI Redesign & AI Microservice"
+              placeholder="e.g. A quiet Sunday morning"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -463,7 +463,7 @@ export default function JournalEditor({ initialData, onClose, onSaveSuccess, sho
               required
               rows={9}
               className="glass-input leading-[1.7] resize-y text-base"
-              placeholder="Write your thoughts, feelings, or daily experience (AI will analyze your text instantly as you type)..."
+              placeholder="What's on your mind today? Write freely about your thoughts, feelings, or how your day went..."
               value={content}
               onChange={handleContentChange}
             />

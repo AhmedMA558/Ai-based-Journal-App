@@ -23,8 +23,13 @@ export const aiService = {
 
   // Chat with Journal AI - context is optional recent-journal text so the
   // reply can be aware of what the user has actually been writing about.
-  chat: async (query, context) => {
-    return await api.post('/api/v1/ai/chat', { query, context: context || '' });
+  // history is prior conversation turns ([{role: 'user'|'assistant',
+  // content}], oldest first) - without it, a real LLM provider has no
+  // memory of the conversation and every message gets evaluated in
+  // isolation, which is what let the old canned-reply fallback repeat the
+  // same response for unrelated messages.
+  chat: async (query, context, history) => {
+    return await api.post('/api/v1/ai/chat', { query, context: context || '', history: history || [] });
   },
 
   // Generate Tags

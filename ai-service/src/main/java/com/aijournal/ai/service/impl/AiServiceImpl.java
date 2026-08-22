@@ -124,7 +124,7 @@ public class AiServiceImpl implements AiService {
     // mentions a mood in passing ("I'm sad today") still gets the
     // strategy's normal supportive reply, not a data dump.
     @Override
-    public String chatWithJournal(Long userId, String query, String context, String authorizationHeader) {
+    public String chatWithJournal(Long userId, String query, String context, List<Map<String, String>> history, String authorizationHeader) {
         Set<String> targetMoods = detectMoodHistoryIntent(query);
         if (targetMoods != null) {
             String grounded = answerMoodHistoryQuery(targetMoods, authorizationHeader);
@@ -134,7 +134,7 @@ public class AiServiceImpl implements AiService {
             // Fetch failed (journal-service unreachable, etc.) - fall through
             // to the normal strategy reply rather than surfacing an error.
         }
-        return getStrategy().chatWithJournal(query, context);
+        return getStrategy().chatWithJournal(query, context, history);
     }
 
     private Set<String> detectMoodHistoryIntent(String query) {

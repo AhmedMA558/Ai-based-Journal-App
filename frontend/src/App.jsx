@@ -220,8 +220,15 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
   }, []);
 
-  // Active 10-Minute Session Expiry Watcher
+  // Active 10-Minute Session Expiry Watcher - only meaningful once actually
+  // logged in. Without this guard, the interval ran unconditionally from
+  // app load, so an unauthenticated visitor (e.g. still sitting on the
+  // login page) got authService.isAuthenticated() evaluating to false every
+  // 10s forever, showing "Session expired. Please log in again." on a
+  // repeating loop despite never having had a session to expire.
   useEffect(() => {
+    if (!isAuthenticated) return undefined;
+
     const checkInterval = setInterval(() => {
       const valid = authService.isAuthenticated();
       if (!valid) {
@@ -231,7 +238,7 @@ export default function App() {
     }, 10000);
 
     return () => clearInterval(checkInterval);
-  }, []);
+  }, [isAuthenticated]);
 
   // Real user activity extends the session; authService.touchSession()
   // existed but was never wired to anything, so the session was actually a

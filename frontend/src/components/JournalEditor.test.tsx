@@ -70,7 +70,7 @@ describe('JournalEditor', () => {
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
 
     await user.type(
-      screen.getByPlaceholderText(/Write your thoughts/),
+      screen.getByPlaceholderText(/What's on your mind/),
       'I am so angry and furious right now'
     );
 
@@ -85,7 +85,7 @@ describe('JournalEditor', () => {
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
 
     await user.type(
-      screen.getByPlaceholderText(/Write your thoughts/),
+      screen.getByPlaceholderText(/What's on your mind/),
       'What made me feel grateful today: my happy little dog'
     );
 
@@ -101,7 +101,7 @@ describe('JournalEditor', () => {
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
 
     await user.type(
-      screen.getByPlaceholderText(/Write your thoughts/),
+      screen.getByPlaceholderText(/What's on your mind/),
       'I opened the window to feel the winter air'
     );
 
@@ -123,8 +123,8 @@ describe('JournalEditor', () => {
 
     // Whitespace-only content satisfies the native HTML `required` attribute
     // (it isn't empty), but should still fail the component's own .trim() check.
-    await user.type(screen.getByPlaceholderText(/Completing SaaS UI Redesign/), 'A title');
-    await user.type(screen.getByPlaceholderText(/Write your thoughts/), '   ');
+    await user.type(screen.getByPlaceholderText(/A quiet Sunday morning/), 'A title');
+    await user.type(screen.getByPlaceholderText(/What's on your mind/), '   ');
     await user.click(screen.getByText('Save Journal Entry'));
 
     expect(await screen.findByText('Title and Content are required.')).toBeInTheDocument();
@@ -138,8 +138,8 @@ describe('JournalEditor', () => {
     const user = userEvent.setup();
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={onSaveSuccess} showToast={showToast} />);
 
-    await user.type(screen.getByPlaceholderText(/Completing SaaS UI Redesign/), 'My Title');
-    await user.type(screen.getByPlaceholderText(/Write your thoughts/), 'My content for today');
+    await user.type(screen.getByPlaceholderText(/A quiet Sunday morning/), 'My Title');
+    await user.type(screen.getByPlaceholderText(/What's on your mind/), 'My content for today');
     await user.click(screen.getByText('Save Journal Entry'));
 
     await waitFor(() => expect(mockedCreateJournal).toHaveBeenCalledTimes(1));
@@ -189,7 +189,7 @@ describe('JournalEditor', () => {
     const user = userEvent.setup();
     render(<JournalEditor onClose={vi.fn()} onSaveSuccess={vi.fn()} />);
 
-    await user.type(screen.getByPlaceholderText(/Write your thoughts/), 'rough draft text');
+    await user.type(screen.getByPlaceholderText(/What's on your mind/), 'rough draft text');
     await user.click(screen.getByText('Rephrase Text'));
 
     expect(await screen.findByDisplayValue('A nicer version of the text.')).toBeInTheDocument();
