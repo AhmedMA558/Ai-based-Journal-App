@@ -32,9 +32,26 @@ HF_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
 # today), Claude second (built out but not currently configured) - same
 # graceful multi-tier fallback shape the HF/keyword tiers below already use.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+# "gemini-flash-latest" resolves to a full "-flash" tier model, whose free
+# tier is capped at only 20 requests/day/project (confirmed live via a real
+# 429 RESOURCE_EXHAUSTED response after this platform's own testing burned
+# through it in one session) - "-lite" tier models are on a separate,
+# meaningfully higher free-tier quota bucket (confirmed live: still
+# returning 200s immediately after the full-tier model's daily quota was
+# exhausted), and are more than capable for a short conversational reply or
+# a rephrase/grammar/tag/mood-classification task.
+# `or` here, not os.environ.get(key, default)'s own fallback arg - that arg
+# only kicks in when the key is entirely ABSENT, but docker-compose's
+# ${GEMINI_MODEL:-} passes a real, present, empty-string env var into the
+# container whenever it's unset in .env, which .get()'s default silently
+# never catches. Confirmed live: this exact gap made every Gemini call
+# request the URL ".../models/:generateContent" (empty model segment),
+# which fails, so every /chat and rephrase/grammar/tags/summarize/mood call
+# silently fell through to its fallback tier - not a transient/quota issue,
+# a real bug in how the env var's absence was checked.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL") or "gemini-flash-lite-latest"
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL") or "claude-haiku-4-5-20251001"
 CHAT_SYSTEM_PROMPT = (
     "You are the AI Writing & Wellness Companion inside Mindora, a journaling app. "
     "You help the user reflect on their day, process emotions, build a journaling habit, "
@@ -512,15 +529,23 @@ def gemini_generate(system_prompt: str, user_prompt: str, json_response: bool = 
             timeout=20,
         )
         if res.status_code != 200:
+            # Logged, not silently swallowed - a caught-but-invisible failure
+            # here is exactly what made an earlier real bug (an env var
+            # silently resolving empty) undiagnosable from `docker logs`
+            # alone, and this is also where a real live quota/outage (a real
+            # 429/503 from Gemini's side) surfaces.
+            app.logger.warning("gemini_generate: %s returned %s: %s", GEMINI_MODEL, res.status_code, res.text[:300])
             return None
         out = res.json()
         candidates = out.get('candidates') or []
         if not candidates:
+            app.logger.warning("gemini_generate: no candidates in response")
             return None
         parts = candidates[0].get('content', {}).get('parts') or []
         text = "".join(p.get('text', '') for p in parts).strip()
         return text or None
-    except Exception:
+    except Exception as e:
+        app.logger.warning("gemini_generate: request failed: %s", e)
         return None
 
 
@@ -562,10 +587,12 @@ def gemini_chat_reply(query: str, context: str, history: list):
             timeout=20,
         )
         if res.status_code != 200:
+            app.logger.warning("gemini_chat_reply: %s returned %s: %s", GEMINI_MODEL, res.status_code, res.text[:300])
             return None
         out = res.json()
         candidates = out.get('candidates') or []
         if not candidates:
+            app.logger.warning("gemini_chat_reply: no candidates in response")
             return None
         parts = candidates[0].get('content', {}).get('parts') or []
         # Some Gemini models attach a "thoughtSignature" (an internal
@@ -573,7 +600,8 @@ def gemini_chat_reply(query: str, context: str, history: list):
         # only the text is a real reply to show the user.
         text = "".join(p.get('text', '') for p in parts).strip()
         return text or None
-    except Exception:
+    except Exception as e:
+        app.logger.warning("gemini_chat_reply: request failed: %s", e)
         return None
 
 
@@ -611,12 +639,14 @@ def anthropic_chat_reply(query: str, context: str, history: list):
             timeout=20,
         )
         if res.status_code != 200:
+            app.logger.warning("anthropic_chat_reply: %s returned %s: %s", ANTHROPIC_MODEL, res.status_code, res.text[:300])
             return None
         out = res.json()
         blocks = out.get('content') or []
         text = "".join(b.get('text', '') for b in blocks if b.get('type') == 'text').strip()
         return text or None
-    except Exception:
+    except Exception as e:
+        app.logger.warning("anthropic_chat_reply: request failed: %s", e)
         return None
 
 # 5. Real-time Conversational AI & Writing Assistant Chat
